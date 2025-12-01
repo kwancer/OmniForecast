@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "C:\Dev\Imperial\OmniForecast\backend\app\api\routes.py", line 54, in generate_forecast
+    clean_df = clean_dataset(df, ontology)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Dev\Imperial\OmniForecast\backend\app\core\autoclean.py", line 33, in clean_dataset
+    raise ValueError(f"Target column '{target_col}' not found in dataset. Available: {df.columns.tolist()}")
+ValueError: Target column 'Mean daily temperature (Celsius) of Saugeen River ' not found in dataset. Available: ['Date', 'Mean daily temperature (Celsius) of Saugeen River']
