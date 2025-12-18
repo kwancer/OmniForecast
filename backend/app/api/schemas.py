@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any
 from app.models.ontology import ColumnRoleDefinition
 
 class CleaningAction(BaseModel):

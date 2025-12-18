@@ -5,7 +5,7 @@ import io
 import uuid
 import json
 from sqlalchemy.orm import Session
-from typing import Dict, Any
+from typing import List
 
 from app.models.ontology import ForecastOntology
 from app.core.intent import analyze_intent
