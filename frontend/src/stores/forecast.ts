@@ -1,16 +1,18 @@
 import { defineStore } from 'pinia'
 import { useAppStore } from './app'
-import type { ForecastOntology, ForecastResult, ForecastResponse } from '@/types'
+import type { ForecastOntology, ForecastResult, ForecastResponse, CleaningReport, ForecastMetric } from '@/types'
 
 export const useForecastStore = defineStore('forecast', {
   state: () => ({
     file: null as File | null,
     intent: '',
     ontology: null as ForecastOntology | null,
+    cleaningReport: null as CleaningReport | null,
     forecastResults: [] as ForecastResult[],
+    metrics: [] as ForecastMetric[],
     explanation: '',
     loading: false,
-    step: 'upload' as 'upload' | 'plan' | 'results'
+    step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results'
   }),
 
   getters: {
@@ -35,7 +37,7 @@ export const useForecastStore = defineStore('forecast', {
       this.intent = intent
     },
 
-    setStep(step: 'upload' | 'plan' | 'results') {
+    setStep(step: 'upload' | 'plan' | 'cleaning' | 'results') {
       this.step = step
     },
 
@@ -54,9 +56,13 @@ export const useForecastStore = defineStore('forecast', {
           body: formData
         })
         
-        if (!response.ok) throw new Error('Analysis failed')
+        if (!response.ok) {
+           const error = await response.json()
+           throw new Error(error.detail || 'Analysis failed')
+        }
         
         this.ontology = await response.json()
+        console.log('Analysed Data Ontology:', this.ontology)
         this.step = 'plan'
         appStore.notify('Signal analysis complete.', 'success')
       } catch (e: any) {
@@ -81,13 +87,20 @@ export const useForecastStore = defineStore('forecast', {
           body: formData
         })
         
-        if (!response.ok) throw new Error('Forecast failed')
+        if (!response.ok) {
+           const error = await response.json()
+           throw new Error(error.detail || 'Forecast failed')
+        }
         
         const data: ForecastResponse = await response.json()
         this.forecastResults = data.forecast
         this.explanation = data.explanation
-        this.step = 'results'
-        appStore.notify('Forecast execution successful.', 'success')
+        this.cleaningReport = data.cleaning_report
+        this.metrics = data.metrics
+        
+        // Move to cleaning step first to show what happened
+        this.step = 'cleaning'
+        appStore.notify('Modelling sequence complete.', 'success')
       } catch (e: any) {
         appStore.notify(e.message || 'Forecast failed', 'error')
       } finally {
@@ -95,11 +108,37 @@ export const useForecastStore = defineStore('forecast', {
       }
     },
 
+    loadSampleData() {
+      const csvContent = `Date,Daily_Sales,Store_Region,Promotional_Active
+2023-01-01,120.5,North,No
+2023-01-02,135.2,North,No
+2023-01-03,110.8,North,Yes
+2023-01-04,145.0,North,No
+2023-01-05,160.2,North,No
+2023-01-06,155.5,North,No
+2023-01-07,140.1,North,No
+2023-01-08,125.4,North,No
+2023-01-09,130.2,North,No
+2023-01-10,142.1,North,Yes`
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' })
+      const file = new File([blob], 'sample_sales_data.csv', { type: 'text/csv' })
+      
+      this.file = file
+      this.intent = 'Forecast daily sales for the next 7 days, considering the recent promotional activity.'
+      this.setStep('upload')
+      
+      const appStore = useAppStore()
+      appStore.notify('Sample sales data loaded successfully.', 'success')
+    },
+
     reset() {
       this.file = null
       this.intent = ''
       this.ontology = null
+      this.cleaningReport = null
       this.forecastResults = []
+      this.metrics = []
       this.explanation = ''
       this.step = 'upload'
     }

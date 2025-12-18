@@ -2,37 +2,82 @@
   <v-container class="fill-height d-flex flex-column">
     <div class="d-flex align-center mb-6">
       <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('upload')"></v-btn>
-      <h2 class="text-h5 font-header ml-2">Mission Plan</h2>
+      <h2 class="text-h5 font-header ml-2">Forecasting Strategy</h2>
     </div>
 
-    <v-row class="fill-height overflow-y-auto">
-      <v-col cols="12" md="6">
-        <v-card variant="outlined" class="h-100 pa-4">
-          <div class="text-overline text-secondary mb-2">DETECTED ONTOLOGY</div>
-          <pre class="font-mono text-body-2" style="white-space: pre-wrap;">{{ JSON.stringify(store.ontology, null, 2) }}</pre>
-        </v-card>
+    <v-row class="fill-height overflow-hidden">
+      <v-col cols="12" md="7" class="h-100 overflow-y-auto pr-md-4">
+        <OntologyViewer :ontology="store.ontology" />
       </v-col>
-      <v-col cols="12" md="6" class="d-flex flex-column justify-center">
-        <v-alert
-          color="secondary"
-          variant="tonal"
-          icon="mdi-robot"
-          title="System Analysis"
-          class="mb-6"
-        >
-          The Intent Layer has mapped your request. The system is ready to execute the forecasting engine using an Additive Regression Model.
-        </v-alert>
+      
+      <v-col cols="12" md="5" class="d-flex flex-column justify-center mt-4 mt-md-0">
+        <v-card variant="outlined" border class="pa-6 bg-surface">
+          <div class="d-flex align-center mb-4">
+            <v-avatar color="secondary" variant="tonal" size="48" class="mr-4">
+              <v-icon icon="mdi-robot-confused-outline" size="28" v-if="!store.ontology"></v-icon>
+              <v-icon icon="mdi-robot-check-outline" size="28" v-else></v-icon>
+            </v-avatar>
+            <div>
+              <div class="text-h6 font-weight-bold">Strategy Overview</div>
+              <div class="text-caption text-medium-emphasis">Modelling Strategy Initialised</div>
+            </div>
+          </div>
 
-        <v-btn
-          color="primary"
-          size="x-large"
-          block
-          @click="store.executeForecast"
-          :loading="store.loading"
+          <p class="text-body-2 mb-2 text-primary font-weight-bold">
+            Selected: {{ store.ontology?.model_metadata?.name || 'Standard Model' }}
+          </p>
+
+          <p class="text-body-2 mb-4 text-medium-emphasis">
+            {{ store.ontology?.model_metadata?.rationale || 'The system has mapped your data structure. We are now ready to execute the prediction engine using a customised regression model.' }}
+          </p>
+          
+          <v-alert
+            v-if="store.ontology?.model_metadata?.description"
+            variant="tonal"
+            color="info"
+            density="compact"
+            class="mb-6"
+          >
+            <div class="text-caption">
+              <strong>How it works:</strong> {{ store.ontology?.model_metadata?.description }}
+            </div>
+            <v-btn
+              v-if="store.ontology?.model_metadata?.educational_video_url"
+              :href="store.ontology.model_metadata.educational_video_url"
+              target="_blank"
+              variant="text"
+              size="x-small"
+              class="mt-2 text-none"
+              prepend-icon="mdi-youtube"
+            >
+              Learn the mathematical foundation (Video)
+            </v-btn>
+          </v-alert>
+
+          <v-btn
+            color="primary"
+            size="x-large"
+            block
+            @click="store.executeForecast"
+            :loading="store.loading"
+            elevation="2"
+          >
+            Execute & Continue
+            <v-icon end>mdi-chevron-right</v-icon>
+          </v-btn>
+        </v-card>
+
+        <v-alert
+          color="info"
+          variant="tonal"
+          icon="mdi-information-outline"
+          class="mt-6"
+          density="compact"
         >
-          <v-icon start>mdi-rocket-launch</v-icon>
-          Execute Forecast
-        </v-btn>
+          <div class="text-caption">
+            All operations are now deterministic based on the confirmed ontology.
+          </div>
+        </v-alert>
       </v-col>
     </v-row>
   </v-container>
@@ -40,6 +85,7 @@
 
 <script setup lang="ts">
 import { useForecastStore } from '@/stores/forecast'
+import OntologyViewer from './OntologyViewer.vue'
 
 const store = useForecastStore()
 </script>

@@ -8,3 +8,5 @@ statsmodels
 scikit-learn
 openai
 python-dotenv
+sqlalchemy
+greenlet

@@ -13,9 +13,11 @@ declare module 'vue' {
   export interface GlobalComponents {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
     AppHeader: typeof import('./components/AppHeader.vue')['default']
+    CleaningStage: typeof import('./components/forecast/CleaningStage.vue')['default']
     ForecastFlow: typeof import('./components/ForecastFlow.vue')['default']
     HelloWorld: typeof import('./components/HelloWorld.vue')['default']
     NotificationHost: typeof import('./components/NotificationHost.vue')['default']
+    OntologyViewer: typeof import('./components/forecast/OntologyViewer.vue')['default']
     PlanStage: typeof import('./components/forecast/PlanStage.vue')['default']
     ResultStage: typeof import('./components/forecast/ResultStage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']

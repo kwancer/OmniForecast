@@ -41,8 +41,16 @@ class UserRequirements(BaseModel):
     horizon_requirement: HorizonRequirement
     output_format: Literal["point_forecast", "confidence_intervals", "probability_score"]
 
+class ModelMetadata(BaseModel):
+    name: str = Field(description="The friendly name of the model")
+    description: str = Field(description="A brief explanation of how it works")
+    rationale: str = Field(description="Why this specific model was chosen for this data")
+    educational_video_url: Optional[str] = None
+
 class ForecastOntology(BaseModel):
     meta: MetaContext
     problem: ProblemDefinition
     columns: List[ColumnRoleDefinition]
     requirements: UserRequirements
+    model_metadata: Optional[ModelMetadata] = None
+    session_id: Optional[str] = None

@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import pandas as pd
 import google.generativeai as genai
 from dotenv import load_dotenv
@@ -41,26 +41,26 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
     """
     print("Using Heuristic Fallback...")
     # 1. Find datetime column
-    time_col = None
+    time_col: Optional[str] = None
     for col in df.columns:
         if pd.api.types.is_datetime64_any_dtype(df[col]):
-            time_col = col
+            time_col = str(col)
             break
     if not time_col:
         # Try to parse
         for col in df.columns:
             try:
                 pd.to_datetime(df[col], errors='raise')
-                time_col = col
+                time_col = str(col)
                 break
             except:
                 continue
                 
     # 2. Find target (numeric)
-    target_col = None
+    target_col: Optional[str] = None
     for col in df.columns:
         if col != time_col and pd.api.types.is_numeric_dtype(df[col]):
-            target_col = col
+            target_col = str(col)
             break 
             
     return ForecastOntology(
@@ -101,7 +101,7 @@ def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
     Tries Gemini first, falls back to heuristics.
     """
     print(f"DEBUG: analyze_intent called with prompt: {user_prompt}")
-    api_key = os.getenv("GEMINI_API_KEY")
+    api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
     
     if not api_key or "PLACEHOLDER" in api_key:
         print("Warning: GEMINI_API_KEY not set or is placeholder. Using heuristics.")
@@ -113,19 +113,19 @@ def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         model = genai.GenerativeModel('gemini-2.0-flash', generation_config={"response_mime_type": "application/json"})
         
         print("DEBUG: Constructing prompt...")
-        prompt = construct_prompt(df.head(), user_prompt)
+        prompt: str = construct_prompt(df.head(), user_prompt)
         
         print("DEBUG: Calling Gemini API...")
         response = model.generate_content(prompt)
         
         print("DEBUG: Gemini response received.")
-        content = response.text
+        content: str = response.text
         print(f"DEBUG: Response content: {content[:100]}...") # Print first 100 chars
         
         return ForecastOntology.model_validate_json(content)
         
     except Exception as e:
-        print(f"LLM Error: {e}. Falling back to heuristics.")
+        print(f"LLM Error: {exc_name := type(e).__name__}: {e}. Falling back to heuristics.")
         import traceback
         traceback.print_exc()
         return heuristic_fallback(df)
