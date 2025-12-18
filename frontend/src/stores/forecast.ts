@@ -51,7 +51,7 @@ export const useForecastStore = defineStore('forecast', {
         formData.append('file', this.file)
         formData.append('prompt', this.intent)
 
-        const response = await fetch('http://localhost:8002/plan', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8002'}/plan`, {
           method: 'POST',
           body: formData
         })
@@ -82,7 +82,7 @@ export const useForecastStore = defineStore('forecast', {
         formData.append('file', this.file)
         formData.append('ontology_json', JSON.stringify(this.ontology))
 
-        const response = await fetch('http://localhost:8002/forecast', {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8002'}/forecast`, {
           method: 'POST',
           body: formData
         })

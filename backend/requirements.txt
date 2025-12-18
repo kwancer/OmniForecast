@@ -10,3 +10,6 @@ openai
 python-dotenv
 sqlalchemy
 greenlet
+pytest
+ruff
+httpx

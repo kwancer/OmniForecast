@@ -5,9 +5,13 @@ from app.api.routes import router
 import traceback
 import logging
 
+import os
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app = FastAPI(title="Forecast Anything Platform API", debug=True)
 
@@ -26,7 +30,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -37,3 +41,7 @@ app.include_router(router)
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the Forecast Anything Platform API"}
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
