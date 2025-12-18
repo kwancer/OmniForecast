@@ -1,11 +1,13 @@
-from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from app.models.ontology import ColumnRoleDefinition
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+
 
 class CleaningAction(BaseModel):
     column: str
-    action: str # 'imputation', 'outlier_removal', 'resampling'
+    action: str  # 'imputation', 'outlier_removal', 'resampling'
     description: str
+
 
 class CleaningReport(BaseModel):
     actions: List[CleaningAction] = []
@@ -13,9 +15,11 @@ class CleaningReport(BaseModel):
     final_shape: List[int]
     summary: str
 
+
 class ForecastMetric(BaseModel):
-    name: str # MAE, RMSE, MAPE
+    name: str  # MAE, RMSE, MAPE
     value: float
+
 
 class ForecastResponse(BaseModel):
     forecast: List[Dict[str, Any]]
@@ -23,6 +27,7 @@ class ForecastResponse(BaseModel):
     metrics: List[ForecastMetric]
     cleaning_report: CleaningReport
     session_id: Optional[str] = None
+
 
 class ErrorResponse(BaseModel):
     detail: str

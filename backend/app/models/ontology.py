@@ -1,5 +1,7 @@
-from typing import List, Optional, Literal
+from typing import List, Literal, Optional
+
 from pydantic import BaseModel, Field
+
 
 class MetaContext(BaseModel):
     user_intent_summary: str
@@ -8,9 +10,11 @@ class MetaContext(BaseModel):
     )
     completeness_check: Literal["complete", "partial"]
 
+
 class Granularity(BaseModel):
     unit: Literal["second", "minute", "hour", "day", "week", "month", "quarter", "year"]
     is_regular: bool
+
 
 class ProblemDefinition(BaseModel):
     task_type: Literal[
@@ -18,14 +22,17 @@ class ProblemDefinition(BaseModel):
     ]
     granularity: Granularity
 
+
 class FutureAvailability(BaseModel):
     status: Literal["known", "unknown", "static"]
     action_required: Literal["prompt_user", "internal_forecast", "none"]
+
 
 class Constraints(BaseModel):
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     allowed_classes: Optional[List[str]] = None
+
 
 class ColumnRoleDefinition(BaseModel):
     column_name: str
@@ -37,9 +44,11 @@ class ColumnRoleDefinition(BaseModel):
     constraints: Optional[Constraints] = None
     resampling_method: Literal["mean", "sum", "last", "max", "none"] = "mean"
 
+
 class HorizonRequirement(BaseModel):
     steps: int
     flexibility: Literal["strict", "approximate"]
+
 
 class UserRequirements(BaseModel):
     primary_objective: Literal[
@@ -56,11 +65,13 @@ class UserRequirements(BaseModel):
         "point_forecast", "confidence_intervals", "probability_score"
     ]
 
+
 class ModelMetadata(BaseModel):
     name: str = Field(description="The friendly name of the model")
     description: str = Field(description="A brief explanation of how it works")
     rationale: str = Field(description="Why this model was chosen for this data")
     educational_video_url: Optional[str] = None
+
 
 class ForecastOntology(BaseModel):
     meta: MetaContext

@@ -1,19 +1,26 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, List, Dict, Any, Optional
-import pandas as pd
+from typing import Any, Dict, List, Optional, Tuple
+
 import numpy as np
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
+import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_absolute_error, mean_squared_error, mean_absolute_percentage_error
-from app.models.ontology import ForecastOntology
+from sklearn.metrics import (
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    mean_squared_error,
+)
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+
 from app.api.schemas import ForecastMetric
+from app.models.ontology import ForecastOntology
+
 
 class Forecaster(ABC):
     @abstractmethod
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> Dict[str, float]:
         """Fits the model and returns validation metrics."""
         pass
-        
+
     @abstractmethod
     def predict(self, horizon: int) -> pd.DataFrame:
         """Generates future predictions."""
@@ -24,6 +31,7 @@ class Forecaster(ABC):
     def get_metadata() -> Any:
         """Returns model metadata."""
         pass
+
 
 def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetric]:
     def safe_float(val):
@@ -50,10 +58,12 @@ def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetr
     ]
     return metrics
 
+
 class SimpleAdditiveForecaster(Forecaster):
     """
     A robust baseline forecaster using Holt-Winters Exponential Smoothing.
     """
+
     def __init__(self):
         self.model = None
         self.fit_result = None
@@ -61,38 +71,36 @@ class SimpleAdditiveForecaster(Forecaster):
         self.target_col: Optional[str] = None
         self.last_date = None
         self.freq: Optional[str] = None
-        
+
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
-        self.time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
-        self.target_col = next(c.column_name for c in ontology.columns if c.role == "target")
-        
+        self.time_col = next(
+            c.column_name for c in ontology.columns if c.role == "time_index"
+        )
+        self.target_col = next(
+            c.column_name for c in ontology.columns if c.role == "target"
+        )
+
         df = df.set_index(self.time_col)
         self.last_date = df.index.max()
-        self.freq = pd.infer_freq(df.index) or 'D'
-        
+        self.freq = pd.infer_freq(df.index) or "D"
+
         # Train/Val Split
         split_idx = int(len(df) * 0.8)
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
-        
+
         try:
             model = ExponentialSmoothing(
-                train[self.target_col],
-                trend='add',
-                seasonal='add',
-                freq=self.freq
+                train[self.target_col], trend="add", seasonal="add", freq=self.freq
             )
             fit_result = model.fit()
             val_preds = fit_result.forecast(len(val))
-            
+
             # Re-fit on full data for final prediction
             self.model = ExponentialSmoothing(
-                df[self.target_col],
-                trend='add',
-                seasonal='add',
-                freq=self.freq
+                df[self.target_col], trend="add", seasonal="add", freq=self.freq
             )
             self.fit_result = self.model.fit()
-            
+
             return calculate_metrics(val[self.target_col], val_preds)
         except Exception:
             # Fallback
@@ -137,11 +145,13 @@ class SimpleAdditiveForecaster(Forecaster):
             educational_video_url="https://www.youtube.com/watch?v=Du8h_S_ndRE",
         )
 
+
 class RandomForestForecaster(Forecaster):
     """
     Random Forest Regressor for non-strictly temporal or complex patterns.
     Uses lags as features.
     """
+
     def __init__(self):
         self.model = RandomForestRegressor(n_estimators=100, random_state=42)
         self.time_col: Optional[str] = None
@@ -149,13 +159,13 @@ class RandomForestForecaster(Forecaster):
         self.last_date = None
         self.freq: Optional[str] = None
         self.lags = 3
-        
+
     def _create_lags(
         self, df: pd.DataFrame, target: str
     ) -> Tuple[pd.DataFrame, pd.Series]:
         X = pd.DataFrame(index=df.index)
         for i in range(1, self.lags + 1):
-            X[f'lag_{i}'] = df[target].shift(i)
+            X[f"lag_{i}"] = df[target].shift(i)
         X = X.dropna()
         y = df[target].loc[X.index]
         return X, y
@@ -167,22 +177,22 @@ class RandomForestForecaster(Forecaster):
         self.target_col = next(
             c.column_name for c in ontology.columns if c.role == "target"
         )
-        
+
         df = df.set_index(self.time_col)
         self.last_date = df.index.max()
-        self.freq = pd.infer_freq(df.index) or 'D'
-        
+        self.freq = pd.infer_freq(df.index) or "D"
+
         X, y = self._create_lags(df, self.target_col)
         split_idx = int(len(X) * 0.8)
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
-        
+
         self.model.fit(X_train, y_train)
         val_preds = self.model.predict(X_val)
-        
+
         # Final fit on all available data
         self.model.fit(X, y)
-        
+
         return calculate_metrics(y_val, val_preds)
 
     def predict(self, horizon: int) -> pd.DataFrame:
@@ -194,7 +204,9 @@ class RandomForestForecaster(Forecaster):
         # Simple implementation: use last known values to predict
         # This is a very basic recursive forecast
         # ... (simplified for prototype)
-        last_val = self.model.predict(np.zeros((1, self.lags)))[0]  # Extremely simplified
+        last_val = self.model.predict(np.zeros((1, self.lags)))[
+            0
+        ]  # Extremely simplified
         return pd.DataFrame(
             {self.time_col: future_dates, self.target_col: [last_val] * horizon}
         )
@@ -215,6 +227,7 @@ class RandomForestForecaster(Forecaster):
             ),
             educational_video_url="https://www.youtube.com/watch?v=J4Wdy0Wc_xQ",
         )
+
 
 def get_forecaster(ontology: ForecastOntology) -> Forecaster:
     if ontology.problem.task_type == "time_series_regression":
