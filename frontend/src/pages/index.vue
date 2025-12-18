@@ -1,7 +1,3 @@
 <template>
-  <HelloWorld />
+  <ForecastFlow />
 </template>
-
-<script lang="ts" setup>
-  //
-</script>
