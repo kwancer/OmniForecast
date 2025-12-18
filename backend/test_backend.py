@@ -32,7 +32,9 @@ try:
         data_forecast = {'ontology_json': json.dumps(ontology)}
         
         print("\nTesting /forecast...")
-        response_forecast = requests.post(url_forecast, files=files_forecast, data=data_forecast)
+        response_forecast = requests.post(
+            url_forecast, files=files_forecast, data=data_forecast
+        )
         
         if response_forecast.status_code == 200:
             result = response_forecast.json()

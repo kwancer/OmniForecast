@@ -12,8 +12,12 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
     actions: List[CleaningAction] = []
     
     # Identify roles
-    time_col = next((c.column_name for c in ontology.columns if c.role == "time_index"), None)
-    target_col = next((c.column_name for c in ontology.columns if c.role == "target"), None)
+    time_col = next(
+        (c.column_name for c in ontology.columns if c.role == "time_index"), None
+    )
+    target_col = next(
+        (c.column_name for c in ontology.columns if c.role == "target"), None
+    )
     
     if not time_col or not target_col:
         raise ValueError("Ontology must specify a time_index and a target column.")
@@ -32,9 +36,15 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
     
     # Verify columns exist
     if time_col not in df.columns:
-        raise ValueError(f"Time column '{time_col}' not found in dataset. Available: {df.columns.tolist()}")
+        raise ValueError(
+            f"Time column '{time_col}' not found in dataset. "
+            f"Available: {df.columns.tolist()}"
+        )
     if target_col not in df.columns:
-        raise ValueError(f"Target column '{target_col}' not found in dataset. Available: {df.columns.tolist()}")
+        raise ValueError(
+            f"Target column '{target_col}' not found in dataset. "
+            f"Available: {df.columns.tolist()}"
+        )
 
     # 1. Convert Target to Numeric
     nulls_before = df[target_col].isna().sum()
@@ -44,7 +54,10 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
         actions.append(CleaningAction(
             column=target_col,
             action="type_conversion",
-            description=f"Converted target to numeric. {nulls_after - nulls_before} invalid values replaced with NaN."
+            description=(
+                f"Converted target to numeric. "
+                f"{nulls_after - nulls_before} invalid values replaced with NaN."
+            )
         ))
     
     # 2. Convert Time Column
@@ -75,7 +88,10 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
         actions.append(CleaningAction(
             column=str(time_col),
             action="aggregation",
-            description=f"Found duplicated timestamps. Aggregated observations from {old_count} to {len(df)} using '{method}' strategy."
+            description=(
+                f"Found duplicated timestamps. Aggregated observations "
+                f"from {old_count} to {len(df)} using '{method}' strategy."
+            )
         ))
             
     # 5. Infer Frequency and Reindex
@@ -83,31 +99,46 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
     
     if not inferred_freq:
         unit = ontology.problem.granularity.unit
-        if unit == "day": inferred_freq = "D"
-        elif unit == "month": inferred_freq = "MS"
-        elif unit == "hour": inferred_freq = "H"
-        else: inferred_freq = "D"
+        if unit == "day":
+            inferred_freq = "D"
+        elif unit == "month":
+            inferred_freq = "MS"
+        elif unit == "hour":
+            inferred_freq = "H"
+        else:
+            inferred_freq = "D"
         actions.append(CleaningAction(
             column=str(time_col),
             action="resampling",
-            description=f"Could not infer frequency automatically. Applied manual frequency '{inferred_freq}' based on ontology."
+            description=(
+                f"Could not infer frequency automatically. "
+                f"Applied manual frequency '{inferred_freq}' based on ontology."
+            )
         ))
     else:
         actions.append(CleaningAction(
             column=str(time_col),
             action="resampling",
-            description=f"Inferred frequency '{inferred_freq}' and reindexed to ensure regularity."
+            description=(
+                f"Inferred frequency '{inferred_freq}' and reindexed to ensure "
+                f"regularity."
+            )
         ))
         
     # Reindex to fill gaps
-    full_idx = pd.date_range(start=df.index.min(), end=df.index.max(), freq=inferred_freq)
+    full_idx = pd.date_range(
+        start=df.index.min(), end=df.index.max(), freq=inferred_freq
+    )
     old_len = len(df)
     df = df.reindex(full_idx)
     if len(df) > old_len:
         actions.append(CleaningAction(
             column=str(time_col),
             action="gap_filling",
-            description=f"Detected gaps in continuity. Added {len(df) - old_len} missing timestamps."
+            description=(
+                f"Detected gaps in continuity. Added "
+                f"{len(df) - old_len} missing timestamps."
+            )
         ))
     
     # 6. Imputation
@@ -134,7 +165,10 @@ def clean_dataset(df: pd.DataFrame, ontology: ForecastOntology) -> Tuple[pd.Data
         actions=actions,
         initial_shape=initial_shape,
         final_shape=list(final_df.shape),
-        summary=f"Cleaned dataset. Performed {len(actions)} specific transformations to prepare for modeling."
+        summary=(
+            f"Cleaned dataset. Performed {len(actions)} specific "
+            f"transformations to prepare for modeling."
+        )
     )
     
     return final_df, report

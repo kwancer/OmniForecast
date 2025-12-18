@@ -15,14 +15,16 @@ def construct_prompt(df_head: pd.DataFrame, user_prompt: str) -> str:
     data_summary = df_head.to_string()
     
     prompt = f"""
-    You are an expert forecasting assistant. Your goal is to map a user's natural language request and a dataset sample into a structured Forecast Ontology.
+    You are an expert forecasting assistant. Your goal is to map a user's natural
+    language request and a dataset sample into a structured Forecast Ontology.
     
     User Request: "{user_prompt}"
     
     Dataset Sample (first 5 rows):
     {data_summary}
     
-    Please analyze the request and data, and output a JSON object that strictly adheres to the following schema:
+    Please analyze the request and data, and output a JSON object that strictly
+    adheres to the following schema:
     {json.dumps(schema_desc, indent=2)}
     
     Ensure you identify:
@@ -53,7 +55,7 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
                 pd.to_datetime(df[col], errors='raise')
                 time_col = str(col)
                 break
-            except:
+            except Exception:
                 continue
                 
     # 2. Find target (numeric)
@@ -65,9 +67,11 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
             
     return ForecastOntology(
         meta={
-            "user_intent_summary": "Inferred from heuristics (LLM Failed/Not Configured)",
+            "user_intent_summary": (
+                "Inferred from heuristics (LLM Failed/Not Configured)"
+            ),
             "domain_inference": "General",
-            "completeness_check": "complete"
+            "completeness_check": "complete",
         },
         problem={
             "task_type": "time_series_regression",
@@ -84,7 +88,10 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
                 "column_name": str(target_col) if target_col else "value",
                 "role": "target",
                 "data_type": "continuous",
-                "future_availability": {"status": "unknown", "action_required": "internal_forecast"}
+                "future_availability": {
+                    "status": "unknown",
+                    "action_required": "internal_forecast",
+                },
             }
         ],
         requirements={
@@ -110,7 +117,10 @@ def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
     try:
         print("DEBUG: Configuring Gemini...")
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash', generation_config={"response_mime_type": "application/json"})
+        model = genai.GenerativeModel(
+            "gemini-2.0-flash",
+            generation_config={"response_mime_type": "application/json"},
+        )
         
         print("DEBUG: Constructing prompt...")
         prompt: str = construct_prompt(df.head(), user_prompt)
@@ -125,7 +135,8 @@ def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         return ForecastOntology.model_validate_json(content)
         
     except Exception as e:
-        print(f"LLM Error: {exc_name := type(e).__name__}: {e}. Falling back to heuristics.")
+        exc_name = type(e).__name__
+        print(f"LLM Error: {exc_name}: {e}. Falling back to heuristics.")
         import traceback
         traceback.print_exc()
         return heuristic_fallback(df)

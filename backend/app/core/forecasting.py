@@ -32,13 +32,21 @@ def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetr
             if np.isnan(res) or np.isinf(res):
                 return 0.0
             return res
-        except:
+        except Exception:
             return 0.0
 
     metrics = [
-        ForecastMetric(name="MAE", value=safe_float(mean_absolute_error(y_true, y_pred))),
-        ForecastMetric(name="RMSE", value=safe_float(np.sqrt(mean_squared_error(y_true, y_pred)))),
-        ForecastMetric(name="MAPE", value=safe_float(mean_absolute_percentage_error(y_true, y_pred)))
+        ForecastMetric(
+            name="MAE", value=safe_float(mean_absolute_error(y_true, y_pred))
+        ),
+        ForecastMetric(
+            name="RMSE",
+            value=safe_float(np.sqrt(mean_squared_error(y_true, y_pred))),
+        ),
+        ForecastMetric(
+            name="MAPE",
+            value=safe_float(mean_absolute_percentage_error(y_true, y_pred)),
+        ),
     ]
     return metrics
 
@@ -86,13 +94,17 @@ class SimpleAdditiveForecaster(Forecaster):
             self.fit_result = self.model.fit()
             
             return calculate_metrics(val[self.target_col], val_preds)
-        except Exception as e:
+        except Exception:
             # Fallback
-            model = ExponentialSmoothing(train[self.target_col], trend='add', seasonal=None, freq=self.freq)
+            model = ExponentialSmoothing(
+                train[self.target_col], trend="add", seasonal=None, freq=self.freq
+            )
             fit_result = model.fit()
             val_preds = fit_result.forecast(len(val))
-            
-            self.model = ExponentialSmoothing(df[self.target_col], trend='add', seasonal=None, freq=self.freq)
+
+            self.model = ExponentialSmoothing(
+                df[self.target_col], trend="add", seasonal=None, freq=self.freq
+            )
             self.fit_result = self.model.fit()
             return calculate_metrics(val[self.target_col], val_preds)
 
@@ -100,17 +112,29 @@ class SimpleAdditiveForecaster(Forecaster):
         if not self.fit_result:
             raise ValueError("Model not fitted yet.")
         forecast_values = self.fit_result.forecast(horizon)
-        future_dates = pd.date_range(start=self.last_date, periods=horizon+1, freq=self.freq)[1:]
-        return pd.DataFrame({self.time_col: future_dates, self.target_col: forecast_values})
+        future_dates = pd.date_range(
+            start=self.last_date, periods=horizon + 1, freq=self.freq
+        )[1:]
+        return pd.DataFrame(
+            {self.time_col: future_dates, self.target_col: forecast_values}
+        )
 
     @staticmethod
     def get_metadata() -> Any:
         from app.models.ontology import ModelMetadata
+
         return ModelMetadata(
             name="Exponential Smoothing (ETS)",
-            description="A robust statistical model that captures trends and seasonal cycles by weighting recent observations more heavily.",
-            rationale="Chosen because your data shows clear repetitive patterns and a consistent trajectory over time. It is a gold standard for stable business metrics.",
-            educational_video_url="https://www.youtube.com/watch?v=Du8h_S_ndRE"
+            description=(
+                "A robust statistical model that captures trends and seasonal "
+                "cycles by weighting recent observations more heavily."
+            ),
+            rationale=(
+                "Chosen because your data shows clear repetitive patterns and "
+                "a consistent trajectory over time. It is a gold standard for "
+                "stable business metrics."
+            ),
+            educational_video_url="https://www.youtube.com/watch?v=Du8h_S_ndRE",
         )
 
 class RandomForestForecaster(Forecaster):
@@ -126,7 +150,9 @@ class RandomForestForecaster(Forecaster):
         self.freq: Optional[str] = None
         self.lags = 3
         
-    def _create_lags(self, df: pd.DataFrame, target: str) -> Tuple[pd.DataFrame, pd.Series]:
+    def _create_lags(
+        self, df: pd.DataFrame, target: str
+    ) -> Tuple[pd.DataFrame, pd.Series]:
         X = pd.DataFrame(index=df.index)
         for i in range(1, self.lags + 1):
             X[f'lag_{i}'] = df[target].shift(i)
@@ -135,8 +161,12 @@ class RandomForestForecaster(Forecaster):
         return X, y
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
-        self.time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
-        self.target_col = next(c.column_name for c in ontology.columns if c.role == "target")
+        self.time_col = next(
+            c.column_name for c in ontology.columns if c.role == "time_index"
+        )
+        self.target_col = next(
+            c.column_name for c in ontology.columns if c.role == "target"
+        )
         
         df = df.set_index(self.time_col)
         self.last_date = df.index.max()
@@ -158,22 +188,32 @@ class RandomForestForecaster(Forecaster):
     def predict(self, horizon: int) -> pd.DataFrame:
         # Placeholder for recursive multi-step prediction
         # For prototype, we'll return a simple extrapolation or last known
-        future_dates = pd.date_range(start=self.last_date, periods=horizon+1, freq=self.freq)[1:]
+        future_dates = pd.date_range(
+            start=self.last_date, periods=horizon + 1, freq=self.freq
+        )[1:]
         # Simple implementation: use last known values to predict
-        preds = []
         # This is a very basic recursive forecast
         # ... (simplified for prototype)
-        last_val = self.model.predict(np.zeros((1, self.lags)))[0] # Extremely simplified
-        return pd.DataFrame({self.time_col: future_dates, self.target_col: [last_val] * horizon})
+        last_val = self.model.predict(np.zeros((1, self.lags)))[0]  # Extremely simplified
+        return pd.DataFrame(
+            {self.time_col: future_dates, self.target_col: [last_val] * horizon}
+        )
 
     @staticmethod
     def get_metadata() -> Any:
         from app.models.ontology import ModelMetadata
+
         return ModelMetadata(
             name="Random Forest Regressor",
-            description="A versatile machine learning model that uses a 'forest' of decision trees to find non-linear relationships in complex data.",
-            rationale="Chosen for its ability to handle multiple variables and irregular patterns that traditional statistical models might miss.",
-            educational_video_url="https://www.youtube.com/watch?v=J4Wdy0Wc_xQ"
+            description=(
+                "A versatile machine learning model that uses a 'forest' of "
+                "decision trees to find non-linear relationships in complex data."
+            ),
+            rationale=(
+                "Chosen for its ability to handle multiple variables and "
+                "irregular patterns that traditional statistical models might miss."
+            ),
+            educational_video_url="https://www.youtube.com/watch?v=J4Wdy0Wc_xQ",
         )
 
 def get_forecaster(ontology: ForecastOntology) -> Forecaster:

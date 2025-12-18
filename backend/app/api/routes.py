@@ -113,7 +113,9 @@ async def generate_forecast(
         # Prepare data for JSON storage (convert Timestamps to strings)
         forecast_df_json = forecast_df.fillna(0)
         # Use pandas to_json to handle Timestamp conversion, then reload as dict
-        forecast_data = json.loads(forecast_df_json.to_json(orient="records", date_format="iso"))
+        forecast_data = json.loads(
+            forecast_df_json.to_json(orient="records", date_format="iso")
+        )
         
         metrics_data = [m.model_dump() for m in metrics]
         
@@ -121,7 +123,11 @@ async def generate_forecast(
         if session_id:
             print(f"DEBUG: Updating session {session_id} in DB...")
             try:
-                db_session = db.query(ForecastSession).filter(ForecastSession.session_id == session_id).first()
+                db_session = (
+                    db.query(ForecastSession)
+                    .filter(ForecastSession.session_id == session_id)
+                    .first()
+                )
                 if db_session:
                     db_session.cleaning_report = cleaning_report.model_dump()
                     db_session.forecast_results = forecast_data
