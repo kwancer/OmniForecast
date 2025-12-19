@@ -13,3 +13,4 @@ greenlet
 pytest
 ruff
 httpx
+google-generativeai
