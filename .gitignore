@@ -30,6 +30,7 @@ node_modules/
 frontend/dist/
 frontend/.env.local
 frontend/.env.*.local
+frontend/.env.production
 frontend/npm-debug.log*
 frontend/yarn-debug.log*
 frontend/yarn-error.log*
