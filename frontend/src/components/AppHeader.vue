@@ -36,9 +36,4 @@ const appStore = useAppStore()
 const router = useRouter()
 </script>
 
-<style scoped>
-.font-header {
-  font-family: 'Space Grotesk', sans-serif !important;
-  letter-spacing: -0.5px;
-}
-</style>
+

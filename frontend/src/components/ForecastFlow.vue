@@ -67,11 +67,4 @@ import CleaningStage from './forecast/CleaningStage.vue'
 const store = useForecastStore()
 </script>
 
-<style>
-.font-header {
-  font-family: 'Space Grotesk', sans-serif !important;
-}
-.font-mono {
-  font-family: 'JetBrains Mono', monospace !important;
-}
-</style>
+

@@ -8,3 +8,16 @@
 // @use 'vuetify/settings' with (
 //   $color-pack: false
 // );
+
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+.font-header {
+  font-family: 'Space Grotesk', sans-serif !important;
+  letter-spacing: -0.5px;
+}
+
+.font-mono {
+  font-family: 'JetBrains Mono', monospace !important;
+}

@@ -55,7 +55,7 @@
             <v-icon icon="mdi-shield-check-outline" class="mr-2"></v-icon>
             <span class="font-weight-bold">Executive Summary</span>
           </div>
-          <p class="text-body-2" style="line-height: 1.6;">{{ store.explanation }}</p>
+          <p class="text-body-2">{{ store.explanation }}</p>
         </v-card>
 
         <v-card variant="flat" border class="pa-4 mb-4 bg-blue-lighten-5">
