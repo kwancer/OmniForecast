@@ -12,7 +12,7 @@ load_dotenv()
 def verify_connection():
     print(f"DATABASE_URL: {os.getenv('DATABASE_URL')[:20]}...")
     try:
-        # Tables should be created upon import of database.py due to Base.metadata.create_all
+        # Tables created upon import of database.py due to Base.metadata.create_all
         inspector = inspect(engine)
         tables = inspector.get_table_names()
         print(f"Tables in database: {tables}")
