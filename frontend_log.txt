@@ -1,0 +1,9 @@
+
+> frontend@0.0.0 dev
+> vite
+
+
+  VITE v7.2.6  ready in 1109 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: use --host to expose
