@@ -26,6 +26,7 @@ class ForecastResponse(BaseModel):
     explanation: str
     metrics: List[ForecastMetric]
     cleaning_report: CleaningReport
+    cleaned_data: Optional[List[Dict[str, Any]]] = None
     session_id: Optional[str] = None
 
 

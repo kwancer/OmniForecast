@@ -59,6 +59,7 @@ export interface ForecastResponse {
   explanation: string;
   metrics: ForecastMetric[];
   cleaning_report: CleaningReport;
+  cleaned_data?: ForecastResult[];
   session_id?: string;
 }
 

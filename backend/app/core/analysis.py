@@ -11,24 +11,56 @@ def analyze_data_characteristics(
     Analyzes the dataframe to infer system characteristics like frequency
     and seasonality.
     """
+    # Create a copy to avoid modifying the original df
+    analysis_df = df.copy()
+
+    # Normalize column names (strip whitespace) to match potential intent
+    # inconsistencies
+    analysis_df.columns = analysis_df.columns.str.strip()
 
     # Identify time and target columns
     try:
-        time_col = next(c.column_name for c in intent.columns if c.role == "time_index")
-        target_col = next(c.column_name for c in intent.columns if c.role == "target")
+        # We rely on the intent column names.
+        # If the intent has "Name " but we stripped it to "Name", we might mismatch.
+        # Ideally, we should also strip the intent column names here or try fuzzy match.
+        # For robustness, let's try exact match first, then stripped match.
+
+        def find_col_in_df(intent_name, df_cols):
+            if intent_name in df_cols:
+                return intent_name
+            if intent_name.strip() in df_cols:
+                return intent_name.strip()
+            return intent_name  # Let it fail later or assume it's missing
+
+        time_col_intent = next(
+            c.column_name for c in intent.columns if c.role == "time_index"
+        )
+        target_col_intent = next(
+            c.column_name for c in intent.columns if c.role == "target"
+        )
+
+        time_col = find_col_in_df(time_col_intent, analysis_df.columns)
+        target_col = find_col_in_df(target_col_intent, analysis_df.columns)
+
     except StopIteration:
         # Fallback if columns not properly defined
         return SystemAnalysis()
 
-    # Create a copy to avoid modifying the original df
-    analysis_df = df.copy()
-
     # Ensure time column is datetime
-    if not pd.api.types.is_datetime64_any_dtype(analysis_df[time_col]):
-        try:
-            analysis_df[time_col] = pd.to_datetime(analysis_df[time_col])
-        except Exception:
-            pass  # Use as is or handle error? For analysis we try our best.
+    if time_col in analysis_df.columns:
+        if not pd.api.types.is_datetime64_any_dtype(analysis_df[time_col]):
+            try:
+                # Use format='mixed' if available (pandas 2.0+), else infer
+                # 'coerce' will turn unparseable to NaT
+                analysis_df[time_col] = pd.to_datetime(
+                    analysis_df[time_col], errors="coerce"
+                )
+                analysis_df = analysis_df.dropna(subset=[time_col])
+            except Exception:
+                pass
+
+    if time_col not in analysis_df.columns or target_col not in analysis_df.columns:
+        return SystemAnalysis()
 
     analysis_df = analysis_df.set_index(time_col).sort_index()
 
@@ -76,10 +108,11 @@ def analyze_data_characteristics(
     regressors = []
     for col_def in intent.columns:
         if col_def.role == "covariate":
-            if col_def.column_name in df.columns:
+            found_col = find_col_in_df(col_def.column_name, analysis_df.columns)
+            if found_col in analysis_df.columns:
                 # Check if numeric
-                if pd.api.types.is_numeric_dtype(df[col_def.column_name]):
-                    regressors.append(col_def.column_name)
+                if pd.api.types.is_numeric_dtype(analysis_df[found_col]):
+                    regressors.append(found_col)
 
     return SystemAnalysis(
         is_daily=is_daily, seasonality_mode=seasonality_mode, regressors=regressors

@@ -11,6 +11,7 @@ export const useForecastStore = defineStore('forecast', {
     forecastResults: [] as ForecastResult[],
     metrics: [] as ForecastMetric[],
     explanation: '',
+    cleanedData: [] as ForecastResult[],
     loading: false,
     step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results'
   }),
@@ -97,6 +98,7 @@ export const useForecastStore = defineStore('forecast', {
         this.explanation = data.explanation
         this.cleaningReport = data.cleaning_report
         this.metrics = data.metrics
+        this.cleanedData = data.cleaned_data || []
         
         // Move to cleaning step first to show what happened
         this.step = 'cleaning'
@@ -140,6 +142,7 @@ export const useForecastStore = defineStore('forecast', {
       this.forecastResults = []
       this.metrics = []
       this.explanation = ''
+      this.cleanedData = []
       this.step = 'upload'
     }
   }

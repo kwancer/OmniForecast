@@ -127,6 +127,11 @@ async def generate_forecast(
 
         metrics_data = [m.model_dump() for m in metrics]
 
+        # Serialize Cleaned Data for Frontend
+        cleaned_data_json = json.loads(
+            clean_df.fillna(0).to_json(orient="records", date_format="iso")
+        )
+
         # Update Persisted Session
         if session_id:
             print(f"DEBUG: Updating session {session_id} in DB...")
@@ -159,6 +164,7 @@ async def generate_forecast(
             explanation=explanation,
             metrics=metrics,
             cleaning_report=cleaning_report,
+            cleaned_data=cleaned_data_json,
             session_id=session_id,
         )
 

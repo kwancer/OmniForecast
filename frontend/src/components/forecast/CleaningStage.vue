@@ -7,40 +7,85 @@
     </div>
 
     <v-row class="flex-grow-1 overflow-hidden">
+      <!-- Left Column: Report and Data Preview -->
       <v-col cols="12" md="8" class="h-100 overflow-y-auto">
         <v-card variant="outlined" class="mb-4 bg-surface">
-          <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
-            <v-icon start color="primary">mdi-format-list-checks</v-icon>
-            System Corrections Report
-          </v-card-title>
+          <v-tabs v-model="tab" color="primary">
+            <v-tab value="report">Corrections Report</v-tab>
+            <v-tab value="data">Cleaned Data Preview</v-tab>
+          </v-tabs>
           <v-divider></v-divider>
           
-          <v-list lines="two" v-if="store.cleaningReport?.actions.length">
-            <template v-for="(action, index) in store.cleaningReport?.actions" :key="index">
-              <v-list-item>
-                <template v-slot:prepend>
-                  <v-avatar :color="getActionColor(action.action)" size="40" variant="tonal">
-                    <v-icon :icon="getActionIcon(action.action)"></v-icon>
-                  </v-avatar>
+          <v-window v-model="tab">
+            <!-- Report Tab -->
+            <v-window-item value="report">
+              <v-list lines="two" v-if="store.cleaningReport?.actions.length">
+                <template v-for="(action, index) in store.cleaningReport?.actions" :key="index">
+                  <v-list-item>
+                    <template v-slot:prepend>
+                      <v-avatar :color="getActionColor(action.action)" size="40" variant="tonal">
+                        <v-icon :icon="getActionIcon(action.action)"></v-icon>
+                      </v-avatar>
+                    </template>
+
+                    <v-list-item-title class="font-weight-bold">
+                      {{ action.column }}: {{ formatActionName(action.action) }}
+                    </v-list-item-title>
+                    <v-list-item-subtitle class="text-wrap">
+                      {{ action.description }}
+                    </v-list-item-subtitle>
+                  </v-list-item>
+                  <v-divider v-if="index < (store.cleaningReport?.actions.length ?? 0) - 1" inset></v-divider>
                 </template>
-                
-                <v-list-item-title class="font-weight-bold">
-                  {{ action.column }}: {{ formatActionName(action.action) }}
-                </v-list-item-title>
-                <v-list-item-subtitle class="text-wrap">
-                  {{ action.description }}
-                </v-list-item-subtitle>
-              </v-list-item>
-              <v-divider v-if="index < (store.cleaningReport?.actions.length ?? 0) - 1" inset></v-divider>
-            </template>
-          </v-list>
-          
-          <v-card-text v-else class="text-center py-8 text-medium-emphasis">
-            No specific transformations were required. The dataset was already in a model-ready state.
-          </v-card-text>
+              </v-list>
+              <v-card-text v-else class="text-center py-8 text-medium-emphasis">
+                No specific transformations were required. The dataset was already in a model-ready state.
+              </v-card-text>
+            </v-window-item>
+
+            <!-- Data Tab -->
+            <v-window-item value="data">
+               <v-card-text v-if="store.cleanedData.length > 0">
+                 <div class="d-flex justify-end mb-2">
+                   <v-btn
+                    variant="text"
+                    color="primary"
+                    prepend-icon="mdi-download"
+                    size="small"
+                    @click="downloadCsv"
+                   >
+                    Download CSV
+                   </v-btn>
+                 </div>
+                 <v-table density="compact" fixed-header height="400px">
+                   <thead>
+                     <tr>
+                       <th v-for="key in Object.keys(store.cleanedData[0])" :key="key" class="text-left">
+                         {{ key }}
+                       </th>
+                     </tr>
+                   </thead>
+                   <tbody>
+                     <tr v-for="(row, i) in displayedData" :key="i">
+                       <td v-for="key in Object.keys(row)" :key="key">
+                         {{ formatCell(row[key]) }}
+                       </td>
+                     </tr>
+                   </tbody>
+                 </v-table>
+                 <div class="text-caption text-center mt-2 text-medium-emphasis">
+                   Showing {{ displayedData.length }} of {{ store.cleanedData.length }} rows
+                 </div>
+               </v-card-text>
+               <v-card-text v-else class="text-center py-8 text-medium-emphasis">
+                 No data available to display.
+               </v-card-text>
+            </v-window-item>
+          </v-window>
         </v-card>
       </v-col>
 
+      <!-- Right Column: Summary -->
       <v-col cols="12" md="4" class="d-flex flex-column">
         <v-card color="primary" variant="tonal" class="pa-4 mb-4">
           <div class="text-overline mb-2">Preparation Summary</div>
@@ -80,9 +125,16 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { useForecastStore } from '@/stores/forecast'
 
 const store = useForecastStore()
+const tab = ref('report')
+
+const displayedData = computed(() => {
+  // Show only first 500 rows to avoid lag if large
+  return store.cleanedData.slice(0, 500)
+})
 
 const getActionIcon = (action: string) => {
   switch (action) {
@@ -107,5 +159,39 @@ const getActionColor = (action: string) => {
 
 const formatActionName = (name: string) => {
   return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+}
+
+const formatCell = (val: any) => {
+  if (typeof val === 'number') {
+    return val.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  }
+  return val
+}
+
+const downloadCsv = () => {
+  if (!store.cleanedData.length) return
+
+  const headers = Object.keys(store.cleanedData[0])
+  const csvRows = []
+  csvRows.push(headers.join(','))
+
+  for (const row of store.cleanedData) {
+    const values = headers.map(header => {
+      const val = row[header]
+      const escaped = ('' + val).replace(/"/g, '\\"')
+      return `"${escaped}"`
+    })
+    csvRows.push(values.join(','))
+  }
+
+  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.setAttribute('hidden', '')
+  a.setAttribute('href', url)
+  a.setAttribute('download', 'cleaned_data.csv')
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 </script>
