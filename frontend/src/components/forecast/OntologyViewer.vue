@@ -4,7 +4,7 @@
     
     <v-list lines="two" class="bg-transparent pa-0">
       <v-list-item
-        v-for="col in ontology?.columns"
+        v-for="col in ontology?.intent.columns"
         :key="col.column_name"
         class="mb-2 border rounded bg-surface"
       >
@@ -37,11 +37,11 @@
       <div>
         <span class="text-caption text-medium-emphasis mr-2">Detected Cadence:</span>
         <v-chip size="small" color="secondary" variant="tonal">
-          {{ ontology?.problem.granularity.unit || 'Unknown' }}
+          {{ ontology?.intent.problem.granularity.unit || 'Unknown' }}
         </v-chip>
       </div>
       <div class="text-caption text-medium-emphasis">
-        {{ ontology?.columns.length }} total dimensions identified
+        {{ ontology?.intent.columns.length }} total dimensions identified
       </div>
     </div>
   </v-card>

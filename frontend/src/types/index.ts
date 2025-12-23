@@ -11,11 +11,23 @@ export interface ModelMetadata {
   educational_video_url?: string;
 }
 
-export interface ForecastOntology {
+export interface UserIntentOntology {
   columns: ColumnOntology[];
   meta: any;
   problem: any;
   requirements: any;
+  session_id?: string;
+}
+
+export interface SystemAnalysis {
+  is_daily: boolean;
+  seasonality_mode: string;
+  regressors: string[];
+}
+
+export interface ForecastOntology {
+  intent: UserIntentOntology;
+  analysis: SystemAnalysis;
   model_metadata?: ModelMetadata;
   session_id?: string;
 }

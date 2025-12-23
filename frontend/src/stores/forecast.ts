@@ -18,12 +18,12 @@ export const useForecastStore = defineStore('forecast', {
   getters: {
     timeCol(): string {
       if (!this.ontology) return 'Date'
-      const col = this.ontology.columns.find(c => c.role === 'time_index')
+      const col = this.ontology.intent.columns.find(c => c.role === 'time_index')
       return col ? col.column_name : 'Date'
     },
     targetCol(): string {
       if (!this.ontology) return 'Value'
-      const col = this.ontology.columns.find(c => c.role === 'target')
+      const col = this.ontology.intent.columns.find(c => c.role === 'target')
       return col ? col.column_name : 'Value'
     }
   },
