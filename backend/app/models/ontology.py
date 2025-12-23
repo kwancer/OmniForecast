@@ -73,10 +73,28 @@ class ModelMetadata(BaseModel):
     educational_video_url: Optional[str] = None
 
 
-class ForecastOntology(BaseModel):
+class UserIntentOntology(BaseModel):
+    """
+    Captured from the user's prompt and initial LLM inference.
+    """
     meta: MetaContext
     problem: ProblemDefinition
     columns: List[ColumnRoleDefinition]
     requirements: UserRequirements
+    session_id: Optional[str] = None
+
+
+class SystemAnalysis(BaseModel):
+    """
+    Inferred from the data by the system (Python code).
+    """
+    is_daily: bool = False
+    seasonality_mode: Literal["additive", "multiplicative", "none"] = "none"
+    regressors: List[str] = Field(default_factory=list)
+
+
+class ForecastOntology(BaseModel):
+    intent: UserIntentOntology
+    analysis: SystemAnalysis
     model_metadata: Optional[ModelMetadata] = None
     session_id: Optional[str] = None

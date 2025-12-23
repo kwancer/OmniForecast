@@ -15,12 +15,12 @@ def clean_dataset(
     initial_shape = list(df.shape)
     actions: List[CleaningAction] = []
 
-    # Identify roles
+    # Identify roles from Intent
     time_col = next(
-        (c.column_name for c in ontology.columns if c.role == "time_index"), None
+        (c.column_name for c in ontology.intent.columns if c.role == "time_index"), None
     )
     target_col = next(
-        (c.column_name for c in ontology.columns if c.role == "target"), None
+        (c.column_name for c in ontology.intent.columns if c.role == "target"), None
     )
 
     if not time_col or not target_col:
@@ -79,7 +79,7 @@ def clean_dataset(
 
     # 4. Handle Duplicates
     if df.index.duplicated().any():
-        target_def = next(c for c in ontology.columns if c.column_name == target_col)
+        target_def = next(c for c in ontology.intent.columns if c.column_name == target_col)
         method = target_def.resampling_method
         old_count = len(df)
         if method == "sum":
@@ -108,7 +108,7 @@ def clean_dataset(
     inferred_freq = pd.infer_freq(df.index)
 
     if not inferred_freq:
-        unit = ontology.problem.granularity.unit
+        unit = ontology.intent.problem.granularity.unit
         if unit == "day":
             inferred_freq = "D"
         elif unit == "month":
@@ -158,7 +158,7 @@ def clean_dataset(
         )
 
     # 6. Imputation
-    target_def = next(c for c in ontology.columns if c.column_name == target_col)
+    target_def = next(c for c in ontology.intent.columns if c.column_name == target_col)
     nulls_count = df[target_col].isna().sum()
     if nulls_count > 0:
         if target_def.data_type == "continuous":

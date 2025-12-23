@@ -10,6 +10,7 @@ from sklearn.metrics import (
     mean_squared_error,
 )
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from prophet import Prophet
 
 from app.api.schemas import ForecastMetric
 from app.models.ontology import ForecastOntology
@@ -74,10 +75,10 @@ class SimpleAdditiveForecaster(Forecaster):
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
-            c.column_name for c in ontology.columns if c.role == "time_index"
+            c.column_name for c in ontology.intent.columns if c.role == "time_index"
         )
         self.target_col = next(
-            c.column_name for c in ontology.columns if c.role == "target"
+            c.column_name for c in ontology.intent.columns if c.role == "target"
         )
 
         df = df.set_index(self.time_col)
@@ -172,10 +173,10 @@ class RandomForestForecaster(Forecaster):
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
-            c.column_name for c in ontology.columns if c.role == "time_index"
+            c.column_name for c in ontology.intent.columns if c.role == "time_index"
         )
         self.target_col = next(
-            c.column_name for c in ontology.columns if c.role == "target"
+            c.column_name for c in ontology.intent.columns if c.role == "target"
         )
 
         df = df.set_index(self.time_col)
@@ -229,7 +230,118 @@ class RandomForestForecaster(Forecaster):
         )
 
 
+class ProphetForecaster(Forecaster):
+    """
+    Facebook Prophet for daily data with multiple seasonality and holidays.
+    """
+
+    def __init__(self):
+        self.model = None
+        self.time_col: Optional[str] = None
+        self.target_col: Optional[str] = None
+        self.regressors: List[str] = []
+        self.last_date = None
+        self.freq: Optional[str] = None
+
+    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
+        self.time_col = next(
+            c.column_name for c in ontology.intent.columns if c.role == "time_index"
+        )
+        self.target_col = next(
+            c.column_name for c in ontology.intent.columns if c.role == "target"
+        )
+
+        # Use identified regressors
+        self.regressors = ontology.analysis.regressors
+
+        # Prepare DataFrame for Prophet
+        prophet_df = df.rename(columns={self.time_col: 'ds', self.target_col: 'y'})
+
+        # Determine seasonality settings
+        seasonality_mode = ontology.analysis.seasonality_mode
+        if seasonality_mode == "none":
+            seasonality_mode = "additive" # Prophet needs one, usually additive is safer default if unsure
+
+        # Initialize Prophet
+        self.model = Prophet(seasonality_mode=seasonality_mode)
+
+        # Add regressors
+        for reg in self.regressors:
+            self.model.add_regressor(reg)
+
+        # Train/Val Split
+        split_idx = int(len(prophet_df) * 0.8)
+        train, val = prophet_df.iloc[:split_idx], prophet_df.iloc[split_idx:]
+
+        self.model.fit(train)
+
+        # Predict on validation
+        val_future = val[['ds'] + self.regressors] if self.regressors else val[['ds']]
+        val_forecast = self.model.predict(val_future)
+        val_preds = val_forecast['yhat']
+
+        # Refit on full data
+        self.model = Prophet(seasonality_mode=seasonality_mode)
+        for reg in self.regressors:
+            self.model.add_regressor(reg)
+        self.model.fit(prophet_df)
+
+        self.last_date = prophet_df['ds'].max()
+        self.freq = pd.infer_freq(prophet_df['ds']) or "D"
+
+        return calculate_metrics(val['y'], val_preds.values)
+
+    def predict(self, horizon: int) -> pd.DataFrame:
+        future = self.model.make_future_dataframe(periods=horizon, freq=self.freq)
+
+        # Handle regressors for future
+        # For this prototype, we will assume regressors are static or use last value if future values not provided
+        # Ideally, we would need a way to input future values for regressors.
+        # Here we just fill with 0 or last value to avoid crash, but warn this is a limitation
+        if self.regressors:
+             # Very simple imputation for future regressors: use last known value
+             # This is NOT correct for real forecasting but sufficient for avoiding crashes in this MVP
+             for reg in self.regressors:
+                 if reg not in future.columns:
+                     last_val = self.model.history[reg].iloc[-1]
+                     future[reg] = last_val # Naive extension
+
+        forecast = self.model.predict(future)
+
+        # Extract relevant part
+        future_forecast = forecast.iloc[-horizon:][['ds', 'yhat']]
+        future_forecast.columns = [self.time_col, self.target_col]
+
+        return future_forecast
+
+    @staticmethod
+    def get_metadata() -> Any:
+        from app.models.ontology import ModelMetadata
+
+        return ModelMetadata(
+            name="Prophet",
+            description=(
+                "A procedure for forecasting time series data based on an additive model "
+                "where non-linear trends are fit with yearly, weekly, and daily seasonality."
+            ),
+            rationale=(
+                "Chosen because your data appears to be daily with potential seasonality, "
+                "which Prophet handles exceptionally well."
+            ),
+            educational_video_url="https://facebook.github.io/prophet/",
+        )
+
+
 def get_forecaster(ontology: ForecastOntology) -> Forecaster:
-    if ontology.problem.task_type == "time_series_regression":
+    # Check if Prophet is suitable
+    # Criteria: Daily data + Seasonality detected OR User wants probabilistic/interpretable and data is daily
+    is_daily = ontology.analysis.is_daily
+    has_seasonality = ontology.analysis.seasonality_mode != "none"
+
+    if is_daily and has_seasonality:
+        return ProphetForecaster()
+
+    if ontology.intent.problem.task_type == "time_series_regression":
         return SimpleAdditiveForecaster()
+
     return RandomForestForecaster()

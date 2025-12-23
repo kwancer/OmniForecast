@@ -13,6 +13,7 @@ from app.core.database import ForecastSession, get_db
 from app.core.explainability import generate_explanation
 from app.core.forecasting import get_forecaster
 from app.core.intent import analyze_intent
+from app.core.analysis import analyze_data_characteristics
 from app.models.ontology import ForecastOntology
 
 router = APIRouter()
@@ -33,8 +34,17 @@ async def create_plan(
         content = await file.read()
         df = pd.read_csv(io.BytesIO(content))
 
-        # Analyze Intent
-        ontology = analyze_intent(df, prompt)
+        # Analyze Intent (LLM)
+        user_intent = analyze_intent(df, prompt)
+
+        # Analyze Data (System)
+        system_analysis = analyze_data_characteristics(df, user_intent)
+
+        # Combine
+        ontology = ForecastOntology(
+            intent=user_intent,
+            analysis=system_analysis
+        )
 
         # Generate Session ID
         session_id = str(uuid.uuid4())
@@ -54,6 +64,8 @@ async def create_plan(
         return ontology
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise e
 
 
@@ -98,7 +110,7 @@ async def generate_forecast(
         metrics = forecaster.fit(clean_df, ontology)
         print("DEBUG: Model fit successful.")
 
-        horizon = ontology.requirements.horizon_requirement.steps
+        horizon = ontology.intent.requirements.horizon_requirement.steps
         print(f"DEBUG: Predicting horizon: {horizon}")
         forecast_df = forecaster.predict(horizon)
         print(f"DEBUG: Prediction successful. Result shape: {forecast_df.shape}")

@@ -6,20 +6,20 @@ import google.generativeai as genai
 import pandas as pd
 from dotenv import load_dotenv
 
-from app.models.ontology import ForecastOntology
+from app.models.ontology import UserIntentOntology
 
 # Load env vars
 load_dotenv()
 
 
 def construct_prompt(df_head: pd.DataFrame, user_prompt: str) -> str:
-    schema_desc = ForecastOntology.model_json_schema()
+    schema_desc = UserIntentOntology.model_json_schema()
 
     data_summary = df_head.to_string()
 
     prompt = f"""
     You are an expert forecasting assistant. Your goal is to map a user's natural
-    language request and a dataset sample into a structured Forecast Ontology.
+    language request and a dataset sample into a structured Forecast Ontology (User Intent).
 
     User Request: "{user_prompt}"
 
@@ -41,7 +41,7 @@ def construct_prompt(df_head: pd.DataFrame, user_prompt: str) -> str:
     return prompt
 
 
-def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
+def heuristic_fallback(df: pd.DataFrame) -> UserIntentOntology:
     """
     Fallback method if LLM fails.
     """
@@ -69,7 +69,7 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
             target_col = str(col)
             break
 
-    return ForecastOntology(
+    return UserIntentOntology(
         meta={
             "user_intent_summary": (
                 "Inferred from heuristics (LLM Failed/Not Configured)"
@@ -107,9 +107,9 @@ def heuristic_fallback(df: pd.DataFrame) -> ForecastOntology:
     )
 
 
-def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
+def analyze_intent(df: pd.DataFrame, user_prompt: str) -> UserIntentOntology:
     """
-    Analyzes the user intent and dataset to produce a ForecastOntology.
+    Analyzes the user intent and dataset to produce a UserIntentOntology.
     Tries Gemini first, falls back to heuristics.
     """
     print(f"DEBUG: analyze_intent called with prompt: {user_prompt}")
@@ -137,7 +137,7 @@ def analyze_intent(df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         content: str = response.text
         print(f"DEBUG: Response content: {content[:100]}...")  # Print first 100 chars
 
-        return ForecastOntology.model_validate_json(content)
+        return UserIntentOntology.model_validate_json(content)
 
     except Exception as e:
         exc_name = type(e).__name__
