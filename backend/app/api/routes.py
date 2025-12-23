@@ -41,10 +41,7 @@ async def create_plan(
         system_analysis = analyze_data_characteristics(df, user_intent)
 
         # Combine
-        ontology = ForecastOntology(
-            intent=user_intent,
-            analysis=system_analysis
-        )
+        ontology = ForecastOntology(intent=user_intent, analysis=system_analysis)
 
         # Generate Session ID
         session_id = str(uuid.uuid4())
@@ -65,6 +62,7 @@ async def create_plan(
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         raise e
 

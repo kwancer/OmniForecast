@@ -19,7 +19,8 @@ def construct_prompt(df_head: pd.DataFrame, user_prompt: str) -> str:
 
     prompt = f"""
     You are an expert forecasting assistant. Your goal is to map a user's natural
-    language request and a dataset sample into a structured Forecast Ontology (User Intent).
+    language request and a dataset sample into a structured Forecast Ontology
+    (User Intent).
 
     User Request: "{user_prompt}"
 

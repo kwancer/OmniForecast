@@ -79,7 +79,9 @@ def clean_dataset(
 
     # 4. Handle Duplicates
     if df.index.duplicated().any():
-        target_def = next(c for c in ontology.intent.columns if c.column_name == target_col)
+        target_def = next(
+            c for c in ontology.intent.columns if c.column_name == target_col
+        )
         method = target_def.resampling_method
         old_count = len(df)
         if method == "sum":

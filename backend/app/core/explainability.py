@@ -16,7 +16,9 @@ def generate_explanation(
     Generates a simple natural language summary of the forecast including
     performance insights.
     """
-    target_col = next(c.column_name for c in ontology.intent.columns if c.role == "target")
+    target_col = next(
+        c.column_name for c in ontology.intent.columns if c.role == "target"
+    )
 
     last_hist_val = float(history_df[target_col].iloc[-1])
     last_pred_val = float(forecast_df[target_col].iloc[-1])

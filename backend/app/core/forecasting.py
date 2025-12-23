@@ -255,12 +255,13 @@ class ProphetForecaster(Forecaster):
         self.regressors = ontology.analysis.regressors
 
         # Prepare DataFrame for Prophet
-        prophet_df = df.rename(columns={self.time_col: 'ds', self.target_col: 'y'})
+        prophet_df = df.rename(columns={self.time_col: "ds", self.target_col: "y"})
 
         # Determine seasonality settings
         seasonality_mode = ontology.analysis.seasonality_mode
         if seasonality_mode == "none":
-            seasonality_mode = "additive" # Prophet needs one, usually additive is safer default if unsure
+            # Prophet needs one, usually additive is safer default if unsure
+            seasonality_mode = "additive"
 
         # Initialize Prophet
         self.model = Prophet(seasonality_mode=seasonality_mode)
@@ -276,9 +277,9 @@ class ProphetForecaster(Forecaster):
         self.model.fit(train)
 
         # Predict on validation
-        val_future = val[['ds'] + self.regressors] if self.regressors else val[['ds']]
+        val_future = val[["ds"] + self.regressors] if self.regressors else val[["ds"]]
         val_forecast = self.model.predict(val_future)
-        val_preds = val_forecast['yhat']
+        val_preds = val_forecast["yhat"]
 
         # Refit on full data
         self.model = Prophet(seasonality_mode=seasonality_mode)
@@ -286,30 +287,33 @@ class ProphetForecaster(Forecaster):
             self.model.add_regressor(reg)
         self.model.fit(prophet_df)
 
-        self.last_date = prophet_df['ds'].max()
-        self.freq = pd.infer_freq(prophet_df['ds']) or "D"
+        self.last_date = prophet_df["ds"].max()
+        self.freq = pd.infer_freq(prophet_df["ds"]) or "D"
 
-        return calculate_metrics(val['y'], val_preds.values)
+        return calculate_metrics(val["y"], val_preds.values)
 
     def predict(self, horizon: int) -> pd.DataFrame:
         future = self.model.make_future_dataframe(periods=horizon, freq=self.freq)
 
         # Handle regressors for future
-        # For this prototype, we will assume regressors are static or use last value if future values not provided
+        # For this prototype, we will assume regressors are static or use last value
+        # if future values not provided.
         # Ideally, we would need a way to input future values for regressors.
-        # Here we just fill with 0 or last value to avoid crash, but warn this is a limitation
+        # Here we just fill with 0 or last value to avoid crash,
+        # but warn this is a limitation
         if self.regressors:
-             # Very simple imputation for future regressors: use last known value
-             # This is NOT correct for real forecasting but sufficient for avoiding crashes in this MVP
-             for reg in self.regressors:
-                 if reg not in future.columns:
-                     last_val = self.model.history[reg].iloc[-1]
-                     future[reg] = last_val # Naive extension
+            # Very simple imputation for future regressors: use last known value
+            # This is NOT correct for real forecasting but sufficient for avoiding
+            # crashes in this MVP
+            for reg in self.regressors:
+                if reg not in future.columns:
+                    last_val = self.model.history[reg].iloc[-1]
+                    future[reg] = last_val  # Naive extension
 
         forecast = self.model.predict(future)
 
         # Extract relevant part
-        future_forecast = forecast.iloc[-horizon:][['ds', 'yhat']]
+        future_forecast = forecast.iloc[-horizon:][["ds", "yhat"]]
         future_forecast.columns = [self.time_col, self.target_col]
 
         return future_forecast
@@ -321,12 +325,13 @@ class ProphetForecaster(Forecaster):
         return ModelMetadata(
             name="Prophet",
             description=(
-                "A procedure for forecasting time series data based on an additive model "
-                "where non-linear trends are fit with yearly, weekly, and daily seasonality."
+                "A procedure for forecasting time series data based on an additive "
+                "model where non-linear trends are fit with yearly, weekly, and "
+                "daily seasonality."
             ),
             rationale=(
-                "Chosen because your data appears to be daily with potential seasonality, "
-                "which Prophet handles exceptionally well."
+                "Chosen because your data appears to be daily with potential "
+                "seasonality, which Prophet handles exceptionally well."
             ),
             educational_video_url="https://facebook.github.io/prophet/",
         )
@@ -334,7 +339,7 @@ class ProphetForecaster(Forecaster):
 
 def get_forecaster(ontology: ForecastOntology) -> Forecaster:
     # Check if Prophet is suitable
-    # Criteria: Daily data + Seasonality detected OR User wants probabilistic/interpretable and data is daily
+    # Criteria: Daily data + Seasonality detected
     is_daily = ontology.analysis.is_daily
     has_seasonality = ontology.analysis.seasonality_mode != "none"
 
