@@ -172,19 +172,19 @@ const downloadCsv = () => {
   if (!store.cleanedData.length) return
 
   const headers = Object.keys(store.cleanedData[0])
-  const csvRows = []
-  csvRows.push(headers.join(','))
+  const headerRow = headers.join(',')
 
-  for (const row of store.cleanedData) {
-    const values = headers.map(header => {
+  const bodyRows = store.cleanedData.map(row => {
+    return headers.map(header => {
       const val = row[header]
       const escaped = ('' + val).replace(/"/g, '\\"')
       return `"${escaped}"`
-    })
-    csvRows.push(values.join(','))
-  }
+    }).join(',')
+  })
 
-  const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' })
+  const csvContent = [headerRow, ...bodyRows].join('\n')
+
+  const blob = new Blob([csvContent], { type: 'text/csv' })
   const url = window.URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.setAttribute('hidden', '')
