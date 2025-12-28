@@ -1,6 +1,14 @@
 <template>
   <v-app-bar elevation="1" border>
-    <v-container class="fill-height d-flex align-center">
+    <template v-slot:prepend>
+      <v-app-bar-nav-icon
+        variant="text"
+        @click="$emit('toggle-drawer')"
+        class="d-md-none"
+      ></v-app-bar-nav-icon>
+    </template>
+
+    <v-container class="fill-height d-flex align-center py-0" fluid>
       <div class="d-flex align-center cursor-pointer" @click="router.push('/')">
         <v-img
           alt="OmniForecast"
@@ -10,7 +18,7 @@
           width="40"
           class="mr-3"
         />
-        <span class="text-h6 font-weight-bold font-header">OmniForecast</span>
+        <span class="text-h6 font-weight-bold font-header d-none d-sm-block">OmniForecast</span>
       </div>
 
       <v-spacer></v-spacer>
@@ -34,6 +42,6 @@ import { useRouter } from 'vue-router'
 
 const appStore = useAppStore()
 const router = useRouter()
+
+defineEmits(['toggle-drawer'])
 </script>
-
-

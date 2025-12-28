@@ -1,6 +1,6 @@
 <template>
-  <v-container fluid>
-    <v-row justify="center">
+  <v-container fluid class="bg-background fill-height d-flex flex-column justify-center">
+    <v-row justify="center" class="flex-grow-0 w-100">
       <v-col cols="12" sm="10" md="8">
         <div class="text-center mb-6">
           <h2 class="text-h4 font-header mb-2">Start Forecasting</h2>
