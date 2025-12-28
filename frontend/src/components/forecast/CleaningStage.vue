@@ -60,14 +60,14 @@
                  <v-table density="compact" fixed-header height="400px">
                    <thead>
                      <tr>
-                       <th v-for="key in Object.keys(store.cleanedData[0])" :key="key" class="text-left">
+                       <th v-for="key in dataHeaders" :key="key" class="text-left">
                          {{ key }}
                        </th>
                      </tr>
                    </thead>
                    <tbody>
                      <tr v-for="(row, i) in displayedData" :key="i">
-                       <td v-for="key in Object.keys(row)" :key="key">
+                       <td v-for="key in Object.keys(row || {})" :key="key">
                          {{ formatCell(row[key]) }}
                        </td>
                      </tr>
@@ -136,6 +136,13 @@ const displayedData = computed(() => {
   return store.cleanedData.slice(0, 500)
 })
 
+const dataHeaders = computed(() => {
+  if (store.cleanedData && store.cleanedData.length > 0) {
+    return Object.keys(store.cleanedData[0] || {})
+  }
+  return []
+})
+
 const getActionIcon = (action: string) => {
   switch (action) {
     case 'normalization': return 'mdi-format-letter-case'
@@ -171,7 +178,7 @@ const formatCell = (val: any) => {
 const downloadCsv = () => {
   if (!store.cleanedData.length) return
 
-  const headers = Object.keys(store.cleanedData[0])
+  const headers = dataHeaders.value
   const headerRow = headers.join(',')
 
   const bodyRows = store.cleanedData.map(row => {
