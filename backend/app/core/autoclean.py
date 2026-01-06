@@ -40,6 +40,23 @@ def clean_dataset(
             )
         )
 
+    # Reconcile Ontology with Cleaned DataFrame
+    # If the LLM outputted "Column " (with space) but we have "Column" (stripped),
+    # we update the ontology's column name to match the DataFrame.
+    for col_def in ontology.columns:
+        stripped_name = col_def.column_name.strip()
+        if col_def.column_name not in df.columns and stripped_name in df.columns:
+            # Update the ontology to use the stripped name
+            col_def.column_name = stripped_name
+
+    # Refresh roles in case they were updated during reconciliation
+    time_col = next(
+        (c.column_name for c in ontology.columns if c.role == "time_index"), None
+    )
+    target_col = next(
+        (c.column_name for c in ontology.columns if c.role == "target"), None
+    )
+
     # Verify columns exist
     if time_col not in df.columns:
         raise ValueError(
