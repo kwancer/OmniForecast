@@ -36,7 +36,10 @@ class ForecastSession(Base):
 
 
 # Create tables
-Base.metadata.create_all(bind=engine)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as e:
+    print(f"Warning: Could not create tables: {e}")
 
 
 def get_db():

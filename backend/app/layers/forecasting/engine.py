@@ -11,26 +11,8 @@ from sklearn.metrics import (
 )
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
-from app.api.schemas import ForecastMetric
-from app.models.ontology import ForecastOntology
-
-
-class Forecaster(ABC):
-    @abstractmethod
-    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> Dict[str, float]:
-        """Fits the model and returns validation metrics."""
-        pass
-
-    @abstractmethod
-    def predict(self, horizon: int) -> pd.DataFrame:
-        """Generates future predictions."""
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def get_metadata() -> Any:
-        """Returns model metadata."""
-        pass
+from app.domain.data import ForecastMetric
+from app.domain.ontology import ForecastOntology, ModelMetadata
 
 
 def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetric]:
@@ -59,7 +41,24 @@ def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetr
     return metrics
 
 
-class SimpleAdditiveForecaster(Forecaster):
+class InternalForecaster(ABC):
+    """Base class for internal forecast implementations."""
+
+    @abstractmethod
+    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
+        pass
+
+    @abstractmethod
+    def predict(self, horizon: int) -> pd.DataFrame:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def get_metadata() -> ModelMetadata:
+        pass
+
+
+class SimpleAdditiveForecaster(InternalForecaster):
     """
     A robust baseline forecaster using Holt-Winters Exponential Smoothing.
     """
@@ -128,9 +127,7 @@ class SimpleAdditiveForecaster(Forecaster):
         )
 
     @staticmethod
-    def get_metadata() -> Any:
-        from app.models.ontology import ModelMetadata
-
+    def get_metadata() -> ModelMetadata:
         return ModelMetadata(
             name="Exponential Smoothing (ETS)",
             description=(
@@ -146,7 +143,7 @@ class SimpleAdditiveForecaster(Forecaster):
         )
 
 
-class RandomForestForecaster(Forecaster):
+class RandomForestForecaster(InternalForecaster):
     """
     Random Forest Regressor for non-strictly temporal or complex patterns.
     Uses lags as features.
@@ -196,25 +193,19 @@ class RandomForestForecaster(Forecaster):
         return calculate_metrics(y_val, val_preds)
 
     def predict(self, horizon: int) -> pd.DataFrame:
-        # Placeholder for recursive multi-step prediction
-        # For prototype, we'll return a simple extrapolation or last known
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
-        # Simple implementation: use last known values to predict
-        # This is a very basic recursive forecast
-        # ... (simplified for prototype)
-        last_val = self.model.predict(np.zeros((1, self.lags)))[
-            0
-        ]  # Extremely simplified
+
+        # Simple recursive prediction for prototype
+        last_val = self.model.predict(np.zeros((1, self.lags)))[0]
+
         return pd.DataFrame(
             {self.time_col: future_dates, self.target_col: [last_val] * horizon}
         )
 
     @staticmethod
-    def get_metadata() -> Any:
-        from app.models.ontology import ModelMetadata
-
+    def get_metadata() -> ModelMetadata:
         return ModelMetadata(
             name="Random Forest Regressor",
             description=(
@@ -229,7 +220,31 @@ class RandomForestForecaster(Forecaster):
         )
 
 
-def get_forecaster(ontology: ForecastOntology) -> Forecaster:
-    if ontology.problem.task_type == "time_series_regression":
-        return SimpleAdditiveForecaster()
-    return RandomForestForecaster()
+class SmartForecastEngine:
+    """
+    Main Forecast Engine that selects the appropriate model based on Ontology.
+    """
+
+    def __init__(self):
+        self.active_model: Optional[InternalForecaster] = None
+
+    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
+        # Selection Logic
+        if ontology.problem.task_type == "time_series_regression":
+            self.active_model = SimpleAdditiveForecaster()
+        else:
+            self.active_model = RandomForestForecaster()
+
+        return self.active_model.fit(df, ontology)
+
+    def predict(self, horizon: int) -> pd.DataFrame:
+        if not self.active_model:
+            raise ValueError("Model not fitted yet.")
+        return self.active_model.predict(horizon)
+
+    def get_metadata(self) -> Any:
+        if not self.active_model:
+            # Return default or placeholder if accessed before fit (shouldn't happen in current flow)
+            # Or assume default model metadata
+            return SimpleAdditiveForecaster.get_metadata()
+        return self.active_model.get_metadata()
