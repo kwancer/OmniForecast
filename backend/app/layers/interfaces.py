@@ -1,13 +1,12 @@
-from typing import List, Protocol, Tuple, Dict, Any
+from typing import Any, List, Protocol, Tuple
+
 import pandas as pd
 
-from app.domain.ontology import ForecastOntology
 from app.domain.data import (
     CleaningReport,
-    CleaningAction,
     ForecastMetric,
-    ForecastResponse,
 )
+from app.domain.ontology import ForecastOntology
 
 
 class IntentAnalyzer(Protocol):

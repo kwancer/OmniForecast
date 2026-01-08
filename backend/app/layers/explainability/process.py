@@ -4,7 +4,6 @@ import pandas as pd
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology
-from app.layers.interfaces import Explainer
 
 
 class StandardExplainer:

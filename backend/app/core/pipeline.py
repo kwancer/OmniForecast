@@ -1,14 +1,12 @@
-from typing import Any, Dict, List, Tuple
-
 import pandas as pd
 
-from app.domain.data import CleaningReport, ForecastMetric, ForecastResponse
+from app.domain.data import ForecastResponse
 from app.domain.ontology import ForecastOntology
-from app.layers.interfaces import IntentAnalyzer, AutoCleaner, ForecastEngine, Explainer
-from app.layers.intent import GeminiIntentAnalyzer
 from app.layers.autoclean import RuleBasedCleaner
-from app.layers.forecasting import SmartForecastEngine
 from app.layers.explainability import StandardExplainer
+from app.layers.forecasting import SmartForecastEngine
+from app.layers.intent import GeminiIntentAnalyzer
+from app.layers.interfaces import AutoCleaner, Explainer, ForecastEngine, IntentAnalyzer
 
 
 class ForecastPipeline:

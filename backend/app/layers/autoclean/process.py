@@ -1,10 +1,9 @@
-from typing import Tuple, List
+from typing import List, Tuple
 
 import pandas as pd
 
 from app.domain.data import CleaningAction, CleaningReport
 from app.domain.ontology import ForecastOntology
-from app.layers.interfaces import AutoCleaner
 
 
 class RuleBasedCleaner:
@@ -16,7 +15,8 @@ class RuleBasedCleaner:
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> Tuple[pd.DataFrame, CleaningReport]:
         """
-        Preprocesses the dataset based on the ontology and generates a report of all actions
+        Preprocesses the dataset based on the ontology and generates
+        a report of all actions
         """
         initial_shape = list(df.shape)
         actions: List[CleaningAction] = []
@@ -86,7 +86,7 @@ class RuleBasedCleaner:
                     action="type_conversion",
                     description=(
                         f"Converted target to numeric. "
-                        f"{nulls_after - nulls_before} invalid values replaced with NaN."
+                        f"{nulls_after - nulls_before} invalid cells replaced with NaN."
                     ),
                 )
             )
@@ -199,7 +199,7 @@ class RuleBasedCleaner:
                 CleaningAction(
                     column=target_col,
                     action="imputation",
-                    description=f"Imputed {nulls_count} missing values using {imp_method}.",
+                    description=f"Imputed {nulls_count} values using {imp_method}.",
                 )
             )
 

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -244,7 +244,8 @@ class SmartForecastEngine:
 
     def get_metadata(self) -> Any:
         if not self.active_model:
-            # Return default or placeholder if accessed before fit (shouldn't happen in current flow)
+            # Return default or placeholder if accessed before fit (shouldn't happen
+            # in current flow)
             # Or assume default model metadata
             return SimpleAdditiveForecaster.get_metadata()
         return self.active_model.get_metadata()

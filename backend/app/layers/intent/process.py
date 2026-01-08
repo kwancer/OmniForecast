@@ -8,7 +8,6 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from app.domain.ontology import ForecastOntology
-from app.layers.interfaces import IntentAnalyzer
 
 # Load env vars
 load_dotenv()

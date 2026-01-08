@@ -1,5 +1,4 @@
 import io
-import json
 import uuid
 
 import pandas as pd
