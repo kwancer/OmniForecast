@@ -1,5 +1,5 @@
 <template>
-  <v-card variant="flat" border class="pa-2 pa-md-4 bg-surface-variant">
+  <v-card variant="flat" border class="pa-2 pa-md-4">
     <div class="text-overline text-primary mb-2 mb-md-4">Data Mapping Strategy</div>
     
     <v-list lines="two" class="bg-transparent pa-0">

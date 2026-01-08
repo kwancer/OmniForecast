@@ -3,7 +3,6 @@
     <div class="d-flex align-center mb-6">
       <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('plan')"></v-btn>
       <h2 class="text-h5 font-header ml-2">Data Preparation</h2>
-      <v-chip color="success" class="ml-auto" size="small" prepend-icon="mdi-check-circle">READY FOR ANALYSIS</v-chip>
     </div>
 
     <v-row class="flex-grow-1 overflow-hidden">
@@ -42,8 +41,10 @@
       </v-col>
 
       <v-col cols="12" md="4" class="d-flex flex-column">
+
         <v-card color="primary" variant="tonal" class="pa-4 mb-4">
           <div class="text-overline mb-2">Preparation Summary</div>
+
           <div class="d-flex justify-space-between mb-1">
             <span class="text-caption">Original Shape:</span>
             <span class="text-caption font-weight-bold">{{ store.cleaningReport?.initial_shape.join(' x ') }}</span>
@@ -70,7 +71,7 @@
             @click="store.setStep('results')"
             elevation="2"
           >
-            Finalise & Continue
+            Continue
             <v-icon end>mdi-chevron-right</v-icon>
           </v-btn>
         </v-card>

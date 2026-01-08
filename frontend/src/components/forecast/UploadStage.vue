@@ -3,8 +3,8 @@
     <v-row justify="center" class="flex-grow-0 w-100">
       <v-col cols="12" sm="10" md="8">
         <div class="text-center mb-6">
-          <h2 class="text-h4 font-header mb-2">Start Forecasting</h2>
-          <p class="text-body-1 text-medium-emphasis">Upload historical data and define your forecasting objective.</p>
+          <h2 class="text-h4 font-header mb-2">Start Prediction</h2>
+          <p class="text-body-1 text-medium-emphasis">Upload historical data and define your prediction objective. </p>
         </div>
 
         <v-alert
@@ -15,7 +15,7 @@
           density="compact"
         >
           <div class="text-body-2">
-            <strong>Deterministic Workflow:</strong> AI assists in understanding your intent and mapping the data ontology, but all forecasting logic and code execution are deterministic. No code is generated on-the-fly.
+            AI assists in understanding your intent and converting it into a computer-usable format, but all forecasting logic and code execution are deterministic. No code is generated on-the-fly.
           </div>
         </v-alert>
 
@@ -52,7 +52,6 @@
 
         <v-textarea
           v-model="intent"
-          label="Your Prediction Goal"
           placeholder="e.g. Forecast sales for the next 12 months, focusing on seasonal trends..."
           prepend-icon="mdi-text-box-search-outline"
           rows="4"
@@ -71,7 +70,7 @@
           size="x-large"
           elevation="2"
         >
-          Check Data & Continue
+          Continue
           <v-icon end>mdi-chevron-right</v-icon>
         </v-btn>
       </v-col>

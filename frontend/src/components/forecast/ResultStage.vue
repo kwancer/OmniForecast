@@ -58,25 +58,6 @@
           <p class="text-body-2">{{ store.explanation }}</p>
         </v-card>
 
-        <v-card variant="flat" border class="pa-4 mb-4 bg-blue-lighten-5">
-          <div class="text-overline mb-2 text-blue-darken-4">Decision Support</div>
-          <div class="text-subtitle-2 font-weight-bold mb-1">Strategic Decision Workspace</div>
-          <p class="text-caption text-blue-darken-3 mb-4">
-            Use the forecast above to inform your next steps. Consider: 
-            <strong>"What is the cost of being 10% under vs 10% over?"</strong>
-          </p>
-          
-          <v-textarea
-            label="Your Strategy Notes"
-            placeholder="e.g. Based on the 15% projected growth, I will increase inventory orders by 10%..."
-            variant="solo"
-            flat
-            density="compact"
-            rows="3"
-            class="mb-0"
-          ></v-textarea>
-        </v-card>
-
         <v-btn variant="outlined" block class="mb-2" prepend-icon="mdi-download">Export JSON</v-btn>
         <v-btn variant="outlined" block class="mb-4" prepend-icon="mdi-file-chart">Export Formal Report</v-btn>
         
