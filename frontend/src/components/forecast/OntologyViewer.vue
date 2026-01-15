@@ -38,7 +38,7 @@
 
     <div class="mt-4 pt-4 border-t d-flex align-center justify-space-between flex-wrap gap-2">
       <div class="d-flex align-center">
-        <span class="text-caption text-medium-emphasis mr-2">Detected Cadence:</span>
+        <span class="text-caption text-medium-emphasis mr-2">Resolution</span>
         <v-chip size="small" color="secondary" variant="tonal">
           {{ ontology?.problem.granularity.unit || 'Unknown' }}
         </v-chip>
