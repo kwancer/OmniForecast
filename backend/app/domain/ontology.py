@@ -32,6 +32,10 @@ class Constraints(BaseModel):
     min_value: Optional[float] = None
     max_value: Optional[float] = None
     allowed_classes: Optional[List[str]] = None
+    sparsity_ratio: Optional[float] = Field(
+        default=None,
+        description="The ratio of zeros to total observations (0.0 - 1.0).",
+    )
 
 
 class ColumnRoleDefinition(BaseModel):

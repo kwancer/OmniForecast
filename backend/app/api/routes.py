@@ -39,6 +39,10 @@ async def create_plan(
 
         # Determine Model Metadata (pipeline's forecaster can provide this)
         # We can access the forecaster from the pipeline instance
+        # Fix: Select model first without fitting (avoiding crash on raw data)
+        pipeline.forecaster.select_model(ontology)
+
+        # Now we can safely get the metadata from the selected model
         ontology.model_metadata = pipeline.forecaster.get_metadata()
 
         # Persist Session
@@ -80,6 +84,9 @@ async def generate_forecast(
         # Run Pipeline
         print("DEBUG: Running Pipeline...")
         pipeline = get_pipeline()
+
+        # Ensure model is selected so we have the right model logic initialized
+        pipeline.forecaster.select_model(ontology)
 
         # Ensure metadata is present if lost
         if not ontology.model_metadata:

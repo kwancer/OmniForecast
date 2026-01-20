@@ -7,7 +7,7 @@ import google.generativeai as genai
 import pandas as pd
 from dotenv import load_dotenv
 
-from app.domain.ontology import ForecastOntology
+from app.domain.ontology import Constraints, ForecastOntology
 
 # Load env vars
 load_dotenv()
@@ -15,35 +15,67 @@ load_dotenv()
 
 class GeminiIntentAnalyzer:
     """
-    Implementation of IntentAnalyzer using Google Gemini (or heuristic fallback).
+    Two-Stage Analyzer:
+    1. LLM infers structure (Columns, Intent, Horizon).
+    2. Python calculates statistics (Sparsity) based on that structure.
     """
 
     def _construct_prompt(self, df_head: pd.DataFrame, user_prompt: str) -> str:
+        """
+        Stage 1 Prompt: Asks only for structural mapping, not data profiling.
+        """
         schema_desc = ForecastOntology.model_json_schema()
         data_summary = df_head.to_string()
 
         prompt = f"""
-        You are an expert forecasting assistant. Your goal is to map a user's natural
-        language request and a dataset sample into a structured Forecast Ontology.
-
+        You are an expert forecasting architect.
         User Request: "{user_prompt}"
 
         Dataset Sample (first 5 rows):
         {data_summary}
 
-        Please analyze the request and data, and output a JSON object that strictly
-        adheres to the following schema:
+        Task: Map this to a Forecast Ontology.
+        - Identify the 'target' and 'time_index' columns.
+        - Infer the user's constraints (e.g. non-negative).
+        - LEAVE 'sparsity_ratio' as null (the system will calculate this later).
+
+        Output ONLY the JSON adhering to:
         {json.dumps(schema_desc, indent=2)}
-
-        Ensure you identify:
-        1. The time column and target column.
-        2. The frequency/granularity.
-        3. The forecast horizon (default to 12 steps if not specified).
-        4. Any specific user requirements.
-
-        Output ONLY the JSON.
         """
         return prompt
+
+    def _enrich_ontology(
+        self, df: pd.DataFrame, ontology: ForecastOntology
+    ) -> ForecastOntology:
+        """
+        Stage 2: Python Statistical Profiling.
+        Uses the LLM's structural definitions to calculate targeted stats (Sparsity).
+        """
+        # 1. Identify Target Column from Ontology
+        target_def = next((c for c in ontology.columns if c.role == "target"), None)
+
+        if target_def:
+            col_name = target_def.column_name
+            # Verify column exists in the full dataframe
+            if col_name in df.columns:
+                series = df[col_name]
+
+                # A. Calculate Sparsity Ratio (The "Fact")
+                # We only calculate this for numeric targets
+                if pd.api.types.is_numeric_dtype(series):
+                    zero_count = (series == 0).sum()
+                    ratio = zero_count / len(df)
+
+                    # Initialize constraints object if it doesn't exist
+                    if not target_def.constraints:
+                        target_def.constraints = Constraints()
+
+                    # Store the exact number (0.0 - 1.0)
+                    target_def.constraints.sparsity_ratio = float(ratio)
+
+                    print(f"LOG: Enriched Ontology with Sparsity Ratio: {ratio:.2%}")
+
+        return ontology
 
     def _heuristic_fallback(self, df: pd.DataFrame) -> ForecastOntology:
         """
@@ -75,9 +107,7 @@ class GeminiIntentAnalyzer:
 
         return ForecastOntology(
             meta={
-                "user_intent_summary": (
-                    "Inferred from heuristics (LLM Failed/Not Configured)"
-                ),
+                "user_intent_summary": "Inferred from heuristics (LLM Failed)",
                 "domain_inference": "General",
                 "completeness_check": "complete",
             },
@@ -116,16 +146,16 @@ class GeminiIntentAnalyzer:
     def analyze(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         """
         Analyzes the user intent and dataset to produce a ForecastOntology.
-        Tries Gemini first, falls back to heuristics.
+        Tries Gemini first -> Enriches with Python Stats -> Falls back to heuristics.
         """
         print(f"DEBUG: analyze_intent called with prompt: {user_prompt}")
         api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
 
         if not api_key or "PLACEHOLDER" in api_key:
-            print(
-                "Warning: GEMINI_API_KEY not set or is placeholder. Using heuristics."
-            )
-            return self._heuristic_fallback(df)
+            print("Warning: GEMINI_API_KEY not set. Using heuristics.")
+            ontology = self._heuristic_fallback(df)
+            # Even in fallback, we should calculate stats!
+            return self._enrich_ontology(df, ontology)
 
         try:
             print("DEBUG: Configuring Gemini...")
@@ -136,21 +166,23 @@ class GeminiIntentAnalyzer:
             )
 
             print("DEBUG: Constructing prompt...")
-            prompt: str = self._construct_prompt(df.head(), user_prompt)
+            # Stage 1: LLM Inference
+            prompt = self._construct_prompt(df.head(), user_prompt)
 
             print("DEBUG: Calling Gemini API...")
             response = model.generate_content(prompt)
-
             print("DEBUG: Gemini response received.")
-            content: str = response.text
-            print(
-                f"DEBUG: Response content: {content[:100]}..."
-            )  # Print first 100 chars
 
-            return ForecastOntology.model_validate_json(content)
+            ontology = ForecastOntology.model_validate_json(response.text)
+
+            # Stage 2: Python Enrichment
+            ontology = self._enrich_ontology(df, ontology)
+
+            return ontology
 
         except Exception as e:
             exc_name = type(e).__name__
             print(f"LLM Error: {exc_name}: {e}. Falling back to heuristics.")
             traceback.print_exc()
-            return self._heuristic_fallback(df)
+            ontology = self._heuristic_fallback(df)
+            return self._enrich_ontology(df, ontology)

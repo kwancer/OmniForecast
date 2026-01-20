@@ -32,6 +32,9 @@ class ForecastPipeline:
     def run_forecast(
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> ForecastResponse:
+        # 0. Select Model (Pre-cleaning model selection)
+        self.forecaster.select_model(ontology)
+
         # 1. AutoClean
         clean_df, cleaning_report = self.cleaner.clean(df, ontology)
 

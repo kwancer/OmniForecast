@@ -46,6 +46,12 @@ class ForecastEngine(Protocol):
         """
         ...
 
+    def select_model(self, ontology: ForecastOntology) -> None:
+        """
+        Selects the forecasting model based on the ontology.
+        """
+        ...
+
 
 class Explainer(Protocol):
     def explain(
