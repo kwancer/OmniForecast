@@ -1,5 +1,5 @@
-import { defineStore } from 'pinia'
 import type { AppNotification, NotificationType } from '@/types'
+import { defineStore } from 'pinia'
 
 export const useAppStore = defineStore('app', {
   state: () => ({
@@ -8,21 +8,21 @@ export const useAppStore = defineStore('app', {
   }),
 
   actions: {
-    notify(message: string, type: NotificationType = 'info', timeout = 5000) {
-      const id = Math.random().toString(36).substring(2, 9)
+    notify (message: string, type: NotificationType = 'info', timeout = 5000) {
+      const id = Math.random().toString(36).slice(2, 9)
       this.notifications.push({ id, message, type, timeout })
     },
 
-    removeNotification(id: string) {
+    removeNotification (id: string) {
       this.notifications = this.notifications.filter(n => n.id !== id)
     },
 
-    setTheme(theme: 'light' | 'dark') {
+    setTheme (theme: 'light' | 'dark') {
       this.theme = theme
     },
 
-    toggleTheme() {
+    toggleTheme () {
       this.theme = this.theme === 'light' ? 'dark' : 'light'
-    }
+    },
   },
 })

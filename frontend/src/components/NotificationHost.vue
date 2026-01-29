@@ -5,13 +5,13 @@
       :key="note.id"
       v-model="activeNotes[note.id]"
       :color="note.type"
-      :timeout="note.timeout"
       location="top right"
+      :timeout="note.timeout"
       @update:model-value="(val) => !val && appStore.removeNotification(note.id)"
     >
       {{ note.message }}
-      
-      <template v-slot:actions>
+
+      <template #actions>
         <v-btn
           variant="text"
           @click="appStore.removeNotification(note.id)"
@@ -24,17 +24,17 @@
 </template>
 
 <script setup lang="ts">
-import { useAppStore } from '@/stores/app'
-import { reactive, watch } from 'vue'
+  import { reactive, watch } from 'vue'
+  import { useAppStore } from '@/stores/app'
 
-const appStore = useAppStore()
-const activeNotes = reactive<Record<string, boolean>>({})
+  const appStore = useAppStore()
+  const activeNotes = reactive<Record<string, boolean>>({})
 
-watch(() => appStore.notifications, (newNotes) => {
-  newNotes.forEach(note => {
-    if (activeNotes[note.id] === undefined) {
-      activeNotes[note.id] = true
+  watch(() => appStore.notifications, newNotes => {
+    for (const note of newNotes) {
+      if (activeNotes[note.id] === undefined) {
+        activeNotes[note.id] = true
+      }
     }
-  })
-}, { deep: true })
+  }, { deep: true })
 </script>

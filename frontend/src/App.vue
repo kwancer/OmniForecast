@@ -6,8 +6,8 @@
 </template>
 
 <script setup lang="ts">
-import { useAppStore } from './stores/app'
-import NotificationHost from './components/NotificationHost.vue'
+  import NotificationHost from './components/NotificationHost.vue'
+  import { useAppStore } from './stores/app'
 
-const appStore = useAppStore()
+  const appStore = useAppStore()
 </script>

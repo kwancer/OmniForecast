@@ -105,17 +105,17 @@ class GeminiIntentAnalyzer:
                 target_col = str(col)
                 break
 
-        return ForecastOntology(
-            meta={
+        return ForecastOntology.model_validate({
+            "meta": {
                 "user_intent_summary": "Inferred from heuristics (LLM Failed)",
                 "domain_inference": "General",
                 "completeness_check": "complete",
             },
-            problem={
+            "problem": {
                 "task_type": "time_series_regression",
                 "granularity": {"unit": "month", "is_regular": True},
             },
-            columns=[
+            "columns": [
                 {
                     "column_name": str(time_col) if time_col else "index",
                     "role": "time_index",
@@ -135,13 +135,13 @@ class GeminiIntentAnalyzer:
                     },
                 },
             ],
-            requirements={
+            "requirements": {
                 "primary_objective": "accuracy_optimization",
                 "cost_function_preference": "standard",
                 "horizon_requirement": {"steps": 12, "flexibility": "approximate"},
                 "output_format": "point_forecast",
             },
-        )
+        })
 
     def analyze(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         """

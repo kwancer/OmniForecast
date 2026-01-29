@@ -1,17 +1,17 @@
 <template>
-<v-container class="fill-height d-flex flex-column bg-background pa-2 pa-md-4" fluid>  
+  <v-container class="fill-height d-flex flex-column bg-background pa-2 pa-md-4" fluid>
     <div class="d-flex align-center mb-2 mb-md-6 flex-shrink-0">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('upload')"></v-btn>
+      <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('upload')" />
       <h2 class="text-h5 font-header ml-2">Forecasting Strategy</h2>
     </div>
 
     <v-row class="ma-0 overflow-y-auto">
-      <v-col cols="12" md="6" class="h-md-100">
+      <v-col class="h-md-100" cols="12" md="6">
         <OntologyViewer :ontology="store.ontology" />
       </v-col>
-      
-      <v-col cols="12" md="6" class="h-md-100">
-        <v-card variant="outlined" border class="pa-4 pa-md-6 bg-surface mb-6">
+
+      <v-col class="h-md-100" cols="12" md="6">
+        <v-card border class="pa-4 pa-md-6 bg-surface mb-6" variant="outlined">
           <div class="d-flex align-center mb-4">
             <div>
               <div class="text-h6 font-weight-bold">Modelling Strategy</div>
@@ -25,37 +25,37 @@
           <p class="text-body-2 mb-4 text-medium-emphasis">
             {{ store.ontology?.model_metadata?.rationale || 'The system has mapped your data structure. We are now ready to execute the prediction engine using a customised regression model.' }}
           </p>
-          
+
           <v-alert
             v-if="store.ontology?.model_metadata?.description"
-            variant="tonal"
+            class="mb-6"
             color="info"
             density="compact"
-            class="mb-6"
+            variant="tonal"
           >
             <div class="text-caption">
               <strong>How it works:</strong> {{ store.ontology?.model_metadata?.description }}
             </div>
             <v-btn
               v-if="store.ontology?.model_metadata?.educational_video_url"
+              class="mt-2 text-none"
               :href="store.ontology.model_metadata.educational_video_url"
+              prepend-icon="mdi-youtube"
+              size="x-small"
               target="_blank"
               variant="text"
-              size="x-small"
-              class="mt-2 text-none"
-              prepend-icon="mdi-youtube"
             >
               Learn the mathematical foundation (Video)
             </v-btn>
           </v-alert>
 
           <v-btn
-            color="primary"
-            size="x-large"
             block
-            @click="store.executeForecast"
-            :loading="store.loading"
+            color="primary"
             elevation="2"
+            :loading="store.loading"
+            size="x-large"
+            @click="store.executeForecast"
           >
             Continue
             <v-icon end>mdi-chevron-right</v-icon>
@@ -63,11 +63,11 @@
         </v-card>
 
         <v-alert
-          color="info"
-          variant="tonal"
-          icon="mdi-information-outline"
           class="mb-4"
+          color="info"
           density="compact"
+          icon="mdi-information-outline"
+          variant="tonal"
         >
           <div class="text-caption">
             All operations are deterministic based on the confirmed ontology.
@@ -79,8 +79,8 @@
 </template>
 
 <script setup lang="ts">
-import { useForecastStore } from '@/stores/forecast'
-import OntologyViewer from './OntologyViewer.vue'
+  import { useForecastStore } from '@/stores/forecast'
+  import OntologyViewer from './OntologyViewer.vue'
 
-const store = useForecastStore()
+  const store = useForecastStore()
 </script>

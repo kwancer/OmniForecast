@@ -1,7 +1,7 @@
 <template>
-  <v-container fluid class="bg-background py-12 d-flex flex-column align-center">
-    <v-row justify="center" class="w-100">
-      <v-col cols="12" sm="10" md="8" lg="7">
+  <v-container class="bg-background py-12 d-flex flex-column align-center" fluid>
+    <v-row class="w-100" justify="center">
+      <v-col cols="12" lg="7" md="8" sm="10">
         <div class="text-center mb-10">
           <h2 class="text-h3 font-weight-bold mb-4">Privacy & Data Policy</h2>
           <p class="text-body-1 text-medium-emphasis">
@@ -9,13 +9,13 @@
           </p>
         </div>
 
-        <v-card variant="flat" class="pa-8 border">
+        <v-card class="pa-8 border" variant="flat">
           <section class="mb-8">
             <h3 class="text-h5 mb-4">1. Data Retention & Purpose</h3>
             <p class="text-body-2 mb-4">
               We distinguish between the <strong>transient processing</strong> of raw data and the <strong>permanent storage</strong> of analytical outputs:
             </p>
-            
+
             <v-table class="border rounded-lg mb-4">
               <thead>
                 <tr>
@@ -56,7 +56,7 @@
           <section class="mb-8">
             <h3 class="text-h5 mb-3">2. Third-Party AI Sub-Processors</h3>
             <p class="text-body-2">
-              In accordance with the <strong>UK GDPR</strong> principle of transparency, we disclose that your <strong>problem description</strong> and <strong>summary statistics</strong> are shared with an external AI inference provider. This is necessary for the sophisticated analysis required to generate your forecast. 
+              In accordance with the <strong>UK GDPR</strong> principle of transparency, we disclose that your <strong>problem description</strong> and <strong>summary statistics</strong> are shared with an external AI inference provider. This is necessary for the sophisticated analysis required to generate your forecast.
             </p>
             <p class="text-body-2 mt-2">
               The actual forecast is generated on our secure local infrastructure using the insights provided by the external model.
@@ -70,7 +70,7 @@
             </p>
           </section>
 
-          <v-divider class="mb-6"></v-divider>
+          <v-divider class="mb-6" />
 
           <p class="text-caption text-center text-medium-emphasis">
             By using this service, you acknowledge that you have read and agree to these terms.

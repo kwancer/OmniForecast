@@ -18,8 +18,8 @@ app = FastAPI(title="Forecast Anything Platform API", debug=True)
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"Unhandled exception: {exc}")
+async def global_exception_handler(_request: Request, exc: Exception):
+    logger.error("Unhandled exception: %s", exc)
     logger.error(traceback.format_exc())
     return JSONResponse(
         status_code=500,

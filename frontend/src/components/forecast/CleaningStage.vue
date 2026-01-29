@@ -1,28 +1,28 @@
 <template>
   <v-container class="fill-height d-flex flex-column">
     <div class="d-flex align-center mb-6">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('plan')"></v-btn>
+      <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('plan')" />
       <h2 class="text-h5 font-header ml-2">Data Preparation</h2>
     </div>
 
     <v-row class="flex-grow-1 overflow-hidden">
-      <v-col cols="12" md="8" class="h-100 overflow-y-auto">
-        <v-card variant="outlined" class="mb-4 bg-surface">
+      <v-col class="h-100 overflow-y-auto" cols="12" md="8">
+        <v-card class="mb-4 bg-surface" variant="outlined">
           <v-card-title class="text-subtitle-1 font-weight-bold d-flex align-center">
-            <v-icon start color="primary">mdi-format-list-checks</v-icon>
+            <v-icon color="primary" start>mdi-format-list-checks</v-icon>
             System Corrections Report
           </v-card-title>
-          <v-divider></v-divider>
-          
-          <v-list lines="two" v-if="store.cleaningReport?.actions.length">
+          <v-divider />
+
+          <v-list v-if="store.cleaningReport?.actions.length" lines="two">
             <template v-for="(action, index) in store.cleaningReport?.actions" :key="index">
               <v-list-item>
-                <template v-slot:prepend>
+                <template #prepend>
                   <v-avatar :color="getActionColor(action.action)" size="40" variant="tonal">
-                    <v-icon :icon="getActionIcon(action.action)"></v-icon>
+                    <v-icon :icon="getActionIcon(action.action)" />
                   </v-avatar>
                 </template>
-                
+
                 <v-list-item-title class="font-weight-bold">
                   {{ action.column }}: {{ formatActionName(action.action) }}
                 </v-list-item-title>
@@ -30,19 +30,19 @@
                   {{ action.description }}
                 </v-list-item-subtitle>
               </v-list-item>
-              <v-divider v-if="index < (store.cleaningReport?.actions.length ?? 0) - 1" inset></v-divider>
+              <v-divider v-if="index < (store.cleaningReport?.actions.length ?? 0) - 1" inset />
             </template>
           </v-list>
-          
+
           <v-card-text v-else class="text-center py-8 text-medium-emphasis">
             No specific transformations were required. The dataset was already in a model-ready state.
           </v-card-text>
         </v-card>
       </v-col>
 
-      <v-col cols="12" md="4" class="d-flex flex-column">
+      <v-col class="d-flex flex-column" cols="12" md="4">
 
-        <v-card color="primary" variant="tonal" class="pa-4 mb-4">
+        <v-card class="pa-4 mb-4" color="primary" variant="tonal">
           <div class="text-overline mb-2">Preparation Summary</div>
 
           <div class="d-flex justify-space-between mb-1">
@@ -58,18 +58,18 @@
           </p>
         </v-card>
 
-        <v-spacer></v-spacer>
+        <v-spacer />
 
-        <v-card variant="flat" border class="pa-4 bg-surface">
+        <v-card border class="pa-4 bg-surface" variant="flat">
           <p class="text-caption text-medium-emphasis mb-4">
             The system has prepared your data for modelling. Proceed to view the forecast results.
           </p>
           <v-btn
-            color="primary"
             block
+            color="primary"
+            elevation="2"
             size="large"
             @click="store.setStep('results')"
-            elevation="2"
           >
             Continue
             <v-icon end>mdi-chevron-right</v-icon>
@@ -81,32 +81,43 @@
 </template>
 
 <script setup lang="ts">
-import { useForecastStore } from '@/stores/forecast'
+  import { useForecastStore } from '@/stores/forecast'
 
-const store = useForecastStore()
+  const store = useForecastStore()
 
-const getActionIcon = (action: string) => {
-  switch (action) {
-    case 'normalization': return 'mdi-format-letter-case'
-    case 'type_conversion': return 'mdi-variable'
-    case 'aggregation': return 'mdi-layers-triple'
-    case 'resampling': return 'mdi-calendar-clock'
-    case 'gap_filling': return 'mdi-plus-box'
-    case 'imputation': return 'mdi-eyedropper'
-    default: return 'mdi-wrench'
+  function getActionIcon (action: string) {
+    switch (action) {
+      case 'normalization': { return 'mdi-format-letter-case'
+      }
+      case 'type_conversion': { return 'mdi-variable'
+      }
+      case 'aggregation': { return 'mdi-layers-triple'
+      }
+      case 'resampling': { return 'mdi-calendar-clock'
+      }
+      case 'gap_filling': { return 'mdi-plus-box'
+      }
+      case 'imputation': { return 'mdi-eyedropper'
+      }
+      default: { return 'mdi-wrench'
+      }
+    }
   }
-}
 
-const getActionColor = (action: string) => {
-  switch (action) {
-    case 'imputation': return 'orange'
-    case 'resampling': return 'blue'
-    case 'gap_filling': return 'purple'
-    default: return 'primary'
+  function getActionColor (action: string) {
+    switch (action) {
+      case 'imputation': { return 'orange'
+      }
+      case 'resampling': { return 'blue'
+      }
+      case 'gap_filling': { return 'purple'
+      }
+      default: { return 'primary'
+      }
+    }
   }
-}
 
-const formatActionName = (name: string) => {
-  return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
-}
+  function formatActionName (name: string) {
+    return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  }
 </script>

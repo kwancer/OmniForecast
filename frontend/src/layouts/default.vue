@@ -7,13 +7,13 @@
         prepend-icon="mdi-home"
         title="Home"
         to="/"
-      ></v-list-item>
+      />
       <!-- Placeholder for future functionality -->
       <v-list-item
+        disabled
         prepend-icon="mdi-history"
         title="Past Forecasts"
-        disabled
-      ></v-list-item>
+      />
     </v-list>
   </v-navigation-drawer>
 
@@ -25,9 +25,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
-import AppHeader from '@/components/AppHeader.vue'
-import AppFooter from '@/components/AppFooter.vue'
+  import { ref } from 'vue'
+  import AppFooter from '@/components/AppFooter.vue'
+  import AppHeader from '@/components/AppHeader.vue'
 
-const drawer = ref(false)
+  const drawer = ref(false)
 </script>
