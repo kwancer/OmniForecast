@@ -59,7 +59,7 @@
 
     // 2. Connection Logic
     // To make the line continuous, we prepend the last history point to the forecast
-    const lastHistoryVal = historyData.at(-1)
+    const lastHistoryVal = historyData[length - 1]
 
     // 3. Construct Datasets
     // We share a single Labels array for the X-axis

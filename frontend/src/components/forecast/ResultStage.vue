@@ -13,7 +13,7 @@
           <ForecastChart />
         </div>
 
-        <v-expansion-panels class="mt-4" variant="outlined">
+        <v-expansion-panels class="mt-4">
           <v-expansion-panel>
             <v-expansion-panel-title>
               <v-icon color="primary" size="small" start>mdi-table</v-icon>
