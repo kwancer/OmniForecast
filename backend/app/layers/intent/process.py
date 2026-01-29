@@ -74,6 +74,11 @@ class GeminiIntentAnalyzer:
                     target_def.constraints.sparsity_ratio = float(ratio)
 
                     print(f"LOG: Enriched Ontology with Sparsity Ratio: {ratio:.2%}")
+                    
+        # POPULATE SAMPLE DATA
+        # Convert first 5 rows to a list of dictionaries, handling NaNs
+        sample = df.head(5).fillna("").to_dict(orient="records")
+        ontology.sample_data = sample
 
         return ontology
 

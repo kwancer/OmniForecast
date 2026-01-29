@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -40,6 +40,7 @@ class Constraints(BaseModel):
 
 class ColumnRoleDefinition(BaseModel):
     column_name: str
+    display_name: str
     role: Literal["target", "time_index", "group_id", "covariate", "ignore"]
     data_type: Literal[
         "continuous", "discrete", "binary", "categorical", "text", "datetime"
@@ -84,3 +85,4 @@ class ForecastOntology(BaseModel):
     requirements: UserRequirements
     model_metadata: Optional[ModelMetadata] = None
     session_id: Optional[str] = None
+    sample_data: Optional[List[Dict[str, Any]]] = None

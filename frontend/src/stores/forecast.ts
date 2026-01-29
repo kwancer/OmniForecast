@@ -12,6 +12,7 @@ export const useForecastStore = defineStore('forecast', {
     metrics: [] as ForecastMetric[],
     explanation: '',
     loading: false,
+    historyResults: [] as ForecastResult[], // <--- New State
     step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results',
   }),
 
@@ -105,7 +106,7 @@ export const useForecastStore = defineStore('forecast', {
         this.explanation = data.explanation
         this.cleaningReport = data.cleaning_report
         this.metrics = data.metrics
-
+        this.historyResults = data.history
         // Move to cleaning step first to show what happened
         this.step = 'cleaning'
         appStore.notify('Modelling sequence complete.', 'success')

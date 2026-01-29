@@ -51,6 +51,11 @@ class ForecastPipeline:
         # 5. Format Output (similar to logic previously in routes)
         forecast_df_json = forecast_df.fillna(0)
         import json
+        
+        history_df = clean_df.tail(100).reset_index()
+        history_data = json.loads(
+            history_df.to_json(orient="records", date_format="iso")
+        )
 
         forecast_data = json.loads(
             forecast_df_json.to_json(orient="records", date_format="iso")
@@ -58,6 +63,7 @@ class ForecastPipeline:
 
         return ForecastResponse(
             forecast=forecast_data,
+            history=history_data,
             explanation=explanation,
             metrics=metrics,
             cleaning_report=cleaning_report,

@@ -1,86 +1,91 @@
 <template>
-  <v-container class="fill-height d-flex flex-column bg-background pa-2 pa-md-4" fluid>
-    <div class="d-flex align-center mb-2 mb-md-6 flex-shrink-0">
+  <v-container class="fill-height d-flex flex-column pa-2 pa-md-4">
+    <div class="d-flex align-center mb-6">
       <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('upload')" />
-      <h2 class="text-h5 font-header ml-2">Forecasting Strategy</h2>
+      <h2 class="text-h5 font-header ml-2">Mission Plan</h2>
     </div>
 
-    <v-row class="ma-0 overflow-y-auto">
-      <v-col class="h-md-100" cols="12" md="6">
-        <OntologyViewer :ontology="store.ontology" />
-      </v-col>
+    <v-row class="ma-0 overflow-y-auto w-100">
+      <v-col cols="12" md="10" offset-md="1">
 
-      <v-col class="h-md-100" cols="12" md="6">
-        <v-card border class="pa-4 pa-md-6 bg-surface mb-6" variant="outlined">
-          <div class="d-flex align-center mb-4">
-            <div>
-              <div class="text-h6 font-weight-bold">Modelling Strategy</div>
-            </div>
+        <div class="mb-2 text-caption text-medium-emphasis">INTENT DEFINITION</div>
+        <OntologySentence
+          v-if="sentenceState"
+          v-model="sentenceState"
+          :all-columns="allColumns"
+          class="mb-8"
+        />
+
+        <DataXRay v-if="store.ontology" class="mb-4" :ontology="store.ontology" />
+
+        <v-card class="d-flex justify-end align-center bg-transparent mt-4" variant="flat">
+          <div class="text-caption text-medium-emphasis mr-4 text-right hidden-sm-and-down">
+            The AI has mapped your data structure.<br>Click Execute to begin deterministic modelling.
           </div>
-
-          <p class="text-body-2 mb-2 text-primary font-weight-bold">
-            Selected: {{ store.ontology?.model_metadata?.name || 'Standard Model' }}
-          </p>
-
-          <p class="text-body-2 mb-4 text-medium-emphasis">
-            {{ store.ontology?.model_metadata?.rationale || 'The system has mapped your data structure. We are now ready to execute the prediction engine using a customised regression model.' }}
-          </p>
-
-          <v-alert
-            v-if="store.ontology?.model_metadata?.description"
-            class="mb-6"
-            color="info"
-            density="compact"
-            variant="tonal"
-          >
-            <div class="text-caption">
-              <strong>How it works:</strong> {{ store.ontology?.model_metadata?.description }}
-            </div>
-            <v-btn
-              v-if="store.ontology?.model_metadata?.educational_video_url"
-              class="mt-2 text-none"
-              :href="store.ontology.model_metadata.educational_video_url"
-              prepend-icon="mdi-youtube"
-              size="x-small"
-              target="_blank"
-              variant="text"
-            >
-              Learn the mathematical foundation (Video)
-            </v-btn>
-          </v-alert>
-
           <v-btn
-            block
+            class="font-weight-bold"
             color="primary"
             elevation="2"
-            :loading="store.loading"
             size="x-large"
-            @click="store.executeForecast"
+            width="200"
+            @click="confirmAndProceed"
           >
-            Continue
-            <v-icon end>mdi-chevron-right</v-icon>
+            Execute
+            <v-icon end>mdi-rocket-launch</v-icon>
           </v-btn>
         </v-card>
 
-        <v-alert
-          class="mb-4"
-          color="info"
-          density="compact"
-          icon="mdi-information-outline"
-          variant="tonal"
-        >
-          <div class="text-caption">
-            All operations are deterministic based on the confirmed ontology.
-          </div>
-        </v-alert>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script setup lang="ts">
+  import { computed, onMounted, ref } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
-  import OntologyViewer from './OntologyViewer.vue'
+  import DataXRay from './DataXRay.vue'
+  import OntologySentence, { type SentenceState } from './OntologySentence.vue'
 
   const store = useForecastStore()
+
+  const allColumns = computed(() => store.ontology?.columns.map(c => c.column_name) || [])
+  const sentenceState = ref<SentenceState | null>(null)
+
+  onMounted(() => {
+    if (!store.ontology) return
+    const targetCol = store.ontology.columns.find(c => c.role === 'target')
+    const timeCol = store.ontology.columns.find(c => c.role === 'time_index')
+    const isPositive = targetCol?.constraints?.min_value !== null
+
+    sentenceState.value = {
+      target_col: targetCol?.column_name || '',
+      time_col: timeCol?.column_name || '',
+      horizon: store.ontology.requirements.horizon_requirement.steps || 12,
+      frequency: store.ontology.problem.granularity.unit || 'month',
+      is_positive: isPositive,
+    }
+  })
+
+  function confirmAndProceed () {
+    if (!sentenceState.value || !store.ontology) return
+
+    // Logic to update ontology remains the same as previous step
+    for (const col of store.ontology.columns) {
+      if (col.role === 'target') col.role = 'ignore'
+      if (col.role === 'time_index') col.role = 'ignore'
+
+      if (col.column_name === sentenceState.value?.target_col) {
+        col.role = 'target'
+        if (!col.constraints) col.constraints = {}
+        col.constraints.min_value = sentenceState.value?.is_positive ? 0 : null
+      }
+      if (col.column_name === sentenceState.value?.time_col) {
+        col.role = 'time_index'
+      }
+    }
+
+    store.ontology.requirements.horizon_requirement.steps = sentenceState.value.horizon
+    store.ontology.problem.granularity.unit = sentenceState.value.frequency as any
+    store.executeForecast()
+  }
 </script>

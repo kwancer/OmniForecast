@@ -1,60 +1,121 @@
+// --- ENUMS & LITERALS (Matching Python Enums) ---
+
+export type ColumnRole = 'time_index' | 'target' | 'group_id' | 'covariate' | 'ignore'
+export type DataType = 'continuous' | 'discrete' | 'binary' | 'categorical' | 'text' | 'datetime'
+export type TimeUnit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year'
+export type CompletenessStatus = 'complete' | 'partial'
+
+// --- SUB-OBJECTS ---
+
+export interface MetaContext {
+  user_intent_summary: string
+  domain_inference: string // e.g., 'Financial', 'Retail'
+  completeness_check: CompletenessStatus
+}
+
+export interface Granularity {
+  unit: TimeUnit
+  is_regular: boolean
+}
+
+export interface ProblemDefinition {
+  task_type: string
+  granularity: Granularity
+}
+
+export interface FutureAvailability {
+  status: 'known' | 'unknown' | 'static'
+  action_required: 'prompt_user' | 'internal_forecast' | 'none'
+}
+
+export interface Constraints {
+  min_value?: number | null
+  max_value?: number | null
+  allowed_classes?: string[]
+  sparsity_ratio?: number | null // Critical for the DataXRay component
+}
+
 export interface ColumnOntology {
-  column_name: string;
-  role: 'time_index' | 'target' | 'feature' | 'metadata' | 'group_id' | 'covariate' | 'ignore';
-  data_type: 'datetime' | 'numeric' | 'categorical' | 'string' | 'continuous' | 'discrete' | 'binary' | 'text';
+  column_name: string
+  display_name: string
+  role: ColumnRole
+  data_type: DataType
+  future_availability?: FutureAvailability
+  constraints?: Constraints
+  resampling_method?: 'mean' | 'sum' | 'last' | 'max' | 'none'
+}
+
+export interface HorizonRequirement {
+  steps: number
+  flexibility: 'strict' | 'approximate'
+}
+
+export interface UserRequirements {
+  primary_objective: string
+  cost_function_preference: string
+  horizon_requirement: HorizonRequirement
+  output_format: string
 }
 
 export interface ModelMetadata {
-  name: string;
-  description: string;
-  rationale: string;
-  educational_video_url?: string;
+  name: string
+  description: string
+  rationale: string
+  educational_video_url?: string
 }
+
+// --- MAIN ONTOLOGY ---
 
 export interface ForecastOntology {
-  columns: ColumnOntology[];
-  meta: any;
-  problem: any;
-  requirements: any;
-  model_metadata?: ModelMetadata;
-  session_id?: string;
+  meta: MetaContext
+  problem: ProblemDefinition
+  columns: ColumnOntology[]
+  requirements: UserRequirements
+  model_metadata?: ModelMetadata
+  session_id?: string
+  sample_data?: Record<string, any>[]
 }
 
+// --- RESULTS & REPORTING ---
+
 export interface CleaningAction {
-  column: string;
-  action: string;
-  description: string;
+  column: string
+  action: string
+  description: string
 }
 
 export interface CleaningReport {
-  actions: CleaningAction[];
-  initial_shape: number[];
-  final_shape: number[];
-  summary: string;
+  actions: CleaningAction[]
+  initial_shape: number[]
+  final_shape: number[]
+  summary: string
 }
 
 export interface ForecastResult {
-  [key: string]: string | number;
+  [key: string]: string | number
 }
 
 export interface ForecastMetric {
-  name: string;
-  value: number;
+  name: string
+  value: number
 }
 
 export interface ForecastResponse {
-  forecast: ForecastResult[];
-  explanation: string;
-  metrics: ForecastMetric[];
-  cleaning_report: CleaningReport;
-  session_id?: string;
+  forecast: ForecastResult[]
+  explanation: string
+  history: ForecastResult[]
+  metrics: ForecastMetric[]
+  cleaning_report: CleaningReport
+  session_id?: string
 }
 
-export type NotificationType = 'success' | 'error' | 'info' | 'warning';
+// --- APP UTILS ---
+
+export type NotificationType = 'success' | 'error' | 'info' | 'warning'
 
 export interface AppNotification {
-  id: string;
-  message: string;
-  type: NotificationType;
-  timeout?: number;
+  id: string
+  message: string
+  type: NotificationType
+  timeout?: number
 }
