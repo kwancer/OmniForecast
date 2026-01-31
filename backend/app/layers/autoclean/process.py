@@ -11,6 +11,48 @@ class RuleBasedCleaner:
     Implementation of AutoCleaner using deterministic rules based on the Ontology.
     """
 
+    def _safe_convert_datetime(self, series: pd.Series) -> pd.Series:
+        """
+        Robust cleaner that handles Mixed Formats, Excel Dates, Unix Stamps,
+        and 'Ancient' dates.
+        """
+        # 1. THE HAPPY PATH: Let Pandas guess (fastest for standard ISO data)
+        # We try this first because it's C-optimized.
+        try:
+            return pd.to_datetime(series, format="mixed", dayfirst=True)
+        except (ValueError, TypeError, pd.errors.OutOfBoundsDatetime):
+            pass
+
+        # 2. NUMERIC CHECK (Excel vs Unix)
+        # If the column is numeric (or mostly numeric strings), handle that.
+        series_numeric = pd.to_numeric(series, errors="coerce")
+        if series_numeric.notna().sum() > (len(series) * 0.5):  # If mostly numeric
+            sample = series_numeric.dropna().iloc[0]
+            # Heuristic: Unix timestamps (seconds) are usually > 1 billion (Year 2001+)
+            if sample > 1_000_000_000:
+                return pd.to_datetime(series_numeric, unit="s", errors="coerce")
+            # Heuristic: Excel serials are usually < 100,000 (Year 2173)
+            elif sample < 200_000:
+                return pd.to_datetime(
+                    series_numeric, unit="D", origin="1899-12-30", errors="coerce"
+                )
+
+        # 3. THE "YEAR 1" FIX (Your specific error)
+        # Handles "1-01", "01-01" by shifting to 2000s
+        str_series = series.astype(str).str.strip()
+        if str_series.str.match(r"^\d{1,2}[-/]\d{1,2}$").any():
+            try:
+                # Prepend '20' to turn "1-01" -> "2001-01"
+                corrected = str_series.apply(
+                    lambda x: f"20{x.zfill(5)}" if "-" in x else f"20{x.zfill(5)}"
+                )
+                return pd.to_datetime(corrected, errors="coerce")
+            except Exception:
+                pass
+
+        # 4. LAST RESORT: Coerce
+        return pd.to_datetime(series, errors="coerce", dayfirst=True)
+
     def clean(
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> Tuple[pd.DataFrame, CleaningReport]:
@@ -91,11 +133,31 @@ class RuleBasedCleaner:
                 )
             )
 
-        # 2. Convert Time Column
+        # 2. Convert Time Column (Updated)
         try:
-            df[time_col] = pd.to_datetime(df[time_col])
+            df[time_col] = self._safe_convert_datetime(df[time_col])
+
+            # Validation: Check if we lost too much data
+            # If >50% became NaT, our conversion strategy likely failed
+            if df[time_col].isna().mean() > 0.5:
+                raise ValueError(
+                    f"Failed to parse >50% of dates in column '{time_col}'"
+                )
+
         except Exception as e:
             raise ValueError(f"Could not convert {time_col} to datetime: {e}")
+
+        # Drop rows where datetime conversion failed (NaT)
+        if df[time_col].isna().any():
+            dropped_count = df[time_col].isna().sum()
+            df = df.dropna(subset=[time_col])
+            actions.append(
+                CleaningAction(
+                    column=str(time_col),
+                    action="row_dropping",
+                    description=f"Dropped {dropped_count} rows with unparseable dates.",
+                )
+            )
 
         # 3. Sort & Set Index
         df = df.sort_values(time_col).set_index(time_col)
