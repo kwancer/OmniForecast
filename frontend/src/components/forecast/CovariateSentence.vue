@@ -83,14 +83,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 
 export interface CovariateState {
   override: number | number[] | null
   isIgnored: boolean
 }
 
-const props = defineProps<{
+const covariateProps = defineProps<{
   column: string
   modelValue: CovariateState
 }>()
@@ -102,19 +102,19 @@ const constantValue = ref<number>(0)
 const customPlanRaw = ref('')
 const customPlanParsed = ref<number[]>([])
 
-const localState = computed(() => props.modelValue)
+const localState = computed(() => covariateProps.modelValue)
 
 // Init from props
 onMounted(() => {
-  if (props.modelValue.isIgnored) {
+  if (covariateProps.modelValue.isIgnored) {
     option.value = 'ignore'
-  } else if (Array.isArray(props.modelValue.override)) {
+  } else if (Array.isArray(covariateProps.modelValue.override)) {
     option.value = 'custom'
-    customPlanParsed.value = props.modelValue.override
-    customPlanRaw.value = props.modelValue.override.join(', ')
-  } else if (props.modelValue.override !== null) {
+    customPlanParsed.value = covariateProps.modelValue.override
+    customPlanRaw.value = covariateProps.modelValue.override.join(', ')
+  } else if (covariateProps.modelValue.override !== null) {
     option.value = 'constant'
-    constantValue.value = Number(props.modelValue.override)
+    constantValue.value = Number(covariateProps.modelValue.override)
   } else {
     option.value = 'default'
   }
@@ -126,6 +126,7 @@ const getOptionLabel = computed(() => {
     case 'constant': return 'Change to...'
     case 'custom': return 'Follow a Custom Plan'
     case 'ignore': return 'Be Ignored'
+    default: return ''
   }
 })
 
@@ -142,7 +143,7 @@ function setOption(opt: 'default' | 'constant' | 'custom' | 'ignore') {
 
 function parseCustomPlan() {
   const parts = customPlanRaw.value.split(',').map(s => s.trim()).filter(s => s !== '')
-  const nums = parts.map(Number).filter(n => !isNaN(n))
+  const nums = parts.map(Number).filter(n => !Number.isNaN(n))
   customPlanParsed.value = nums
   emitChange()
 }

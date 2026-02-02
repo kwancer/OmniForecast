@@ -132,7 +132,7 @@
     is_positive: boolean
   }
 
-  const props = defineProps<{
+  const sentenceProps = defineProps<{
     modelValue: SentenceState
     allColumns: string[]
   }>()
@@ -140,15 +140,15 @@
   const emit = defineEmits(['update:modelValue'])
 
   const isEditing = ref(false)
-  const localHorizon = ref(props.modelValue.horizon)
+  const localHorizon = ref(sentenceProps.modelValue.horizon)
 
-  watch(() => props.modelValue.horizon, val => localHorizon.value = val)
+  watch(() => sentenceProps.modelValue.horizon, val => localHorizon.value = val)
 
-  const updateTarget = (col: string) => emit('update:modelValue', { ...props.modelValue, target_col: col })
-  const updateTime = (col: string) => emit('update:modelValue', { ...props.modelValue, time_col: col })
-  const updateFrequency = (unit: string) => emit('update:modelValue', { ...props.modelValue, frequency: unit })
-  const updateConstraint = (isPositive: boolean) => emit('update:modelValue', { ...props.modelValue, is_positive: isPositive })
-  const updateHorizon = (val: string | number) => emit('update:modelValue', { ...props.modelValue, horizon: Number(val) })
+  const updateTarget = (col: string) => emit('update:modelValue', { ...sentenceProps.modelValue, target_col: col })
+  const updateTime = (col: string) => emit('update:modelValue', { ...sentenceProps.modelValue, time_col: col })
+  const updateFrequency = (unit: string) => emit('update:modelValue', { ...sentenceProps.modelValue, frequency: unit })
+  const updateConstraint = (isPositive: boolean) => emit('update:modelValue', { ...sentenceProps.modelValue, is_positive: isPositive })
+  const updateHorizon = (val: string | number) => emit('update:modelValue', { ...sentenceProps.modelValue, horizon: Number(val) })
 
   const formatUnit = (unit: string) => unit ? unit.charAt(0).toUpperCase() + unit.slice(1) : ''
 </script>
