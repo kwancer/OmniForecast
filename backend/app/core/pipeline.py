@@ -32,16 +32,16 @@ class ForecastPipeline:
     def run_forecast(
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> ForecastResponse:
-        # 0. Select Model (Pre-cleaning model selection)
-        self.forecaster.select_model(ontology)
-
-        # 1. AutoClean
+        # 1. AutoClean FIRST - This handles robust date parsing
         clean_df, cleaning_report = self.cleaner.clean(df, ontology)
 
-        # 2. Forecast Fit
+        # 2. Select Model (on CLEAN data - dates are now valid)
+        self.forecaster.select_model(clean_df, ontology)
+
+        # 3. Forecast Fit (model already selected, just re-fit on same data)
         metrics = self.forecaster.fit(clean_df, ontology)
 
-        # 3. Forecast Predict
+        # 4. Forecast Predict
         horizon = ontology.requirements.horizon_requirement.steps
         forecast_df = self.forecaster.predict(horizon)
 
@@ -51,7 +51,7 @@ class ForecastPipeline:
         # 5. Format Output (similar to logic previously in routes)
         forecast_df_json = forecast_df.fillna(0)
         import json
-        
+
         history_df = clean_df.tail(100).reset_index()
         history_data = json.loads(
             history_df.to_json(orient="records", date_format="iso")
@@ -61,6 +61,9 @@ class ForecastPipeline:
             forecast_df_json.to_json(orient="records", date_format="iso")
         )
 
+        # 6. Get the selected model's metadata
+        model_metadata_obj = self.forecaster.get_metadata()
+
         return ForecastResponse(
             forecast=forecast_data,
             history=history_data,
@@ -68,6 +71,7 @@ class ForecastPipeline:
             metrics=metrics,
             cleaning_report=cleaning_report,
             session_id=ontology.session_id,
+            model_metadata=model_metadata_obj.model_dump(),
         )
 
 

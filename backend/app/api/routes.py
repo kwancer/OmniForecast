@@ -38,12 +38,10 @@ async def create_plan(
         ontology.session_id = session_id
 
         # Determine Model Metadata (pipeline's forecaster can provide this)
-        # We can access the forecaster from the pipeline instance
-        # Fix: Select model first without fitting (avoiding crash on raw data)
-        pipeline.forecaster.select_model(ontology)
-
-        # Now we can safely get the metadata from the selected model
-        ontology.model_metadata = pipeline.forecaster.get_metadata()
+        # OPTIMIZATION: User requested to skip model selection at Plan stage for Frugality.
+        # we only need to only choose it during our frugal tournament (in forecast).
+        # pipeline.forecaster.select_model(df, ontology)
+        # ontology.model_metadata = pipeline.forecaster.get_metadata()
 
         # Persist Session
         db_session = ForecastSession(
@@ -85,15 +83,15 @@ async def generate_forecast(
         print("DEBUG: Running Pipeline...")
         pipeline = get_pipeline()
 
-        # Ensure model is selected so we have the right model logic initialized
-        pipeline.forecaster.select_model(ontology)
-
-        # Ensure metadata is present if lost
-        if not ontology.model_metadata:
-            ontology.model_metadata = pipeline.forecaster.get_metadata()
+        # FRUGAL OPTIMIZATION: Only run selection ONCE inside the pipeline.
+        # pipeline.forecaster.select_model(df, ontology) -> REMOVED
 
         response = pipeline.run_forecast(df, ontology)
         print("DEBUG: Pipeline finished.")
+
+        # CAPTURE SELECTED MODEL METADATA
+        # The pipeline has now selected a model. We must capture it to show on the final page.
+        ontology.model_metadata = pipeline.forecaster.get_metadata()
 
         # Update Persisted Session
         if session_id:
@@ -109,6 +107,10 @@ async def generate_forecast(
                     db_session.forecast_results = response.forecast
                     db_session.metrics = [m.model_dump() for m in response.metrics]
                     db_session.explanation = response.explanation
+
+                    # UPDATE ONTOLOGY with selected model
+                    db_session.ontology = ontology.model_dump()
+
                     print("DEBUG: Committing to DB...")
                     db.commit()
                     print("DEBUG: DB commit successful.")

@@ -48,6 +48,14 @@ class ColumnRoleDefinition(BaseModel):
     future_availability: Optional[FutureAvailability] = None
     constraints: Optional[Constraints] = None
     resampling_method: Literal["mean", "sum", "last", "max", "none"] = "mean"
+    date_format: Optional[str] = Field(
+        default=None,
+        description=(
+            "Python strftime format string for parsing date/time columns. "
+            "Examples: '%Y-%m-%d' for '2024-01-15', '%y-%m-%d' for '24-01-15', "
+            "'%d/%m/%Y' for '15/01/2024'. Only needed for time_index columns."
+        ),
+    )
 
 
 class HorizonRequirement(BaseModel):

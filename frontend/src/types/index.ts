@@ -43,6 +43,7 @@ export interface ColumnOntology {
   future_availability?: FutureAvailability
   constraints?: Constraints
   resampling_method?: 'mean' | 'sum' | 'last' | 'max' | 'none'
+  date_format?: string | null // Python strftime format for parsing dates
 }
 
 export interface HorizonRequirement {
@@ -109,6 +110,7 @@ export interface ForecastResponse {
   metrics: ForecastMetric[]
   cleaning_report: CleaningReport
   session_id?: string
+  model_metadata?: ModelMetadata
 }
 
 // --- APP UTILS ---

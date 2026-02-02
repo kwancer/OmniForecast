@@ -28,6 +28,7 @@ class ForecastResponse(BaseModel):
     metrics: List[ForecastMetric]
     cleaning_report: CleaningReport
     session_id: Optional[str] = None
+    model_metadata: Optional[Dict[str, Any]] = None
 
 
 class ErrorResponse(BaseModel):

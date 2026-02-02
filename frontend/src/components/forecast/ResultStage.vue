@@ -64,6 +64,26 @@
           <p class="text-body-2" style="white-space: pre-line;">{{ store.explanation }}</p>
         </v-card>
 
+        <v-card v-if="store.modelMetadata" class="pa-4 mb-4" color="accent" variant="tonal">
+          <div class="d-flex align-center mb-2">
+            <v-icon class="mr-2" icon="mdi-brain" />
+            <span class="font-weight-bold">Selected Model: {{ store.modelMetadata.name }}</span>
+          </div>
+          <p class="text-body-2 mb-2">{{ store.modelMetadata.description }}</p>
+          <p class="text-body-2 text-medium-emphasis font-italic mb-2">Why? {{ store.modelMetadata.rationale }}</p>
+          <v-btn
+            v-if="store.modelMetadata.educational_video_url"
+            color="primary"
+            :href="store.modelMetadata.educational_video_url"
+            prepend-icon="mdi-youtube"
+            size="small"
+            target="_blank"
+            variant="outlined"
+          >
+            Learn More
+          </v-btn>
+        </v-card>
+
         <v-btn block class="mb-4" prepend-icon="mdi-download" variant="outlined">Export JSON</v-btn>
 
         <v-divider class="mb-4" />

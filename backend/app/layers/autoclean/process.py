@@ -14,16 +14,48 @@ class RuleBasedCleaner:
     def _safe_convert_datetime(self, series: pd.Series) -> pd.Series:
         """
         Robust cleaner that handles Mixed Formats, Excel Dates, Unix Stamps,
-        and 'Ancient' dates.
+        and abbreviated year formats:
+        - YY-MM-DD (e.g., '88-01-01' = January 1, 1988)
+        - Y-MM or YY-MM (e.g., '1-01' = January 2001, for shampoo sales data)
         """
-        # 1. THE HAPPY PATH: Let Pandas guess (fastest for standard ISO data)
-        # We try this first because it's C-optimized.
+        str_series = series.astype(str).str.strip()
+
+        # 1. Try YY-MM-DD format FIRST (e.g., '88-01-01', '91-11-30')
+        # Pattern: 2 digit year, dash, 2 digit month, dash, 2 digit day
+        if str_series.str.match(r"^\d{2}[-/]\d{2}[-/]\d{2}$").all():
+            try:
+                # Convert '88-01-01' to '1988-01-01'
+                def convert_yy_mm_dd(val: str) -> str:
+                    """Convert '88-01-01' to '1988-01-01'"""
+                    parts = val.replace("/", "-").split("-")
+                    if len(parts) == 3:
+                        year_part = int(parts[0])
+                        # 2-digit year conversion: 00-30 -> 2000s, 31-99 -> 1900s
+                        if year_part <= 30:
+                            full_year = 2000 + year_part
+                        else:
+                            full_year = 1900 + year_part
+                        return f"{full_year}-{parts[1]}-{parts[2]}"
+                    return val
+
+                corrected = str_series.apply(convert_yy_mm_dd)
+                result = pd.to_datetime(corrected, format="%Y-%m-%d", errors="coerce")
+                if result.notna().sum() > (len(series) * 0.9):
+                    return result
+            except Exception:
+                pass
+
+        # 2. THE HAPPY PATH: Let Pandas guess (fastest for standard ISO data)
         try:
-            return pd.to_datetime(series, format="mixed", dayfirst=True)
+            result = pd.to_datetime(series, format="mixed", dayfirst=True)
+            # Check for ancient dates (pandas might parse "1-01" as Jan 1, Year 1 AD)
+            if result.min().year < 1900:
+                raise ValueError("Detected ancient date - likely a Year-Month format")
+            return result
         except (ValueError, TypeError, pd.errors.OutOfBoundsDatetime):
             pass
 
-        # 2. NUMERIC CHECK (Excel vs Unix)
+        # 3. NUMERIC CHECK (Excel vs Unix)
         # If the column is numeric (or mostly numeric strings), handle that.
         series_numeric = pd.to_numeric(series, errors="coerce")
         if series_numeric.notna().sum() > (len(series) * 0.5):  # If mostly numeric
@@ -37,20 +69,31 @@ class RuleBasedCleaner:
                     series_numeric, unit="D", origin="1899-12-30", errors="coerce"
                 )
 
-        # 3. THE "YEAR 1" FIX (Your specific error)
-        # Handles "1-01", "01-01" by shifting to 2000s
-        str_series = series.astype(str).str.strip()
-        if str_series.str.match(r"^\d{1,2}[-/]\d{1,2}$").any():
+        # 4. THE "YEAR-MONTH" FIX (for data like shampoo_sales)
+        # Handles "1-01", "2-05", "12-01" by interpreting as Year-Month
+        # Pattern: 1 or 2 digit year, dash, 1 or 2 digit month (ONLY 2 parts, no day)
+        if str_series.str.match(r"^\d{1,2}[-/]\d{1,2}$").all():
             try:
-                # Prepend '20' to turn "1-01" -> "2001-01"
-                corrected = str_series.apply(
-                    lambda x: f"20{x.zfill(5)}" if "-" in x else f"20{x.zfill(5)}"
-                )
-                return pd.to_datetime(corrected, errors="coerce")
+
+                def convert_year_month(val: str) -> str:
+                    """Convert '1-01' to '2001-01-01', '12-05' to '2012-05-01'"""
+                    parts = val.replace("/", "-").split("-")
+                    if len(parts) == 2:
+                        year_part = parts[0].zfill(2)  # '1' -> '01'
+                        month_part = parts[1].zfill(2)  # '1' -> '01'
+                        # Assume 2000s: '01' -> '2001', '12' -> '2012'
+                        full_year = f"20{year_part}"
+                        return f"{full_year}-{month_part}-01"
+                    return val
+
+                corrected = str_series.apply(convert_year_month)
+                result = pd.to_datetime(corrected, format="%Y-%m-%d", errors="coerce")
+                if result.notna().sum() > (len(series) * 0.5):
+                    return result
             except Exception:
                 pass
 
-        # 4. LAST RESORT: Coerce
+        # 5. LAST RESORT: Coerce
         return pd.to_datetime(series, errors="coerce", dayfirst=True)
 
     def clean(
@@ -133,12 +176,50 @@ class RuleBasedCleaner:
                 )
             )
 
-        # 2. Convert Time Column (Updated)
+        # 2. Convert Time Column
+        # First, try LLM-specified date_format if available
+        time_col_def = next(
+            (c for c in ontology.columns if c.role == "time_index"), None
+        )
+        llm_date_format = time_col_def.date_format if time_col_def else None
+
         try:
-            df[time_col] = self._safe_convert_datetime(df[time_col])
+            if llm_date_format:
+                # LLM specified a format - try it first
+                try:
+                    df[time_col] = pd.to_datetime(
+                        df[time_col], format=llm_date_format, errors="coerce"
+                    )
+                    success_rate = df[time_col].notna().mean()
+                    if success_rate > 0.9:
+                        actions.append(
+                            CleaningAction(
+                                column=str(time_col),
+                                action="type_conversion",
+                                description=(
+                                    f"Parsed dates using LLM-specified format "
+                                    f"'{llm_date_format}' ({success_rate:.0%} success)."
+                                ),
+                            )
+                        )
+                    else:
+                        # LLM format didn't work well, fall back to heuristics
+                        print(
+                            f"LOG: LLM format '{llm_date_format}' only parsed "
+                            f"{success_rate:.0%}, falling back to heuristics"
+                        )
+                        df[time_col] = self._safe_convert_datetime(df[time_col])
+                except Exception:
+                    # LLM format failed, fall back to heuristics
+                    print(
+                        f"LOG: LLM format '{llm_date_format}' failed, using heuristics"
+                    )
+                    df[time_col] = self._safe_convert_datetime(df[time_col])
+            else:
+                # No LLM format specified, use heuristics
+                df[time_col] = self._safe_convert_datetime(df[time_col])
 
             # Validation: Check if we lost too much data
-            # If >50% became NaT, our conversion strategy likely failed
             if df[time_col].isna().mean() > 0.5:
                 raise ValueError(
                     f"Failed to parse >50% of dates in column '{time_col}'"

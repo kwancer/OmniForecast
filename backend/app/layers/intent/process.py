@@ -38,6 +38,14 @@ class GeminiIntentAnalyzer:
         - Identify the 'target' and 'time_index' columns.
         - Infer the user's constraints (e.g. non-negative).
         - LEAVE 'sparsity_ratio' as null (the system will calculate this later).
+        - For the time_index column, CAREFULLY analyze the date format in the sample data
+          and provide the 'date_format' field using Python strftime notation. Examples:
+          * '2024-01-15' -> '%Y-%m-%d'
+          * '88-01-01' (2-digit year, month, day) -> '%y-%m-%d'
+          * '15/01/2024' -> '%d/%m/%Y'
+          * '1-01' (year-month only, like 2001-01) -> This is non-standard, set null
+          * 'Jan 15, 2024' -> '%b %d, %Y'
+          If the format is non-standard or unclear, set date_format to null.
 
         Output ONLY the JSON adhering to:
         {json.dumps(schema_desc, indent=2)}
@@ -74,7 +82,7 @@ class GeminiIntentAnalyzer:
                     target_def.constraints.sparsity_ratio = float(ratio)
 
                     print(f"LOG: Enriched Ontology with Sparsity Ratio: {ratio:.2%}")
-                    
+
         # POPULATE SAMPLE DATA
         # Convert first 5 rows to a list of dictionaries, handling NaNs
         sample = df.head(5).fillna("").to_dict(orient="records")
@@ -110,43 +118,45 @@ class GeminiIntentAnalyzer:
                 target_col = str(col)
                 break
 
-        return ForecastOntology.model_validate({
-            "meta": {
-                "user_intent_summary": "Inferred from heuristics (LLM Failed)",
-                "domain_inference": "General",
-                "completeness_check": "complete",
-            },
-            "problem": {
-                "task_type": "time_series_regression",
-                "granularity": {"unit": "month", "is_regular": True},
-            },
-            "columns": [
-                {
-                    "column_name": str(time_col) if time_col else "index",
-                    "role": "time_index",
-                    "data_type": "datetime",
-                    "future_availability": {
-                        "status": "known",
-                        "action_required": "none",
-                    },
+        return ForecastOntology.model_validate(
+            {
+                "meta": {
+                    "user_intent_summary": "Inferred from heuristics (LLM Failed)",
+                    "domain_inference": "General",
+                    "completeness_check": "complete",
                 },
-                {
-                    "column_name": str(target_col) if target_col else "value",
-                    "role": "target",
-                    "data_type": "continuous",
-                    "future_availability": {
-                        "status": "unknown",
-                        "action_required": "internal_forecast",
-                    },
+                "problem": {
+                    "task_type": "time_series_regression",
+                    "granularity": {"unit": "month", "is_regular": True},
                 },
-            ],
-            "requirements": {
-                "primary_objective": "accuracy_optimization",
-                "cost_function_preference": "standard",
-                "horizon_requirement": {"steps": 12, "flexibility": "approximate"},
-                "output_format": "point_forecast",
-            },
-        })
+                "columns": [
+                    {
+                        "column_name": str(time_col) if time_col else "index",
+                        "role": "time_index",
+                        "data_type": "datetime",
+                        "future_availability": {
+                            "status": "known",
+                            "action_required": "none",
+                        },
+                    },
+                    {
+                        "column_name": str(target_col) if target_col else "value",
+                        "role": "target",
+                        "data_type": "continuous",
+                        "future_availability": {
+                            "status": "unknown",
+                            "action_required": "internal_forecast",
+                        },
+                    },
+                ],
+                "requirements": {
+                    "primary_objective": "accuracy_optimization",
+                    "cost_function_preference": "standard",
+                    "horizon_requirement": {"steps": 12, "flexibility": "approximate"},
+                    "output_format": "point_forecast",
+                },
+            }
+        )
 
     def analyze(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
         """
@@ -166,7 +176,7 @@ class GeminiIntentAnalyzer:
             print("DEBUG: Configuring Gemini...")
             genai.configure(api_key=api_key)
             model = genai.GenerativeModel(
-                "gemini-2.0-flash",
+                "gemini-2.5-flash",
                 generation_config={"response_mime_type": "application/json"},
             )
 
