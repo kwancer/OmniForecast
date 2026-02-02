@@ -16,6 +16,15 @@
           class="mb-8"
         />
 
+        <div v-if="covariates.length > 0" class="mb-2 text-caption text-medium-emphasis">SCENARIO CONFIGURATION</div>
+        <div v-for="col in covariates" :key="col" class="mb-2">
+          <CovariateSentence
+            v-if="covariateStates[col]"
+            v-model="covariateStates[col]"
+            :column="col"
+          />
+        </div>
+
         <DataXRay v-if="store.ontology" class="mb-4" :ontology="store.ontology" />
 
         <v-card class="d-flex justify-end align-center bg-transparent mt-4" variant="flat">
@@ -43,6 +52,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import CovariateSentence, { type CovariateState } from './CovariateSentence.vue'
   import DataXRay from './DataXRay.vue'
   import OntologySentence, { type SentenceState } from './OntologySentence.vue'
 
@@ -50,6 +60,27 @@
 
   const allColumns = computed(() => store.ontology?.columns.map(c => c.column_name) || [])
   const sentenceState = ref<SentenceState | null>(null)
+  const covariateStates = ref<Record<string, CovariateState>>({})
+
+  const covariates = computed(() => {
+    if (!store.ontology || !sentenceState.value) return []
+    return store.ontology.columns
+      .map(c => c.column_name)
+      .filter(c => c !== sentenceState.value?.target_col && c !== sentenceState.value?.time_col)
+  })
+
+  // Initialize covariate states when covariates change
+  watch(covariates, newCovs => {
+    for (const col of newCovs) {
+      if (!covariateStates.value[col]) {
+        covariateStates.value[col] = { override: null, isIgnored: false }
+      }
+    }
+    // Clean up old
+    for (const key in covariateStates.value) {
+      if (!newCovs.includes(key)) delete covariateStates.value[key]
+    }
+  }, { immediate: true })
 
   onMounted(() => {
     if (!store.ontology) return
@@ -86,6 +117,22 @@
 
     store.ontology.requirements.horizon_requirement.steps = sentenceState.value.horizon
     store.ontology.problem.granularity.unit = sentenceState.value.frequency as any
+
+    // Scenario Overrides & Ignores
+    const overrides: Record<string, number | number[] | null> = {}
+    const ignores: string[] = []
+
+    for (const [col, state] of Object.entries(covariateStates.value)) {
+      if (state.isIgnored) {
+        ignores.push(col)
+      } else {
+        overrides[col] = state.override
+      }
+    }
+
+    store.ontology.scenario_overrides = overrides
+    store.ontology.ignored_columns = ignores
+
     store.executeForecast()
   }
 </script>

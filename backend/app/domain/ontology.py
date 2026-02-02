@@ -1,4 +1,4 @@
-from typing import List, Literal, Optional, Dict, Any
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -86,3 +86,5 @@ class ForecastOntology(BaseModel):
     model_metadata: Optional[ModelMetadata] = None
     session_id: Optional[str] = None
     sample_data: Optional[List[Dict[str, Any]]] = None
+    scenario_overrides: Optional[Dict[str, Union[float, List[float], None]]] = None
+    ignored_columns: Optional[List[str]] = None

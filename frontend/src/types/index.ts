@@ -74,6 +74,8 @@ export interface ForecastOntology {
   model_metadata?: ModelMetadata
   session_id?: string
   sample_data?: Record<string, any>[]
+  scenario_overrides?: Record<string, number | number[] | null>
+  ignored_columns?: string[]
 }
 
 // --- RESULTS & REPORTING ---

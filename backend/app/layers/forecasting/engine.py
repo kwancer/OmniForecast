@@ -49,7 +49,9 @@ class InternalForecaster(ABC):
         pass
 
     @abstractmethod
-    def predict(self, horizon: int) -> pd.DataFrame:
+    def predict(
+        self, horizon: int, ontology: Optional[ForecastOntology] = None
+    ) -> pd.DataFrame:
         pass
 
     @staticmethod
@@ -115,7 +117,9 @@ class SimpleAdditiveForecaster(InternalForecaster):
             self.fit_result = self.model.fit()
             return calculate_metrics(val[self.target_col], val_preds)
 
-    def predict(self, horizon: int) -> pd.DataFrame:
+    def predict(
+        self, horizon: int, ontology: Optional[ForecastOntology] = None
+    ) -> pd.DataFrame:
         if not self.fit_result:
             raise ValueError("Model not fitted yet.")
         forecast_values = self.fit_result.forecast(horizon)
@@ -212,7 +216,9 @@ class TSBForecaster(InternalForecaster):
         # Mock metrics just to satisfy interface
         return [ForecastMetric(name="TSB_Decay_Factor", value=self.p)]
 
-    def predict(self, horizon: int) -> pd.DataFrame:
+    def predict(
+        self, horizon: int, ontology: Optional[ForecastOntology] = None
+    ) -> pd.DataFrame:
         # TSB produces a flat forecast level for the future (p * z)
         # but unlike Croston, 'p' has decayed if recent demand was 0.
         forecast_val = self.p * self.z
@@ -252,25 +258,31 @@ class RandomForestForecaster(InternalForecaster):
     ) -> Tuple[pd.DataFrame, pd.Series]:
         X = pd.DataFrame(index=df.index)
 
-        # Calendar Features (The "Spike Hunters")
+        # Calendar Features
         X["month"] = df.index.month
         X["week"] = df.index.isocalendar().week.astype(int)
-        # X["day_of_year"] = df.index.dayofyear # Optional, maybe too noisy
 
-        # Lags (Only valid if we have continuity, but RF can handle NaNs if we managed them,
-        # but here we rely on the implementation plan's simplicity)
-        # We perform lags on the TARGET if provided
-        if target:
+        # External Regressors (Covariates)
+        # We take everything that is NOT target and NOT time_index
+        # Note: 'df' here might already have ignored columns dropped by SmartForecastEngine
+        for col in df.columns:
+            if col != target and col != self.time_col:
+                # Ensure numeric encoding if needed?
+                # For now assuming numeric or relying on RF validation failure if string
+                # Ideally we'd have encoders, but preserving existing behavior of minimal processing
+                if pd.api.types.is_numeric_dtype(df[col]):
+                    X[col] = df[col]
+
+        # Lags
+        if target and target in df.columns:
             y = df[target]
-            # Simple lag strategy - avoiding complex shift logic for now to keep it robust
-            # Ideally we'd validly shift. For now let's rely just on Calendar features
-            # as they are the primary driver for "Same Time Last Year" spikes.
-            # But let's keep 1 lag just in case.
             X["lag_1"] = df[target].shift(1).fillna(0)
             return X, y
         else:
-            # Prediction time: we need to construct features for future dates
-            pass
+            # Prediction time
+            # We will handle lag_1 dynamically in the loop
+            # But we need the structure
+            X["lag_1"] = 0  # Placeholder
             return X, None
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
@@ -288,8 +300,18 @@ class RandomForestForecaster(InternalForecaster):
         # Feature Engineering
         X, y = self._add_features(df, self.target_col)
 
-        # Drop first row because lag_1 might be dirty/0 (handled by fillna(0) but still)
-        # Actually with fillna(0) we used 0, so it's fine.
+        # Drop first row because lag_1 might be dirty/0
+        # For training, let's keep it simple as before
+
+        # Store last actual value for recursion start
+        self.last_actual_value = y.iloc[-1]
+
+        # Store last covariate values for prediction (excluding generated features)
+        self.last_covariate_values = {
+            col: X[col].iloc[-1]
+            for col in X.columns
+            if col not in ["month", "week", "lag_1"]
+        }
 
         split_idx = int(len(X) * 0.8)
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
@@ -298,33 +320,81 @@ class RandomForestForecaster(InternalForecaster):
         self.model.fit(X_train, y_train)
         val_preds = self.model.predict(X_val)
 
-        # Final fit on all available data
+        # Final fit
         self.model.fit(X, y)
 
         return calculate_metrics(y_val, val_preds)
 
-    def predict(self, horizon: int) -> pd.DataFrame:
+    def predict(
+        self, horizon: int, ontology: Optional[ForecastOntology] = None
+    ) -> pd.DataFrame:
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
 
-        # Create features for future
-        future_df = pd.DataFrame(index=future_dates)
-        future_df["month"] = future_df.index.month
-        future_df["week"] = future_df.index.isocalendar().week.astype(int)
+        # Prepare Overrides
+        overrides = ontology.scenario_overrides if ontology else {}
 
-        # Logic for Lag_1 in recursive prediction?
-        # For this specific task (finding spikes), calendar features are dominant.
-        # We will iterate to support recursion.
+        # We need the list of columns the model expects (except lag_1, month, week which are generated)
+        # A simple way to get "other covariates" is to look at feature_names_in_ if available
+        model_features = getattr(self.model, "feature_names_in_", [])
 
-        # We need to look up last actual value?
-        # In this architecture we don't easily have it stored in 'self'.
-        # Approximating lag_1 as 0 for future recursion given sparsity is a fair assumption,
-        # OR we just use calendar features.
-        # Let's assume 0 for lags in future for simplicity/robustness on sparse data.
-        future_df["lag_1"] = 0
+        forecast_values = []
+        current_lag = self.last_actual_value
 
-        forecast_values = self.model.predict(future_df)
+        # Recursive Loop
+        for i, date in enumerate(future_dates):
+            # 1. Build Single Row Feature Vector
+            row_data = {
+                "month": [date.month],
+                "week": [int(date.isocalendar().week)],
+                "lag_1": [current_lag],
+            }
+
+            # 2. Fill External Regressors
+            # We explicitly check for features the model knows about
+            for feat in model_features:
+                if feat in ["month", "week", "lag_1"]:
+                    continue
+
+                # Determine value for this feature
+                val = 0.0  # Default fallback if no history and no override
+
+                # Check Overrides
+                if feat in overrides and overrides[feat] is not None:
+                    override_val = overrides[feat]
+                    if isinstance(override_val, list):
+                        # Custom Plan: Use index i, safety clip
+                        idx = min(i, len(override_val) - 1)
+                        val = override_val[idx]
+                    else:
+                        # Constant
+                        val = float(override_val)
+                else:
+                    # Status Quo / Default: Last Known Value (Forward Fill)
+                    if feat in self.last_covariate_values:
+                        val = self.last_covariate_values[feat]
+                    # else: val remains 0.0 as initialized
+
+                row_data[feat] = [val]
+
+            # Create DF for prediction
+            # Ensure columns order matches model
+            step_X = pd.DataFrame(row_data)
+
+            # Reorder columns to match fit
+            if len(model_features) > 0:
+                # Add missing cols with 0 if any (safety)
+                for missing in set(model_features) - set(step_X.columns):
+                    step_X[missing] = 0
+                step_X = step_X[model_features]
+
+            # Predict
+            pred = self.model.predict(step_X)[0]
+            forecast_values.append(pred)
+
+            # Update recursive lag for next step
+            current_lag = pred
 
         return pd.DataFrame(
             {self.time_col: future_dates, self.target_col: forecast_values}
@@ -404,6 +474,24 @@ class SmartForecastEngine:
             self.active_model = SimpleAdditiveForecaster()
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology):
+        # 0. Handle Ignored Columns
+        if ontology.ignored_columns:
+            # Filter from DF
+            drop_cols = [c for c in ontology.ignored_columns if c in df.columns]
+            if drop_cols:
+                print(f"LOG: Ignoring columns: {drop_cols}")
+                df = df.drop(columns=drop_cols)
+
+            # Filter from Ontology (create a temporary view or modify for this run)
+            # Modifying the object is risky if it persists, but this is per-request in the pipeline usually.
+            # However, `pipeline.run_forecast` uses the same ontology object relative to the request.
+            # Let's filter the columns list.
+            ontology.columns = [
+                c
+                for c in ontology.columns
+                if c.column_name not in ontology.ignored_columns
+            ]
+
         if not self.active_model:
             self.select_model(ontology)
 
@@ -418,10 +506,12 @@ class SmartForecastEngine:
 
         return self.active_model.fit(df, ontology)
 
-    def predict(self, horizon: int) -> pd.DataFrame:
+    def predict(
+        self, horizon: int, ontology: Optional[ForecastOntology] = None
+    ) -> pd.DataFrame:
         if not self.active_model:
             raise ValueError("Model not fitted yet.")
-        return self.active_model.predict(horizon)
+        return self.active_model.predict(horizon, ontology)
 
     def get_metadata(self) -> Any:
         if not self.active_model:
