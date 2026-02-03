@@ -273,7 +273,7 @@ class ETSForecaster(InternalForecaster):
             seasonal_periods = None
             if self.seasonal is not None:
                 seasonal_periods = 7 if self.freq == 'D' else (12 if self.freq == 'M' else None)
-            
+
             # Train on Training Set
             model = ExponentialSmoothing(
                 train[self.target_col],
