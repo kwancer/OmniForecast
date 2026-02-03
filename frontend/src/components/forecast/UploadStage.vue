@@ -176,11 +176,17 @@
 
     // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
     let targetIdx = -1
-    for (let i = 1; i < headers.length; i++) {
-      const val = parseFloat(rows[0][i])
-      if (!Number.isNaN(val)) {
-        targetIdx = i
-        break
+    const firstRow = rows[0]
+    if (firstRow) {
+      for (let i = 1; i < headers.length; i++) {
+        const valStr = firstRow[i]
+        if (valStr) {
+          const val = parseFloat(valStr)
+          if (!Number.isNaN(val)) {
+            targetIdx = i
+            break
+          }
+        }
       }
     }
     // Fallback to first column if no others found
@@ -190,9 +196,16 @@
     // Sample up to 50 points for sparkline
     const sampleStep = Math.max(1, Math.floor(lines.length / 50))
     for (let i = 1; i < lines.length; i += sampleStep) {
-      const val = parseFloat(lines[i].split(',')[targetIdx])
-      if (!Number.isNaN(val)) {
-        sparklineData.push(val)
+      const line = lines[i]
+      if (line) {
+        const parts = line.split(',')
+        const valStr = parts[targetIdx]
+        if (valStr) {
+          const val = parseFloat(valStr)
+          if (!Number.isNaN(val)) {
+            sparklineData.push(val)
+          }
+        }
       }
     }
 
