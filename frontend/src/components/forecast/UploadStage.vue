@@ -171,7 +171,10 @@
     const lines = text.split('\n').filter(l => l.trim().length > 0)
     if (lines.length === 0) return
 
-    const headers = lines[0].split(',').map(h => h.trim())
+    const firstLine = lines[0]
+    if (!firstLine) return
+
+    const headers = firstLine.split(',').map(h => h.trim())
     const rows = lines.slice(1, 6).map(l => l.split(',').map(v => v.trim()))
 
     // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
