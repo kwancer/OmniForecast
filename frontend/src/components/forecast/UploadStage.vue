@@ -159,8 +159,16 @@
 
   const previewData = ref<PreviewData | null>(null)
 
-  watch(file, async (newFile) => {
+  watch(file, async newFile => {
     if (!newFile) {
+      previewData.value = null
+      return
+    }
+
+    // Add file size check (limit to 10MB for preview)
+    const maxFileSize = 10 * 1024 * 1024 // 10MB
+    if (newFile.size > maxFileSize) {
+      console.warn('File too large for preview, skipping Data X-Ray')
       previewData.value = null
       return
     }
@@ -174,22 +182,46 @@
     const firstLine = lines[0]
     if (!firstLine) return
 
-    const headers = firstLine.split(',').map(h => h.trim())
-    const rows = lines.slice(1, 6).map(l => l.split(',').map(v => v.trim()))
+    // Simple CSV parser that handles basic quoted fields
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = []
+      let current = ''
+      let inQuotes = false
+
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      result.push(current.trim())
+      return result
+    }
+
+    const headers = parseCSVLine(firstLine)
+    const rows = lines.slice(1, 6).map(l => parseCSVLine(l))
 
     // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
+    // Check all preview rows to determine if a column is numeric, not just the first row
     let targetIdx = -1
-    const firstRow = rows[0]
-    if (firstRow) {
-      for (let i = 1; i < headers.length; i++) {
-        const valStr = firstRow[i]
-        if (valStr) {
-          const val = parseFloat(valStr)
+    for (let colIdx = 1; colIdx < headers.length; colIdx++) {
+      let isNumeric = false
+      for (const row of rows) {
+        if (row && row[colIdx]) {
+          const val = Number.parseFloat(row[colIdx])
           if (!Number.isNaN(val)) {
-            targetIdx = i
+            isNumeric = true
             break
           }
         }
+      }
+      if (isNumeric) {
+        targetIdx = colIdx
+        break
       }
     }
     // Fallback to first column if no others found
@@ -201,12 +233,15 @@
     for (let i = 1; i < lines.length; i += sampleStep) {
       const line = lines[i]
       if (line) {
-        const parts = line.split(',')
-        const valStr = parts[targetIdx]
-        if (valStr) {
-          const val = parseFloat(valStr)
-          if (!Number.isNaN(val)) {
-            sparklineData.push(val)
+        const parts = parseCSVLine(line)
+        // Add bounds checking to prevent undefined access
+        if (parts.length > targetIdx) {
+          const valStr = parts[targetIdx]
+          if (valStr) {
+            const val = Number.parseFloat(valStr)
+            if (!Number.isNaN(val)) {
+              sparklineData.push(val)
+            }
           }
         }
       }
