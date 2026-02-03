@@ -159,48 +159,44 @@
 
   const previewData = ref<PreviewData | null>(null)
 
-  watch(file, (newFile) => {
+  watch(file, async (newFile) => {
     if (!newFile) {
       previewData.value = null
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
-      if (!text) return
+    const text = await newFile.text()
+    if (!text) return
 
-      const lines = text.split('\n').filter(l => l.trim().length > 0)
-      if (lines.length === 0) return
+    const lines = text.split('\n').filter(l => l.trim().length > 0)
+    if (lines.length === 0) return
 
-      const headers = lines[0].split(',').map(h => h.trim())
-      const rows = lines.slice(1, 6).map(l => l.split(',').map(v => v.trim()))
+    const headers = lines[0].split(',').map(h => h.trim())
+    const rows = lines.slice(1, 6).map(l => l.split(',').map(v => v.trim()))
 
-      // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
-      let targetIdx = -1
-      for (let i = 1; i < headers.length; i++) {
-        const val = parseFloat(rows[0][i])
-        if (!isNaN(val)) {
-          targetIdx = i
-          break
-        }
+    // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
+    let targetIdx = -1
+    for (let i = 1; i < headers.length; i++) {
+      const val = parseFloat(rows[0][i])
+      if (!Number.isNaN(val)) {
+        targetIdx = i
+        break
       }
-      // Fallback to first column if no others found
-      if (targetIdx === -1) targetIdx = 0
-
-      const sparklineData: number[] = []
-      // Sample up to 50 points for sparkline
-      const sampleStep = Math.max(1, Math.floor(lines.length / 50))
-      for (let i = 1; i < lines.length; i += sampleStep) {
-        const val = parseFloat(lines[i].split(',')[targetIdx])
-        if (!isNaN(val)) {
-          sparklineData.push(val)
-        }
-      }
-
-      previewData.value = { headers, rows, sparklineData }
     }
-    reader.readAsText(newFile)
+    // Fallback to first column if no others found
+    if (targetIdx === -1) targetIdx = 0
+
+    const sparklineData: number[] = []
+    // Sample up to 50 points for sparkline
+    const sampleStep = Math.max(1, Math.floor(lines.length / 50))
+    for (let i = 1; i < lines.length; i += sampleStep) {
+      const val = parseFloat(lines[i].split(',')[targetIdx])
+      if (!Number.isNaN(val)) {
+        sparklineData.push(val)
+      }
+    }
+
+    previewData.value = { headers, rows, sparklineData }
   }, { immediate: true })
 
   const sparklinePath = computed(() => {
