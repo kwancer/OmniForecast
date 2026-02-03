@@ -93,7 +93,13 @@ class NaiveForecaster(InternalForecaster):
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
         if len(val) == 0:
-            return calculate_metrics(df[self.target_col], df[self.target_col])
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         # Naive: Predict last value of train for all val steps
         last_train_val = train[self.target_col].iloc[-1]
@@ -157,7 +163,13 @@ class SeasonalNaiveForecaster(InternalForecaster):
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
         if len(val) == 0:
-            return calculate_metrics(df[self.target_col], df[self.target_col])
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         def get_seasonal_preds(history_series, steps):
             preds = []
@@ -248,16 +260,27 @@ class ETSForecaster(InternalForecaster):
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
         if len(val) == 0:
-            return calculate_metrics(df[self.target_col], df[self.target_col])
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         try:
+            # Determine seasonal_periods only if seasonal is specified
+            seasonal_periods = None
+            if self.seasonal is not None:
+                seasonal_periods = 7 if self.freq == 'D' else (12 if self.freq == 'M' else None)
+
             # Train on Training Set
             model = ExponentialSmoothing(
                 train[self.target_col],
                 trend=self.trend,
                 damped_trend=self.damped,
                 seasonal=self.seasonal,
-                seasonal_periods=7 if self.freq == 'D' else (12 if self.freq == 'M' else None),
+                seasonal_periods=seasonal_periods,
                 freq=self.freq,
             )
             fit_result = model.fit(optimized=True)
@@ -269,7 +292,7 @@ class ETSForecaster(InternalForecaster):
                 trend=self.trend,
                 damped_trend=self.damped,
                 seasonal=self.seasonal,
-                seasonal_periods=7 if self.freq == 'D' else (12 if self.freq == 'M' else None),
+                seasonal_periods=seasonal_periods,
                 freq=self.freq,
             )
             self.fit_result = self.model.fit(optimized=True)
@@ -312,8 +335,13 @@ class ARIMAForecaster(InternalForecaster):
     def __init__(self, order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
         self.order = order
         self.seasonal_order = seasonal_order
+        # Complexity scoring heuristic:
+        #   - Start from a base complexity of 1.
+        #   - Add (sum of ARIMA order + sum of first three seasonal_order terms) / 6.0.
+        #   - The 4th seasonal_order term (seasonal period) is intentionally excluded.
+        #   - The raw score can be outside [1, 4]; we clamp it afterward for a stable 1–4 scale.
         self.complexity_score = 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
-        # Clamp to 1-4 range
+        # Clamp to the public 1–4 complexity scale
         self.complexity_score = max(1, min(4, self.complexity_score))
         self.archetype = "The Autoregressive Pattern (Correlation with Past)"
         
@@ -331,11 +359,18 @@ class ARIMAForecaster(InternalForecaster):
         self.freq = pd.infer_freq(df.index) or "D"
 
         split_idx = int(len(df) * 0.8)
-        if split_idx == 0: split_idx = 1
+        if split_idx == 0:
+            split_idx = 1
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
         if len(val) == 0:
-            return calculate_metrics(df[self.target_col], df[self.target_col])
+            # No validation data available: avoid returning perfect (zero) metrics
+            # which would mislead model selection. Use infinite errors instead.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         try:
             model = ARIMA(train[self.target_col], order=self.order, seasonal_order=self.seasonal_order)
@@ -422,9 +457,19 @@ class RandomForestForecaster(InternalForecaster):
         }
 
         split_idx = int(len(X) * 0.8)
-        if split_idx == 0: split_idx = 1
+        if split_idx == 0:
+            split_idx = 1
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+
+        if len(X_val) == 0:
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         X_train = X_train.fillna(0)
         X_val = X_val.fillna(0)
@@ -587,7 +632,11 @@ class SmartForecastEngine:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
 
         # 4. Selection Logic (The Rashomon Set)
-        valid_results = [r for r in results if r["mae"] != float("inf") and not np.isnan(r["mae"])]
+        valid_results = [
+            r
+            for r in results
+            if np.isfinite(r["mae"]) and r["mae"] > 0.0
+        ]
         if not valid_results:
             raise ValueError("All models failed to fit.")
 
