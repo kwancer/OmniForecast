@@ -211,8 +211,9 @@
     for (let colIdx = 1; colIdx < headers.length; colIdx++) {
       let isNumeric = false
       for (const row of rows) {
-        if (row && row[colIdx]) {
-          const val = Number.parseFloat(row[colIdx])
+        const cellValue = row?.[colIdx]
+        if (cellValue !== undefined && cellValue !== null && cellValue !== '') {
+          const val = Number.parseFloat(cellValue)
           if (!Number.isNaN(val)) {
             isNumeric = true
             break
@@ -237,7 +238,7 @@
         // Add bounds checking to prevent undefined access
         if (parts.length > targetIdx) {
           const valStr = parts[targetIdx]
-          if (valStr) {
+          if (valStr !== undefined && valStr !== null && valStr !== '') {
             const val = Number.parseFloat(valStr)
             if (!Number.isNaN(val)) {
               sparklineData.push(val)
