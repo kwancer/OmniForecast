@@ -3,14 +3,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
     mean_squared_error,
 )
-from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
@@ -49,6 +50,8 @@ class InternalForecaster(ABC):
     complexity_score: float = 0
     # Archetype Description (When this model wins)
     archetype: str = "Baseline"
+    # Residual standard deviation for interval calculation (set during fit)
+    residuals_std: float = 0.0
 
     @abstractmethod
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
@@ -56,13 +59,45 @@ class InternalForecaster(ABC):
 
     @abstractmethod
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
+        """
+        Generate forecasts with confidence intervals.
+
+        Returns DataFrame with columns: ['date', 'mean', 'lower', 'upper']
+        """
         pass
 
     @abstractmethod
     def get_metadata(self) -> ModelMetadata:
         pass
+
+    def _calculate_intervals(
+        self,
+        predictions: np.ndarray,
+        interval_width: float,
+        residuals_std: float,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate confidence intervals using z-score approach.
+
+        Args:
+            predictions: Array of point predictions
+            interval_width: Width of confidence interval (e.g., 0.80 for P10/P90)
+            residuals_std: Standard deviation of residuals from training
+
+        Returns:
+            Tuple of (lower_bounds, upper_bounds)
+        """
+        alpha = 1 - interval_width
+        z_score = stats.norm.ppf(1 - alpha / 2)
+        margin = z_score * residuals_std
+        lower = predictions - margin
+        upper = predictions + margin
+        return lower, upper
 
 
 class NaiveForecaster(InternalForecaster):
@@ -75,6 +110,7 @@ class NaiveForecaster(InternalForecaster):
         self.target_col = None
         self.last_date = None
         self.freq = None
+        self.residuals_std = 0.0
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
@@ -105,19 +141,35 @@ class NaiveForecaster(InternalForecaster):
         last_train_val = train[self.target_col].iloc[-1]
         val_preds = pd.Series([last_train_val] * len(val), index=val.index)
 
+        # Calculate residuals for confidence intervals
+        residuals = val[self.target_col] - val_preds
+        self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+
         # Final fit
         self.last_value = df[self.target_col].iloc[-1]
 
         return calculate_metrics(val[self.target_col], val_preds)
 
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
+        predictions = np.array([self.last_value] * horizon)
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
         return pd.DataFrame(
-            {self.time_col: future_dates, self.target_col: [self.last_value] * horizon}
+            {
+                "date": future_dates,
+                "mean": predictions,
+                "lower": lower,
+                "upper": upper,
+            }
         )
 
     def get_metadata(self) -> ModelMetadata:
@@ -140,6 +192,7 @@ class SeasonalNaiveForecaster(InternalForecaster):
         self.target_col = None
         self.last_date = None
         self.freq = None
+        self.residuals_std = 0.0
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
@@ -184,11 +237,18 @@ class SeasonalNaiveForecaster(InternalForecaster):
         val_preds_list = get_seasonal_preds(train[self.target_col], len(val))
         val_preds = pd.Series(val_preds_list, index=val.index)
 
+        # Calculate residuals for confidence intervals
+        residuals = val[self.target_col] - val_preds
+        self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+
         self.history = df[self.target_col]
         return calculate_metrics(val[self.target_col], val_preds)
 
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
@@ -200,7 +260,18 @@ class SeasonalNaiveForecaster(InternalForecaster):
         for i in range(horizon):
             preds.append(last_season[i % self.season_length])
 
-        return pd.DataFrame({self.time_col: future_dates, self.target_col: preds})
+        predictions = np.array(preds)
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
+        return pd.DataFrame(
+            {
+                "date": future_dates,
+                "mean": predictions,
+                "lower": lower,
+                "upper": upper,
+            }
+        )
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -272,7 +343,9 @@ class ETSForecaster(InternalForecaster):
             # Determine seasonal_periods only if seasonal is specified
             seasonal_periods = None
             if self.seasonal is not None:
-                seasonal_periods = 7 if self.freq == 'D' else (12 if self.freq == 'M' else None)
+                seasonal_periods = (
+                    7 if self.freq == "D" else (12 if self.freq == "M" else None)
+                )
 
             # Train on Training Set
             model = ExponentialSmoothing(
@@ -306,17 +379,58 @@ class ETSForecaster(InternalForecaster):
             ]
 
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
         if not self.fit_result:
             raise ValueError("Model not fitted.")
 
+        # Point forecast
         forecast_values = self.fit_result.forecast(horizon)
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
+
+        # Simulation-based confidence intervals
+        try:
+            # Generate simulation paths
+            # nsimulations = horizon (number of steps to simulate)
+            # repetitions = number of simulation paths to generate
+            simulations = self.fit_result.simulate(
+                nsimulations=horizon,
+                anchor="end",
+                repetitions=1000,
+            )
+            # simulations shape: (horizon, 1000) - rows are time steps, cols are paths
+            alpha = 1 - interval_width
+            lower_quantile = alpha / 2
+            upper_quantile = 1 - alpha / 2
+
+            lower = np.percentile(simulations, lower_quantile * 100, axis=1)
+            upper = np.percentile(simulations, upper_quantile * 100, axis=1)
+            # Use point forecast as mean (more stable than median of simulations)
+            mean_vals = forecast_values.values
+
+            # Validate lengths match
+            if len(lower) != horizon or len(upper) != horizon:
+                raise ValueError(f"Simulation shape mismatch: expected {horizon}")
+
+        except Exception as e:
+            print(f"LOG: ETS simulation failed, using point forecast: {e}")
+            # Fallback: use point forecast, no intervals
+            mean_vals = forecast_values.values
+            lower = mean_vals.copy()
+            upper = mean_vals.copy()
+
         return pd.DataFrame(
-            {self.time_col: future_dates, self.target_col: forecast_values}
+            {
+                "date": future_dates,
+                "mean": mean_vals,
+                "lower": lower,
+                "upper": upper,
+            }
         )
 
     def get_metadata(self) -> ModelMetadata:
@@ -332,6 +446,7 @@ class ARIMAForecaster(InternalForecaster):
     """
     ARIMA candidate for the tournament.
     """
+
     def __init__(self, order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
         self.order = order
         self.seasonal_order = seasonal_order
@@ -344,16 +459,21 @@ class ARIMAForecaster(InternalForecaster):
         # Clamp to the public 1–4 complexity scale
         self.complexity_score = max(1, min(4, self.complexity_score))
         self.archetype = "The Autoregressive Pattern (Correlation with Past)"
-        
+
         self.fit_result = None
         self.time_col = None
         self.target_col = None
         self.last_date = None
         self.freq = None
+        self.residuals_std = 0.0
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
-        self.time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
-        self.target_col = next(c.column_name for c in ontology.columns if c.role == "target")
+        self.time_col = next(
+            c.column_name for c in ontology.columns if c.role == "time_index"
+        )
+        self.target_col = next(
+            c.column_name for c in ontology.columns if c.role == "target"
+        )
         df = df.set_index(self.time_col)
         self.last_date = df.index.max()
         self.freq = pd.infer_freq(df.index) or "D"
@@ -373,11 +493,23 @@ class ARIMAForecaster(InternalForecaster):
             ]
 
         try:
-            model = ARIMA(train[self.target_col], order=self.order, seasonal_order=self.seasonal_order)
+            model = ARIMA(
+                train[self.target_col],
+                order=self.order,
+                seasonal_order=self.seasonal_order,
+            )
             fit_result = model.fit()
             val_preds = fit_result.forecast(len(val))
 
-            full_model = ARIMA(df[self.target_col], order=self.order, seasonal_order=self.seasonal_order)
+            # Calculate residuals for confidence intervals
+            residuals = val[self.target_col] - val_preds
+            self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+
+            full_model = ARIMA(
+                df[self.target_col],
+                order=self.order,
+                seasonal_order=self.seasonal_order,
+            )
             self.fit_result = full_model.fit()
 
             return calculate_metrics(val[self.target_col], val_preds)
@@ -385,17 +517,47 @@ class ARIMAForecaster(InternalForecaster):
             print(f"LOG: ARIMA {self.order} failed: {e}")
             return [ForecastMetric(name="MAE", value=float("inf"))]
 
-    def predict(self, horizon: int, ontology: Optional[ForecastOntology] = None) -> pd.DataFrame:
-        forecast_values = self.fit_result.forecast(horizon)
-        future_dates = pd.date_range(start=self.last_date, periods=horizon + 1, freq=self.freq)[1:]
-        return pd.DataFrame({self.time_col: future_dates, self.target_col: forecast_values})
+    def predict(
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
+    ) -> pd.DataFrame:
+        future_dates = pd.date_range(
+            start=self.last_date, periods=horizon + 1, freq=self.freq
+        )[1:]
+
+        # Try to use ARIMA's built-in confidence intervals
+        try:
+            forecast_obj = self.fit_result.get_forecast(steps=horizon)
+            mean_vals = forecast_obj.predicted_mean.values
+            alpha = 1 - interval_width
+            conf_int = forecast_obj.conf_int(alpha=alpha)
+            lower = conf_int.iloc[:, 0].values
+            upper = conf_int.iloc[:, 1].values
+        except Exception as e:
+            print(f"LOG: ARIMA conf_int failed, using residual-based: {e}")
+            # Fallback to residual-based approach
+            mean_vals = self.fit_result.forecast(horizon).values
+            lower, upper = self._calculate_intervals(
+                mean_vals, interval_width, self.residuals_std
+            )
+
+        return pd.DataFrame(
+            {
+                "date": future_dates,
+                "mean": mean_vals,
+                "lower": lower,
+                "upper": upper,
+            }
+        )
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
             name=f"ARIMA {self.order}",
             description="AutoRegressive Integrated Moving Average model.",
             rationale="Captures autocorrelations in the data.",
-            educational_video_url="https://www.youtube.com/watch?v=3UmyHed0iYe"
+            educational_video_url="https://www.youtube.com/watch?v=3UmyHed0iYe",
         )
 
 
@@ -412,6 +574,7 @@ class RandomForestForecaster(InternalForecaster):
         self.last_date = None
         self.freq: Optional[str] = None
         self.last_actual_value = 0
+        self.residuals_std = 0.0
 
     def _add_features(
         self, df: pd.DataFrame, target: Optional[str] = None
@@ -477,12 +640,19 @@ class RandomForestForecaster(InternalForecaster):
         self.model.fit(X_train, y_train)
         val_preds = self.model.predict(X_val)
 
+        # Calculate residuals for confidence intervals
+        residuals = y_val.values - val_preds
+        self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+
         self.model.fit(X.fillna(0), y)
 
         return calculate_metrics(y_val, val_preds)
 
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
@@ -526,8 +696,17 @@ class RandomForestForecaster(InternalForecaster):
             forecast_values.append(pred)
             current_lag = pred
 
+        predictions = np.array(forecast_values)
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
         return pd.DataFrame(
-            {self.time_col: future_dates, self.target_col: forecast_values}
+            {
+                "date": future_dates,
+                "mean": predictions,
+                "lower": lower,
+                "upper": upper,
+            }
         )
 
     def get_metadata(self) -> ModelMetadata:
@@ -562,18 +741,33 @@ class SmartForecastEngine:
         candidates: List[InternalForecaster] = [
             NaiveForecaster(),  # Score 0
             SeasonalNaiveForecaster(),  # Score 0.5
-            # ETS Variants (~9)
+            # ETS Variants (~8)
             ETSForecaster("SES", trend=None, seasonal=None),  # Score 1
             ETSForecaster("Holt Linear", trend="add", seasonal=None),  # Score 2
             ETSForecaster("Holt Multiplicative", trend="mul", seasonal=None),  # Score 2
-            ETSForecaster("Damped Additive", trend="add", damped=True, seasonal=None),  # Score 3
-            ETSForecaster("Damped Multiplicative", trend="mul", damped=True, seasonal=None),  # Score 3
-            ETSForecaster("Holt-Winters Additive", trend="add", seasonal="add"),  # Score 4
-            ETSForecaster("Holt-Winters Multiplicative", trend="mul", seasonal="mul"),  # Score 4
-            ETSForecaster("Holt-Winters Damped Additive", trend="add", damped=True, seasonal="add"),  # Score 4
-            ETSForecaster("Holt-Winters Damped Multiplicative", trend="mul", damped=True, seasonal="mul"),  # Score 4
+            ETSForecaster(
+                "Damped Additive", trend="add", damped=True, seasonal=None
+            ),  # Score 3
+            ETSForecaster(
+                "Damped Multiplicative", trend="mul", damped=True, seasonal=None
+            ),  # Score 3
+            ETSForecaster(
+                "Holt-Winters Additive", trend="add", seasonal="add"
+            ),  # Score 4
+            ETSForecaster(
+                "Holt-Winters Multiplicative", trend="mul", seasonal="mul"
+            ),  # Score 4
+            ETSForecaster(
+                "Holt-Winters Damped Additive", trend="add", damped=True, seasonal="add"
+            ),  # Score 4
+            ETSForecaster(
+                "Holt-Winters Damped Multiplicative",
+                trend="mul",
+                damped=True,
+                seasonal="mul",
+            ),  # Score 4
             # ARIMA Candidate
-            ARIMAForecaster(order=(1, 1, 1)), # Score ~1.5
+            ARIMAForecaster(order=(1, 1, 1)),  # Score ~1.5
         ]
 
         # 2. Check Triggers for Specialist (Random Forest - Score 5)
@@ -632,11 +826,7 @@ class SmartForecastEngine:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
 
         # 4. Selection Logic (The Rashomon Set)
-        valid_results = [
-            r
-            for r in results
-            if np.isfinite(r["mae"]) and r["mae"] > 0.0
-        ]
+        valid_results = [r for r in results if np.isfinite(r["mae"]) and r["mae"] > 0.0]
         if not valid_results:
             raise ValueError("All models failed to fit.")
 
@@ -679,11 +869,14 @@ class SmartForecastEngine:
         return self.active_model.fit(df, ontology)
 
     def predict(
-        self, horizon: int, ontology: Optional[ForecastOntology] = None
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
     ) -> pd.DataFrame:
         if not self.active_model:
             raise ValueError("Model not fitted yet.")
-        return self.active_model.predict(horizon, ontology)
+        return self.active_model.predict(horizon, ontology, interval_width)
 
     def get_metadata(self) -> Any:
         if not self.active_model:

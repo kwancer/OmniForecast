@@ -35,6 +35,12 @@
       <v-chip class="font-weight-bold" :color="modelValue.is_positive ? 'success' : 'warning'" size="small" variant="tonal">
         {{ modelValue.is_positive ? 'Strictly Positive' : 'Can be Negative' }}
       </v-chip>
+
+      <span class="text-medium-emphasis"> to </span>
+
+      <v-chip class="font-weight-bold" :color="getRiskColor(modelValue.risk_preference)" size="small" variant="tonal">
+        {{ getRiskLabel(modelValue.risk_preference) }}
+      </v-chip>
     </div>
 
     <div v-else class="text-h5 font-weight-light d-flex flex-wrap align-center justify-center gap-2" style="gap: 8px; line-height: 2.5;">
@@ -116,12 +122,40 @@
           <v-list-item subtitle="e.g. Profit" title="Can be Negative (±)" @click="updateConstraint(false)" />
         </v-list>
       </v-menu>
+
+      <span class="text-medium-emphasis"> to </span>
+
+      <v-menu>
+        <template #activator="{ props }">
+          <v-chip v-bind="props" :color="getRiskColor(modelValue.risk_preference)" size="large" variant="tonal">
+            {{ getRiskLabel(modelValue.risk_preference) }} <v-icon end icon="mdi-chevron-down" />
+          </v-chip>
+        </template>
+        <v-list density="compact">
+          <v-list-item
+            subtitle="Average prediction"
+            title="Achieve a balanced plan"
+            @click="updateRiskPreference('balanced')"
+          />
+          <v-list-item
+            subtitle="Upper bound (Safety Stock)"
+            title="Minimize risk of stockouts"
+            @click="updateRiskPreference('under_penalty')"
+          />
+          <v-list-item
+            subtitle="Lower bound (Conservative)"
+            title="Minimize risk of waste"
+            @click="updateRiskPreference('over_penalty')"
+          />
+        </v-list>
+      </v-menu>
     </div>
 
   </v-card>
 </template>
 
 <script setup lang="ts">
+  import type { RiskPreference } from '@/types'
   import { ref, watch } from 'vue'
 
   export interface SentenceState {
@@ -130,6 +164,7 @@
     horizon: number
     frequency: string
     is_positive: boolean
+    risk_preference: RiskPreference
   }
 
   const sentenceProps = defineProps<{
@@ -149,8 +184,37 @@
   const updateFrequency = (unit: string) => emit('update:modelValue', { ...sentenceProps.modelValue, frequency: unit })
   const updateConstraint = (isPositive: boolean) => emit('update:modelValue', { ...sentenceProps.modelValue, is_positive: isPositive })
   const updateHorizon = (val: string | number) => emit('update:modelValue', { ...sentenceProps.modelValue, horizon: Number(val) })
+  const updateRiskPreference = (pref: RiskPreference) => emit('update:modelValue', { ...sentenceProps.modelValue, risk_preference: pref })
 
   const formatUnit = (unit: string) => unit ? unit.charAt(0).toUpperCase() + unit.slice(1) : ''
+
+  function getRiskLabel (pref: RiskPreference | undefined) {
+    switch (pref) {
+      case 'under_penalty': {
+        return 'Minimize Stockouts'
+      }
+      case 'over_penalty': {
+        return 'Minimize Waste'
+      }
+      default: {
+        return 'Balanced Plan'
+      }
+    }
+  }
+
+  function getRiskColor (pref: RiskPreference | undefined) {
+    switch (pref) {
+      case 'under_penalty': {
+        return 'error'
+      }
+      case 'over_penalty': {
+        return 'info'
+      }
+      default: {
+        return 'accent'
+      }
+    }
+  }
 </script>
 
 <style scoped>

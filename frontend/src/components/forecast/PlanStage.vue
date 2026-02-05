@@ -50,7 +50,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import CovariateSentence, { type CovariateState } from './CovariateSentence.vue'
   import DataXRay from './DataXRay.vue'
@@ -94,6 +94,7 @@
       horizon: store.ontology.requirements.horizon_requirement.steps || 12,
       frequency: store.ontology.problem.granularity.unit || 'month',
       is_positive: isPositive,
+      risk_preference: store.ontology.risk_preference || 'balanced',
     }
   })
 
@@ -117,6 +118,7 @@
 
     store.ontology.requirements.horizon_requirement.steps = sentenceState.value.horizon
     store.ontology.problem.granularity.unit = sentenceState.value.frequency as any
+    store.ontology.risk_preference = sentenceState.value.risk_preference
 
     // Scenario Overrides & Ignores
     const overrides: Record<string, number | number[] | null> = {}

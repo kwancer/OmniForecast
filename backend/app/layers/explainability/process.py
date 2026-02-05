@@ -25,7 +25,13 @@ class StandardExplainer:
         target_col = next(c.column_name for c in ontology.columns if c.role == "target")
 
         last_hist_val = float(history_df[target_col].iloc[-1])
-        last_pred_val = float(forecast_df[target_col].iloc[-1])
+
+        # New forecast format uses 'mean' column
+        # Fallback to target_col for backward compatibility
+        if "mean" in forecast_df.columns:
+            last_pred_val = float(forecast_df["mean"].iloc[-1])
+        else:
+            last_pred_val = float(forecast_df[target_col].iloc[-1])
 
         horizon = len(forecast_df)
 

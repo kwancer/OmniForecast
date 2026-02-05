@@ -96,3 +96,11 @@ class ForecastOntology(BaseModel):
     sample_data: Optional[List[Dict[str, Any]]] = None
     scenario_overrides: Optional[Dict[str, Union[float, List[float], None]]] = None
     ignored_columns: Optional[List[str]] = None
+    # Risk Preference & Confidence Intervals
+    risk_preference: Literal["balanced", "under_penalty", "over_penalty"] = "balanced"
+    interval_width: float = Field(
+        default=0.80,
+        description=(
+            "Width of the confidence interval (0.80 = P10/P90, 0.95 = P2.5/P97.5)"
+        ),
+    )

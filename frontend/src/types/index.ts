@@ -4,6 +4,7 @@ export type ColumnRole = 'time_index' | 'target' | 'group_id' | 'covariate' | 'i
 export type DataType = 'continuous' | 'discrete' | 'binary' | 'categorical' | 'text' | 'datetime'
 export type TimeUnit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year'
 export type CompletenessStatus = 'complete' | 'partial'
+export type RiskPreference = 'balanced' | 'under_penalty' | 'over_penalty'
 
 // --- SUB-OBJECTS ---
 
@@ -77,6 +78,9 @@ export interface ForecastOntology {
   sample_data?: Record<string, any>[]
   scenario_overrides?: Record<string, number | number[] | null>
   ignored_columns?: string[]
+  // Risk Preference & Confidence Intervals
+  risk_preference?: RiskPreference
+  interval_width?: number
 }
 
 // --- RESULTS & REPORTING ---
@@ -95,7 +99,11 @@ export interface CleaningReport {
 }
 
 export interface ForecastResult {
-  [key: string]: string | number
+  [key: string]: string | number | undefined
+  date?: string
+  mean?: number
+  lower?: number
+  upper?: number
 }
 
 export interface ForecastMetric {

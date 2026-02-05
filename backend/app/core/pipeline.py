@@ -41,9 +41,10 @@ class ForecastPipeline:
         # 3. Forecast Fit (model already selected, just re-fit on same data)
         metrics = self.forecaster.fit(clean_df, ontology)
 
-        # 4. Forecast Predict
+        # 4. Forecast Predict (with confidence intervals)
         horizon = ontology.requirements.horizon_requirement.steps
-        forecast_df = self.forecaster.predict(horizon)
+        interval_width = getattr(ontology, "interval_width", 0.80)
+        forecast_df = self.forecaster.predict(horizon, ontology, interval_width)
 
         # 4. Explain
         explanation = self.explainer.explain(clean_df, forecast_df, ontology, metrics)
