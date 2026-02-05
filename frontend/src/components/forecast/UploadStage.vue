@@ -73,13 +73,70 @@
           Continue
           <v-icon end>mdi-chevron-right</v-icon>
         </v-btn>
+
+        <!-- DATA X-RAY PREVIEW -->
+        <v-expand-transition>
+          <div v-if="previewData" class="mt-8">
+            <div class="d-flex align-center mb-4">
+              <v-icon class="mr-2" color="primary">mdi-magnify-scan</v-icon>
+              <h3 class="text-h6 font-weight-bold">Data X-Ray Preview</h3>
+              <v-chip class="ml-3" size="x-small" variant="outlined">First 5 Rows</v-chip>
+            </div>
+
+            <v-row>
+              <v-col cols="12" md="8">
+                <v-card class="border-secondary-light overflow-hidden" variant="outlined">
+                  <v-table density="compact">
+                    <thead>
+                      <tr>
+                        <th v-for="h in previewData.headers" :key="h" class="text-caption font-weight-bold text-no-wrap">
+                          {{ h }}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, i) in previewData.rows" :key="i">
+                        <td v-for="(val, j) in row" :key="j" class="text-caption text-no-wrap font-mono">
+                          {{ val }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </v-card>
+              </v-col>
+              <v-col cols="12" md="4">
+                <v-card class="pa-4 border-primary h-100" variant="outlined">
+                  <div class="text-overline mb-2">Signal Overview</div>
+                  <div v-if="previewData.sparklineData.length > 0" class="sparkline-container">
+                    <svg height="80" preserveAspectRatio="none" viewBox="0 0 100 100" width="100%">
+                      <path
+                        :d="sparklinePath"
+                        fill="none"
+                        stroke="rgb(var(--v-theme-primary))"
+                        stroke-width="2"
+                      />
+                    </svg>
+                    <div class="d-flex justify-space-between mt-2">
+                      <span class="text-caption text-medium-emphasis">Start</span>
+                      <span class="text-caption text-medium-emphasis">End</span>
+                    </div>
+                  </div>
+                  <div v-else class="text-caption text-medium-emphasis d-flex flex-column align-center justify-center h-100">
+                    <v-icon class="mb-2">mdi-chart-bell-curve-cumulative</v-icon>
+                    No numeric trend detected
+                  </div>
+                </v-card>
+              </v-col>
+            </v-row>
+          </div>
+        </v-expand-transition>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
 
   const store = useForecastStore()
@@ -93,4 +150,139 @@
     get: () => store.intent,
     set: val => store.setIntent(val),
   })
+
+  interface PreviewData {
+    headers: string[]
+    rows: string[][]
+    sparklineData: number[]
+  }
+
+  const previewData = ref<PreviewData | null>(null)
+
+  watch(file, async newFile => {
+    if (!newFile) {
+      previewData.value = null
+      return
+    }
+
+    // Add file size check (limit to 10MB for preview)
+    const maxFileSize = 10 * 1024 * 1024 // 10MB
+    if (newFile.size > maxFileSize) {
+      console.warn('File too large for preview, skipping Data X-Ray')
+      previewData.value = null
+      return
+    }
+
+    const text = await newFile.text()
+    if (!text) return
+
+    const lines = text.split('\n').filter(l => l.trim().length > 0)
+    if (lines.length === 0) return
+
+    const firstLine = lines[0]
+    if (!firstLine) return
+
+    // Simple CSV parser that handles basic quoted fields
+    const parseCSVLine = (line: string): string[] => {
+      const result: string[] = []
+      let current = ''
+      let inQuotes = false
+
+      for (const char of line) {
+        if (char === '"') {
+          inQuotes = !inQuotes
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      result.push(current.trim())
+      return result
+    }
+
+    const headers = parseCSVLine(firstLine)
+    const rows = lines.slice(1, 6).map(l => parseCSVLine(l))
+
+    // Heuristic for sparkline: find first numeric column that isn't the first one (often ID/Date)
+    // Check all preview rows to determine if a column is numeric, not just the first row
+    let targetIdx = -1
+    for (let colIdx = 1; colIdx < headers.length; colIdx++) {
+      let isNumeric = false
+      for (const row of rows) {
+        const cellValue = row?.[colIdx]
+        if (cellValue !== undefined && cellValue !== null && cellValue !== '') {
+          const val = Number.parseFloat(cellValue)
+          if (!Number.isNaN(val)) {
+            isNumeric = true
+            break
+          }
+        }
+      }
+      if (isNumeric) {
+        targetIdx = colIdx
+        break
+      }
+    }
+    // Fallback to first column if no others found
+    if (targetIdx === -1) targetIdx = 0
+
+    const sparklineData: number[] = []
+    // Sample up to 50 points for sparkline
+    const sampleStep = Math.max(1, Math.floor(lines.length / 50))
+    for (let i = 1; i < lines.length; i += sampleStep) {
+      const line = lines[i]
+      if (line) {
+        const parts = parseCSVLine(line)
+        // Add bounds checking to prevent undefined access
+        if (parts.length > targetIdx) {
+          const valStr = parts[targetIdx]
+          if (valStr !== undefined && valStr !== null && valStr !== '') {
+            const val = Number.parseFloat(valStr)
+            if (!Number.isNaN(val)) {
+              sparklineData.push(val)
+            }
+          }
+        }
+      }
+    }
+
+    previewData.value = { headers, rows, sparklineData }
+  }, { immediate: true })
+
+  const sparklinePath = computed(() => {
+    if (!previewData.value || previewData.value.sparklineData.length < 2) return ''
+    const data = previewData.value.sparklineData
+    const min = Math.min(...data)
+    const max = Math.max(...data)
+    const range = max - min || 1
+
+    const width = 100
+    const height = 100
+    const stepX = width / (data.length - 1)
+
+    return data.map((val, i) => {
+      const x = i * stepX
+      const y = height - ((val - min) / range) * height
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`
+    }).join(' ')
+  })
 </script>
+
+<style scoped>
+.font-mono {
+  font-family: 'Roboto Mono', monospace;
+}
+.sparkline-container {
+  background: rgba(var(--v-theme-primary), 0.05);
+  border-radius: 4px;
+  padding: 8px;
+}
+.border-secondary-light {
+  border-color: rgba(var(--v-theme-secondary), 0.2) !important;
+}
+.border-primary {
+  border-color: rgb(var(--v-theme-primary)) !important;
+}
+</style>

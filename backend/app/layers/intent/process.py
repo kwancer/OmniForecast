@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import traceback
 from typing import Optional
 
@@ -52,6 +53,17 @@ class GeminiIntentAnalyzer:
         """
         return prompt
 
+    def _clean_display_name(self, name: str) -> str:
+        """
+        Converts 'total_revenue' or 'totalRevenue' to 'Total Revenue'.
+        """
+        # Replace underscores and hyphens with spaces
+        s = name.replace("_", " ").replace("-", " ")
+        # Insert spaces before capital letters (camelCase)
+        s = re.sub(r'([a-z])([A-Z])', r'\1 \2', s)
+        # Title case
+        return s.title().strip()
+
     def _enrich_ontology(
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> ForecastOntology:
@@ -59,6 +71,11 @@ class GeminiIntentAnalyzer:
         Stage 2: Python Statistical Profiling.
         Uses the LLM's structural definitions to calculate targeted stats (Sparsity).
         """
+        # Clean display names for all columns when they are missing or default
+        for col in ontology.columns:
+            if not col.display_name or col.display_name == col.column_name:
+                col.display_name = self._clean_display_name(col.column_name)
+
         # 1. Identify Target Column from Ontology
         target_def = next((c for c in ontology.columns if c.role == "target"), None)
 

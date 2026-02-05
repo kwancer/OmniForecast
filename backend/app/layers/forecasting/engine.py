@@ -10,6 +10,7 @@ from sklearn.metrics import (
     mean_squared_error,
 )
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from statsmodels.tsa.arima.model import ARIMA
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
@@ -45,7 +46,7 @@ class InternalForecaster(ABC):
     """Base class for internal forecast implementations."""
 
     # Rashomon Complexity Score (0-5 scale)
-    complexity_score: int = 0
+    complexity_score: float = 0
     # Archetype Description (When this model wins)
     archetype: str = "Baseline"
 
@@ -87,7 +88,18 @@ class NaiveForecaster(InternalForecaster):
         self.freq = pd.infer_freq(df.index) or "D"
 
         split_idx = int(len(df) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+
+        if len(val) == 0:
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
 
         # Naive: Predict last value of train for all val steps
         last_train_val = train[self.target_col].iloc[-1]
@@ -118,7 +130,7 @@ class NaiveForecaster(InternalForecaster):
 
 
 class SeasonalNaiveForecaster(InternalForecaster):
-    complexity_score = 0
+    complexity_score = 0.5
     archetype = "Seasonal Random Walk (Tomorrow = Same day last year/season)"
 
     def __init__(self, season_length=7):
@@ -140,19 +152,25 @@ class SeasonalNaiveForecaster(InternalForecaster):
         self.last_date = df.index.max()
         self.freq = pd.infer_freq(df.index) or "D"
 
-        # Heuristic for seasonality based on freq if not provided?
-        # For simplicity, we assume weekly (7) for daily data as default if not detected,
-        # but statsmodels handles this better. Let's stick to 7 or 12 based on freq.
         if self.freq == "M":
             self.season_length = 12
         elif self.freq == "D":
             self.season_length = 7
 
         split_idx = int(len(df) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
-        # Predict: train[t - season_length]
-        # This is tricky for validation if val len > season_length. We repeat the last season.
+        if len(val) == 0:
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+
         def get_seasonal_preds(history_series, steps):
             preds = []
             for i in range(steps):
@@ -160,7 +178,7 @@ class SeasonalNaiveForecaster(InternalForecaster):
                 try:
                     preds.append(history_series.iloc[-lookback_idx])
                 except IndexError:
-                    preds.append(history_series.iloc[-1])  # Fallback
+                    preds.append(history_series.iloc[-1])
             return preds
 
         val_preds_list = get_seasonal_preds(train[self.target_col], len(val))
@@ -177,10 +195,6 @@ class SeasonalNaiveForecaster(InternalForecaster):
         )[1:]
 
         preds = []
-        # We need to pick values from the last observed season
-        # Logic: Predict t+1 using t+1-season_length
-        # Since we are predicting into future, index refer to last_date + h
-        # We just cycle the last `season_length` values of history.
         last_season = self.history.iloc[-self.season_length :].values
 
         for i in range(horizon):
@@ -199,7 +213,7 @@ class SeasonalNaiveForecaster(InternalForecaster):
 
 class ETSForecaster(InternalForecaster):
     """
-    Wrapper for statsmodels Exponential Smoothing covering all 4 config levels.
+    Wrapper for statsmodels Exponential Smoothing covering multiple variants.
     """
 
     def __init__(self, config_name: str, trend=None, damped=False, seasonal=None):
@@ -215,19 +229,19 @@ class ETSForecaster(InternalForecaster):
         self.last_date = None
         self.freq = None
 
-        # Assignments based on config definitions
-        if config_name == "SES":
-            self.complexity_score = 1
-            self.archetype = "The Flat Line (No Trend, No Seasonality)"
-        elif config_name == "Holt's Linear":
-            self.complexity_score = 2
-            self.archetype = "The Steady Climber (Trend, No Seasonality)"
-        elif config_name == "Damped Trend":
+        # Assignments based on complexity
+        if seasonal:
+            self.complexity_score = 4
+            self.archetype = "The Seasonal Specialist (Trend + Seasonality)"
+        elif damped:
             self.complexity_score = 3
             self.archetype = "The Realistic Climber (Damped Trend)"
-        elif config_name == "Holt-Winters":
-            self.complexity_score = 4
-            self.archetype = "The Seasonal Rush (Trend + Seasonality)"
+        elif trend:
+            self.complexity_score = 2
+            self.archetype = "The Steady Climber (Trend, No Seasonality)"
+        else:
+            self.complexity_score = 1
+            self.archetype = "The Flat Line (No Trend, No Seasonality)"
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
@@ -238,21 +252,35 @@ class ETSForecaster(InternalForecaster):
         )
         df = df.set_index(self.time_col)
         self.last_date = df.index.max()
-        if pd.infer_freq(df.index):
-            self.freq = pd.infer_freq(df.index)
-        else:
-            self.freq = "D"  # Default to Daily if inference fails
+        self.freq = pd.infer_freq(df.index) or "D"
 
         split_idx = int(len(df) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
         train, val = df.iloc[:split_idx], df.iloc[split_idx:]
 
+        if len(val) == 0:
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+
         try:
+            # Determine seasonal_periods only if seasonal is specified
+            seasonal_periods = None
+            if self.seasonal is not None:
+                seasonal_periods = 7 if self.freq == 'D' else (12 if self.freq == 'M' else None)
+
             # Train on Training Set
             model = ExponentialSmoothing(
                 train[self.target_col],
                 trend=self.trend,
                 damped_trend=self.damped,
                 seasonal=self.seasonal,
+                seasonal_periods=seasonal_periods,
                 freq=self.freq,
             )
             fit_result = model.fit(optimized=True)
@@ -264,13 +292,13 @@ class ETSForecaster(InternalForecaster):
                 trend=self.trend,
                 damped_trend=self.damped,
                 seasonal=self.seasonal,
+                seasonal_periods=seasonal_periods,
                 freq=self.freq,
             )
             self.fit_result = self.model.fit(optimized=True)
 
             return calculate_metrics(val[self.target_col], val_preds)
         except Exception as e:
-            # If model fails to converge (common with complex configs on simple data), return Inf error
             print(f"LOG: Model {self.config_name} failed: {e}")
             return [
                 ForecastMetric(name="MAE", value=float("inf")),
@@ -293,10 +321,81 @@ class ETSForecaster(InternalForecaster):
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
-            name=f"ETS - {self.config_name}",
-            description=f"Exponential Smoothing configuration: {self.config_name}. {self.archetype}",
+            name=f"ETS ({self.config_name})",
+            description=f"Exponential Smoothing: {self.config_name}. {self.archetype}",
             rationale=f"Selected due to {self.archetype} characteristics.",
             educational_video_url="https://www.youtube.com/watch?v=Du8h_S_ndRE",
+        )
+
+
+class ARIMAForecaster(InternalForecaster):
+    """
+    ARIMA candidate for the tournament.
+    """
+    def __init__(self, order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
+        self.order = order
+        self.seasonal_order = seasonal_order
+        # Complexity scoring heuristic:
+        #   - Start from a base complexity of 1.
+        #   - Add (sum of ARIMA order + sum of first three seasonal_order terms) / 6.0.
+        #   - The 4th seasonal_order term (seasonal period) is intentionally excluded.
+        #   - The raw score can be outside [1, 4]; we clamp it afterward for a stable 1–4 scale.
+        self.complexity_score = 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
+        # Clamp to the public 1–4 complexity scale
+        self.complexity_score = max(1, min(4, self.complexity_score))
+        self.archetype = "The Autoregressive Pattern (Correlation with Past)"
+        
+        self.fit_result = None
+        self.time_col = None
+        self.target_col = None
+        self.last_date = None
+        self.freq = None
+
+    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
+        self.time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
+        self.target_col = next(c.column_name for c in ontology.columns if c.role == "target")
+        df = df.set_index(self.time_col)
+        self.last_date = df.index.max()
+        self.freq = pd.infer_freq(df.index) or "D"
+
+        split_idx = int(len(df) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
+        train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+
+        if len(val) == 0:
+            # No validation data available: avoid returning perfect (zero) metrics
+            # which would mislead model selection. Use infinite errors instead.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+
+        try:
+            model = ARIMA(train[self.target_col], order=self.order, seasonal_order=self.seasonal_order)
+            fit_result = model.fit()
+            val_preds = fit_result.forecast(len(val))
+
+            full_model = ARIMA(df[self.target_col], order=self.order, seasonal_order=self.seasonal_order)
+            self.fit_result = full_model.fit()
+
+            return calculate_metrics(val[self.target_col], val_preds)
+        except Exception as e:
+            print(f"LOG: ARIMA {self.order} failed: {e}")
+            return [ForecastMetric(name="MAE", value=float("inf"))]
+
+    def predict(self, horizon: int, ontology: Optional[ForecastOntology] = None) -> pd.DataFrame:
+        forecast_values = self.fit_result.forecast(horizon)
+        future_dates = pd.date_range(start=self.last_date, periods=horizon + 1, freq=self.freq)[1:]
+        return pd.DataFrame({self.time_col: future_dates, self.target_col: forecast_values})
+
+    def get_metadata(self) -> ModelMetadata:
+        return ModelMetadata(
+            name=f"ARIMA {self.order}",
+            description="AutoRegressive Integrated Moving Average model.",
+            rationale="Captures autocorrelations in the data.",
+            educational_video_url="https://www.youtube.com/watch?v=3UmyHed0iYe"
         )
 
 
@@ -321,7 +420,6 @@ class RandomForestForecaster(InternalForecaster):
         X["month"] = df.index.month
         X["week"] = df.index.isocalendar().week.astype(int)
 
-        # Covariates logic similar to previous but simplified for 'clean' re-impl
         for col in df.columns:
             if (
                 col != target
@@ -352,7 +450,6 @@ class RandomForestForecaster(InternalForecaster):
         X, y = self._add_features(df, self.target_col)
         self.last_actual_value = y.iloc[-1]
 
-        # Store last known covariates for forward fill if needed
         self.last_covariate_values = {
             col: X[col].iloc[-1]
             for col in X.columns
@@ -360,17 +457,26 @@ class RandomForestForecaster(InternalForecaster):
         }
 
         split_idx = int(len(X) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
         X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
         y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
 
-        # Handle NaN from lag gen
+        if len(X_val) == 0:
+            # No validation data available; return worst-case metrics so that
+            # this model is not incorrectly favored during model selection.
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+
         X_train = X_train.fillna(0)
         X_val = X_val.fillna(0)
 
         self.model.fit(X_train, y_train)
         val_preds = self.model.predict(X_val)
 
-        # Refit
         self.model.fit(X.fillna(0), y)
 
         return calculate_metrics(y_val, val_preds)
@@ -398,7 +504,6 @@ class RandomForestForecaster(InternalForecaster):
                 if feat in ["month", "week", "lag_1"]:
                     continue
 
-                # Override > Last Value > 0
                 val = 0.0
                 if feat in overrides and overrides[feat] is not None:
                     override_val = overrides[feat]
@@ -413,7 +518,6 @@ class RandomForestForecaster(InternalForecaster):
                 row_data[feat] = [val]
 
             step_X = pd.DataFrame(row_data)
-            # Reorder/Fill Missing
             for missing in set(model_features) - set(step_X.columns):
                 step_X[missing] = 0
             step_X = step_X[model_features]
@@ -458,26 +562,28 @@ class SmartForecastEngine:
         candidates: List[InternalForecaster] = [
             NaiveForecaster(),  # Score 0
             SeasonalNaiveForecaster(),  # Score 0.5
+            # ETS Variants (~9)
             ETSForecaster("SES", trend=None, seasonal=None),  # Score 1
-            ETSForecaster("Holt's Linear", trend="add", seasonal=None),  # Score 2
-            ETSForecaster(
-                "Damped Trend", trend="add", damped=True, seasonal=None
-            ),  # Score 3
-            ETSForecaster("Holt-Winters", trend="add", seasonal="add"),  # Score 4
+            ETSForecaster("Holt Linear", trend="add", seasonal=None),  # Score 2
+            ETSForecaster("Holt Multiplicative", trend="mul", seasonal=None),  # Score 2
+            ETSForecaster("Damped Additive", trend="add", damped=True, seasonal=None),  # Score 3
+            ETSForecaster("Damped Multiplicative", trend="mul", damped=True, seasonal=None),  # Score 3
+            ETSForecaster("Holt-Winters Additive", trend="add", seasonal="add"),  # Score 4
+            ETSForecaster("Holt-Winters Multiplicative", trend="mul", seasonal="mul"),  # Score 4
+            ETSForecaster("Holt-Winters Damped Additive", trend="add", damped=True, seasonal="add"),  # Score 4
+            ETSForecaster("Holt-Winters Damped Multiplicative", trend="mul", damped=True, seasonal="mul"),  # Score 4
+            # ARIMA Candidate
+            ARIMAForecaster(order=(1, 1, 1)), # Score ~1.5
         ]
 
         # 2. Check Triggers for Specialist (Random Forest - Score 5)
-        # Check Sparsity
         target_col_def = next(c for c in ontology.columns if c.role == "target")
         sparsity = 0.0
         if target_col_def.constraints and hasattr(
             target_col_def.constraints, "sparsity_ratio"
         ):
-            # Defensive: sparsity_ratio might be None even if the attribute exists
             sparsity = target_col_def.constraints.sparsity_ratio or 0.0
 
-        # Check Covariates (Promotions/Price)
-        # Any numeric column that is not time/target
         covariates_present = False
         time_col = next(
             c.column_name for c in ontology.columns if c.role == "time_index"
@@ -504,19 +610,11 @@ class SmartForecastEngine:
             candidates.append(RandomForestForecaster())
 
         # 3. Run Tournament
-        best_model = None
-        best_score = float("inf")  # We minimize Error (e.g. MAE)
-
-        # Rashomon Logic:
-        # We need to collect all results, then apply selection.
-        # "If Holt-Winters is only 1% better than SES, pick SES."
-
         results = []
 
         for model in candidates:
             try:
                 metrics = model.fit(df, ontology)
-                # Primary metric: MAE
                 mae = next((m.value for m in metrics if m.name == "MAE"), float("inf"))
 
                 results.append(
@@ -534,19 +632,19 @@ class SmartForecastEngine:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
 
         # 4. Selection Logic (The Rashomon Set)
-        # Sort by MAE first
-        valid_results = [r for r in results if r["mae"] != float("inf")]
+        valid_results = [
+            r
+            for r in results
+            if np.isfinite(r["mae"]) and r["mae"] > 0.0
+        ]
         if not valid_results:
             raise ValueError("All models failed to fit.")
 
         valid_results.sort(key=lambda x: x["mae"])
         best_mae = valid_results[0]["mae"]
 
-        # Define Tolerance: 5%?
-        # "If within 5% of best MAE, prefer lower complexity"
+        # Tolerance: 5%
         TOLERANCE = 1.05
-
-        # Subset of models within 5% of the absolute best
         rashomon_set = [r for r in valid_results if r["mae"] <= best_mae * TOLERANCE]
 
         # Pick the one with Lowest Complexity Score
@@ -565,7 +663,6 @@ class SmartForecastEngine:
         return winner["metrics"]
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
-        # Handle Ignored Cols first
         if ontology.ignored_columns:
             drop_cols = [c for c in ontology.ignored_columns if c in df.columns]
             if drop_cols:
@@ -576,26 +673,9 @@ class SmartForecastEngine:
                 if c.column_name not in ontology.ignored_columns
             ]
 
-        # If we already have an active model from create_plan/select_model, we should arguably
-        # just re-fit that one OR re-run specific logic.
-        # However, the user flow separates 'plan' (select_model) from 'forecast' (fit again?).
-        # Actually, in run_forecast pipeline:
-        # 1. select_model(df, ontology) -> active_model set.
-        # 2. cleaner.clean
-        # 3. forecaster.fit(clean_df, ontology)
-
-        # If we call select_model again inside fit, we re-run tournament on Clean data?
-        # Maybe desirable.
-        # But 'select_model' runs on 'df' which might be dirty?
-        # The pipeline calls select_model on raw 'df', then cleans, then calls fit on 'clean_df'.
-
-        # If we call select_model in fit, we repeat work.
-        # Ideally, fit uses the selected model.
-
         if not self.active_model:
             return self.select_model(df, ontology)
 
-        # If model IS selected, just fit it.
         return self.active_model.fit(df, ontology)
 
     def predict(
@@ -607,5 +687,5 @@ class SmartForecastEngine:
 
     def get_metadata(self) -> Any:
         if not self.active_model:
-            return NaiveForecaster().get_metadata()  # Default placeholder
+            return NaiveForecaster().get_metadata()
         return self.active_model.get_metadata()
