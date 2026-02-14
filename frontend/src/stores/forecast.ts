@@ -1,4 +1,4 @@
-import type { CleaningReport, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata } from '@/types'
+import type { CleaningReport, DataHealthReport, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata } from '@/types'
 import { defineStore } from 'pinia'
 import { useAppStore } from './app'
 
@@ -109,7 +109,8 @@ export const useForecastStore = defineStore('forecast', {
         this.cleaningReport = data.cleaning_report
         this.metrics = data.metrics
         this.historyResults = data.history
-        this.modelMetadata = data.model_metadata ?? null // ADDED
+        this.modelMetadata = data.model_metadata ?? null
+        this.dataHealthReport = data.data_health_report ?? null
         // Move to cleaning step first to show what happened
         this.step = 'cleaning'
         appStore.notify('Modelling sequence complete.', 'success')

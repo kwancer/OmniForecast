@@ -73,6 +73,7 @@ class ForecastPipeline:
             cleaning_report=cleaning_report,
             session_id=ontology.session_id,
             model_metadata=model_metadata_obj.model_dump(),
+            data_health_report=self.forecaster.data_health_report,
         )
 
 

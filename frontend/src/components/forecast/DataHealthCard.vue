@@ -12,12 +12,12 @@
         </div>
         <div class="d-flex align-center">
           <span class="text-h3 font-weight-bold" :class="textColorClass">
-            {{ dataHealthReport.score }}
+            {{ dataHealthReport?.score ?? 'N/A' }}
           </span>
           <span class="text-h6 text-medium-emphasis ml-1">/100</span>
           <v-chip
-            :color="chipColor"
             class="ml-3"
+            :color="chipColor"
             size="small"
             variant="flat"
           >
@@ -26,15 +26,15 @@
         </div>
       </div>
 
-      <!-- Circular Gauge -->
-      <div class="gauge-container">
-        <svg width="80" height="80" viewBox="0 0 80 80">
+      <!-- Circular Gauge & Toggle -->
+      <div class="d-flex flex-column align-center">
+        <svg height="80" viewBox="0 0 80 80" width="80">
           <!-- Background Circle -->
           <circle
             cx="40"
             cy="40"
-            r="32"
             fill="none"
+            r="32"
             stroke="#e0e0e0"
             stroke-width="8"
           />
@@ -42,83 +42,139 @@
           <circle
             cx="40"
             cy="40"
-            r="32"
             fill="none"
+            r="32"
             :stroke="gaugeColor"
-            stroke-width="8"
-            stroke-linecap="round"
             :stroke-dasharray="circumference"
             :stroke-dashoffset="progressOffset"
+            stroke-linecap="round"
+            stroke-width="8"
             transform="rotate(-90 40 40)"
           />
           <!-- Center Text -->
           <text
-            x="40"
-            y="45"
-            text-anchor="middle"
             class="gauge-text"
             :fill="gaugeColor"
+            text-anchor="middle"
+            x="40"
+            y="45"
           >
             {{ dataHealthReport.score }}
           </text>
         </svg>
+
+        <!-- Expand/Collapse Button -->
+        <v-btn
+          size="x-small"
+          variant="text"
+          @click="showDetails = !showDetails"
+        >
+          {{ showDetails ? 'Hide' : 'Details' }}
+          <v-icon
+            end
+            :icon="showDetails ? 'mdi-chevron-up' : 'mdi-chevron-down'"
+            size="small"
+          />
+        </v-btn>
       </div>
     </div>
 
-    <p class="text-body-2 text-medium-emphasis mb-0">
-      {{ dataHealthReport.explanation }}
-    </p>
+    <!-- Collapsible Details Section -->
+    <v-expand-transition>
+      <div v-show="showDetails">
+        <v-divider class="mb-3" />
 
-    <!-- Low Score Warning -->
-    <v-alert
-      v-if="dataHealthReport.score <= 30"
-      class="mt-3"
-      color="warning"
-      density="compact"
-      icon="mdi-alert-circle"
-      variant="tonal"
-    >
-      <div class="text-body-2">
-        <strong>⚠️ Why is the forecast conservative?</strong>
-        <br>
-        Your data is highly random, so a flat or simple forecast is statistically the most accurate prediction.
-      </div>
-    </v-alert>
+        <p class="text-body-2 text-medium-emphasis mb-0">
+          {{ dataHealthReport.explanation }}
+        </p>
 
-    <!-- Strength Details (Optional) -->
-    <div
-      v-if="dataHealthReport.strengths"
-      class="mt-3 d-flex gap-3"
-    >
-      <div class="flex-1">
-        <div class="text-caption text-medium-emphasis">Trend Strength</div>
-        <v-progress-linear
-          :model-value="dataHealthReport.strengths.trend * 100"
-          color="primary"
-          height="6"
-          rounded
-        />
+        <!-- Low Score Warning -->
+        <v-alert
+          v-if="dataHealthReport.score <= 30"
+          class="mt-3"
+          color="warning"
+          density="compact"
+          icon="mdi-alert-circle"
+          variant="tonal"
+        >
+          <div class="text-body-2">
+            <strong>⚠️ Why is the forecast conservative?</strong>
+            <br>
+            Your data is highly random, so a flat or simple forecast is statistically the most accurate prediction.
+          </div>
+        </v-alert>
+
+        <!-- Dual Metrics Display -->
+        <div class="mt-3">
+          <!-- Hyndman Decomposition Metrics -->
+          <div
+            v-if="dataHealthReport.trend_strength !== undefined"
+            class="mb-3"
+          >
+            <div class="text-caption text-medium-emphasis mb-2">
+              Hyndman Decomposition Score: {{ dataHealthReport.hyndman_score }}/100
+            </div>
+            <div class="d-flex gap-3">
+              <div class="flex-1">
+                <div class="text-caption text-medium-emphasis">Trend Strength</div>
+                <v-progress-linear
+                  color="primary"
+                  height="8"
+                  :model-value="(dataHealthReport.trend_strength ?? 0) * 100"
+                  rounded
+                />
+                <div class="text-caption mt-1">{{ ((dataHealthReport.trend_strength ?? 0) * 100).toFixed(0) }}%</div>
+              </div>
+              <div class="flex-1">
+                <div class="text-caption text-medium-emphasis">Seasonality Strength</div>
+                <v-progress-linear
+                  color="secondary"
+                  height="8"
+                  :model-value="(dataHealthReport.seasonality_strength ?? 0) * 100"
+                  rounded
+                />
+                <div class="text-caption mt-1">{{ ((dataHealthReport.seasonality_strength ?? 0) * 100).toFixed(0) }}%</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tournament Results -->
+          <div
+            v-if="dataHealthReport.forecasting_gain_pct !== undefined"
+            class="d-flex gap-3"
+          >
+            <div class="flex-1">
+              <div class="text-caption text-medium-emphasis">Forecasting Gain</div>
+              <div class="text-h6 font-weight-medium">
+                {{ dataHealthReport.forecasting_gain_pct.toFixed(1) }}%
+              </div>
+              <div class="text-caption">vs. naive baseline</div>
+            </div>
+            <div v-if="dataHealthReport.winner_name" class="flex-1">
+              <div class="text-caption text-medium-emphasis">Winning Model</div>
+              <div class="text-body-2 font-weight-medium">
+                {{ dataHealthReport.winner_name }}
+              </div>
+              <div class="text-caption">
+                Complexity: {{ dataHealthReport.winner_complexity }}/5
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="flex-1">
-        <div class="text-caption text-medium-emphasis">Seasonality Strength</div>
-        <v-progress-linear
-          :model-value="dataHealthReport.strengths.seasonality * 100"
-          color="secondary"
-          height="6"
-          rounded
-        />
-      </div>
-    </div>
+    </v-expand-transition>
   </v-card>
 </template>
 
 <script setup lang="ts">
   import type { DataHealthReport } from '@/types'
-  import { computed } from 'vue'
+  import { computed, ref } from 'vue'
 
   const props = defineProps<{
     dataHealthReport: DataHealthReport | null
   }>()
+
+  const showDetails = ref(false)
 
   const borderColorClass = computed(() => {
     if (!props.dataHealthReport) return ''
