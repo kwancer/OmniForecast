@@ -9,6 +9,9 @@
 
       <v-col class="d-flex flex-column gap-4" cols="12" md="8">
 
+        <!-- Data Health Card -->
+        <DataHealthCard :data-health-report="store.dataHealthReport" />
+
         <div style="height: 450px; width: 100%;">
           <ForecastChart />
         </div>
@@ -106,6 +109,7 @@
 
 <script setup lang="ts">
   import { useForecastStore } from '@/stores/forecast'
+  import DataHealthCard from './DataHealthCard.vue'
   import ForecastChart from './ForecastChart.vue' // <--- IMPORT THE CHART HERE
 
   const store = useForecastStore()

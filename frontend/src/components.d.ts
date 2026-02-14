@@ -11,10 +11,12 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    '(feat': add features)
     AppFooter: typeof import('./components/AppFooter.vue')['default']
     AppHeader: typeof import('./components/AppHeader.vue')['default']
     CleaningStage: typeof import('./components/forecast/CleaningStage.vue')['default']
     CovariateSentence: typeof import('./components/forecast/CovariateSentence.vue')['default']
+    DataHealthCard: typeof import('./components/forecast/DataHealthCard.vue')['default']
     DataXRay: typeof import('./components/forecast/DataXRay.vue')['default']
     ForecastChart: typeof import('./components/forecast/ForecastChart.vue')['default']
     ForecastFlow: typeof import('./components/ForecastFlow.vue')['default']

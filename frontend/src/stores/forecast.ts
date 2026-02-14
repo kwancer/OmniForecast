@@ -13,6 +13,7 @@ export const useForecastStore = defineStore('forecast', {
     explanation: '',
     loading: false,
     historyResults: [] as ForecastResult[], // <--- New State
+    dataHealthReport: null as DataHealthReport | null,
     step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results',
     modelMetadata: null as ModelMetadata | null, // <--- ADDED
   }),
@@ -151,6 +152,7 @@ export const useForecastStore = defineStore('forecast', {
       this.forecastResults = []
       this.metrics = []
       this.explanation = ''
+      this.dataHealthReport = null
       this.step = 'upload'
       this.modelMetadata = null // ADDED
     },
