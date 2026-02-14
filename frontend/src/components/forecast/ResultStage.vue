@@ -9,6 +9,9 @@
 
       <v-col class="d-flex flex-column gap-4" cols="12" md="8">
 
+        <!-- Data Health Card -->
+        <DataHealthCard :data-health-report="store.dataHealthReport" />
+
         <div style="height: 450px; width: 100%;">
           <ForecastChart />
         </div>
@@ -49,9 +52,9 @@
             <div class="text-overline">Reliability Metrics</div>
           </div>
           <v-row dense>
-            <v-col v-for="metric in store.metrics" :key="metric.name" cols="4">
+            <v-col v-for="metric in displayMetrics" :key="metric.name" cols="6">
               <div class="text-caption text-medium-emphasis text-truncate">{{ getMetricLabel(metric.name) }}</div>
-              <div class="text-subtitle-2 font-weight-bold font-mono">{{ metric.value.toFixed(2) }}</div>
+              <div class="text-subtitle-2 font-weight-bold font-mono">{{ formatMetricValue(metric) }}</div>
             </v-col>
           </v-row>
         </v-card>
@@ -105,7 +108,9 @@
 </template>
 
 <script setup lang="ts">
+  import { computed } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import DataHealthCard from './DataHealthCard.vue'
   import ForecastChart from './ForecastChart.vue' // <--- IMPORT THE CHART HERE
 
   const store = useForecastStore()
@@ -117,17 +122,35 @@
     return val
   }
 
+  // Filter out RMSE and R² from display
+  const displayMetrics = computed(() => {
+    return store.metrics.filter(m => m.name !== 'RMSE' && m.name !== 'R²')
+  })
+
   function getMetricLabel (name: string) {
     switch (name) {
-      case 'MAE': { return 'Avg Error'
-      }
-      case 'RMSE': { return 'Precision'
+      case 'MAE': { return 'Typical Error'
       }
       case 'MAPE': { return 'Error %'
+      }
+      case 'R²': { return 'Accuracy Score'
       }
       default: { return name
       }
     }
+  }
+
+  function formatMetricValue (metric: any) {
+    if (metric.name === 'MAE') {
+      return `±${metric.value.toFixed(2)}`
+    }
+    if (metric.name === 'MAPE') {
+      return `${metric.value.toFixed(1)}%`
+    }
+    if (metric.name === 'R²') {
+      return `${(metric.value * 100).toFixed(0)}%`
+    }
+    return metric.value.toFixed(2)
   }
 </script>
 

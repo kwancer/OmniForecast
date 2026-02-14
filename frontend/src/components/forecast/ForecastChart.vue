@@ -6,24 +6,39 @@
         <div class="text-subtitle-1 font-weight-bold">Trend Trajectory</div>
       </div>
 
-      <div class="d-flex gap-4 text-caption">
-        <div class="d-flex align-center">
-          <v-sheet class="mr-2" color="grey" height="2" width="12" />
-          <span>Historical Data</span>
-        </div>
-        <div class="d-flex align-center">
-          <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
-          <span class="font-weight-bold">{{ forecastLabel }}</span>
-        </div>
-        <div v-if="hasIntervals" class="d-flex align-center">
-          <v-sheet
-            class="mr-2"
-            color="grey-lighten-2"
-            height="8"
-            style="opacity: 0.5"
-            width="12"
-          />
-          <span>Confidence Range</span>
+      <div class="d-flex align-center gap-4">
+        <!-- Zoom Reset Button -->
+        <v-btn
+          v-if="isZoomed"
+          color="primary"
+          prepend-icon="mdi-restore"
+          size="small"
+          variant="outlined"
+          @click="resetZoom"
+        >
+          Reset Zoom
+        </v-btn>
+
+        <!-- Legend -->
+        <div class="d-flex gap-4 text-caption">
+          <div class="d-flex align-center">
+            <v-sheet class="mr-2" color="grey" height="2" width="12" />
+            <span>Historical Data</span>
+          </div>
+          <div class="d-flex align-center">
+            <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
+            <span class="font-weight-bold">{{ forecastLabel }}</span>
+          </div>
+          <div v-if="hasIntervals" class="d-flex align-center">
+            <v-sheet
+              class="mr-2"
+              color="grey-lighten-2"
+              height="8"
+              style="opacity: 0.5"
+              width="12"
+            />
+            <span>Confidence Range</span>
+          </div>
         </div>
       </div>
     </div>
@@ -43,43 +58,59 @@
     </v-alert>
 
     <div class="flex-grow-1 position-relative" style="min-height: 300px;">
-      <Line :data="chartData" :options="chartOptions" />
+      <Line id="forecast-chart" :data="chartData" :options="chartOptions" />
     </div>
   </v-card>
 </template>
 
 <script setup lang="ts">
+  import type { RiskPreference } from '@/types'
+
   import {
-    CategoryScale,
     Chart as ChartJS,
     Filler,
     Legend,
     LinearScale,
     LineElement,
     PointElement,
+    TimeScale, // Import TimeScale
     Title,
     Tooltip,
   } from 'chart.js'
-  import { computed } from 'vue'
+  import zoomPlugin from 'chartjs-plugin-zoom'
+  import { computed, ref } from 'vue'
   import { Line } from 'vue-chartjs'
 
-  import type { RiskPreference } from '@/types'
   import { useForecastStore } from '@/stores/forecast'
+  import 'chartjs-adapter-date-fns' // Import date adapter
 
-  ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+  // Register TimeScale instead of just CategoryScale
+  ChartJS.register(
+    LinearScale,
+    PointElement,
+    LineElement,
+    Title,
+    Tooltip,
+    Legend,
+    Filler,
+    TimeScale,
+    zoomPlugin,
+  )
 
   const store = useForecastStore()
+  const isZoomed = ref(false)
 
   // Risk Preference styling
   const riskPreference = computed<RiskPreference>(() => {
     return store.ontology?.risk_preference || 'balanced'
   })
 
+  // ... (color and label logic remains same)
   const primaryLineColor = computed(() => {
     switch (riskPreference.value) {
-      case 'under_penalty': { return '#F44336' } // Red for safety stock
-      case 'over_penalty': { return '#2196F3' } // Blue for conservative
-      default: { return '#1867C0' } // Primary
+      case 'under_penalty': { return '#F44336' }
+      case 'over_penalty': { return '#2196F3' }
+      default: { return '#1867C0' }
     }
   })
 
@@ -127,51 +158,64 @@
 
   const chartData = computed(() => {
     if (store.forecastResults.length === 0 || store.historyResults.length === 0) {
-      return { labels: [], datasets: [] }
+      return { datasets: [] }
     }
 
     const timeCol = store.timeCol
     const targetCol = store.targetCol
 
-    // 1. Extract History Vectors
-    const historyLabels = store.historyResults.map((row: any) => row[timeCol])
-    const historyData = store.historyResults.map((row: any) => row[targetCol])
+    // Helper to parse dates simply
+    const parseDate = (d: any) => new Date(d).getTime()
 
-    // 2. Extract Forecast Vectors (new format with date/mean/lower/upper)
-    const forecastLabels = store.forecastResults.map((row: any) => row.date || row[timeCol])
-    const meanData = store.forecastResults.map((row: any) => row.mean ?? row[targetCol])
-    const lowerData = store.forecastResults.map((row: any) => row.lower)
-    const upperData = store.forecastResults.map((row: any) => row.upper)
+    // 1. Prepare History Data Points {x, y}
+    const historyPoints = store.historyResults.map((row: any) => ({
+      x: parseDate(row[timeCol]),
+      y: row[targetCol],
+    }))
 
-    // 3. Connection Logic - prepend last history point
-    const lastHistoryVal = historyData[historyData.length - 1]
+    // 2. Prepare Forecast Data Points {x, y, lower, upper}
+    // We treat them as points now, not parallel arrays
+    const forecastPoints = store.forecastResults.map((row: any) => ({
+      x: parseDate(row.date || row[timeCol]),
+      y: row.mean ?? row[targetCol],
+      lower: row.lower,
+      upper: row.upper,
+    }))
 
-    // 4. Construct combined labels
-    const allLabels = [...historyLabels, ...forecastLabels]
+    // 3. Connect History to Forecast
+    // To make a continuous line, the forecast should start where history ends
+    // or we verify if there's a gap. Usually we just append.
+    // For the "mean" line, we might want a visually distinct line, so we keep them separate datasets usually.
+    // But to connect them visually without a gap, we add the last history point to the forecast dataset.
+    const lastHistoryPoint = historyPoints.at(-1)
 
-    // 5. Build History dataset (values then nulls)
-    const plotHistory = [...historyData, ...Array.from({ length: meanData.length }).fill(null)]
+    // Forecast Main Line
+    const forecastMainPoints = [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.y }))]
 
-    // 6. Build Forecast datasets (nulls then values, with overlap at connection point)
-    const nullPrefix = Array.from({ length: historyData.length - 1 }).fill(null)
+    // Forecast Intervals (if needed)
+    const upperPoints = hasIntervals.value
+      ? [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.upper }))]
+      : []
+    const lowerPoints = hasIntervals.value
+      ? [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.lower }))]
+      : []
 
-    // Determine which forecast line to emphasize based on risk preference
-    let primaryForecast: (number | null)[]
+    // 4. Select Primary Forecast based on Risk
+    let primaryPoints
     switch (riskPreference.value) {
       case 'under_penalty': {
-        primaryForecast = [...nullPrefix, lastHistoryVal, ...upperData]
+        primaryPoints = upperPoints.length > 0 ? upperPoints : forecastMainPoints
         break
       }
       case 'over_penalty': {
-        primaryForecast = [...nullPrefix, lastHistoryVal, ...lowerData]
+        primaryPoints = lowerPoints.length > 0 ? lowerPoints : forecastMainPoints
         break
       }
       default: {
-        primaryForecast = [...nullPrefix, lastHistoryVal, ...meanData]
+        primaryPoints = forecastMainPoints
       }
     }
 
-    // Build datasets array
     const datasets: any[] = [
       {
         label: 'Historical',
@@ -179,59 +223,58 @@
         borderWidth: 2,
         pointRadius: 0,
         pointHitRadius: 10,
-        data: plotHistory,
+        data: historyPoints,
         tension: 0.1,
       },
     ]
 
-    // Add confidence interval band if available
     if (hasIntervals.value) {
-      const plotUpper = [...nullPrefix, lastHistoryVal, ...upperData]
-      const plotLower = [...nullPrefix, lastHistoryVal, ...lowerData]
-
-      datasets.push({
-        label: 'Upper Bound',
-        borderColor: 'rgba(158, 158, 158, 0.3)',
-        borderWidth: 1,
-        borderDash: [5, 5],
-        pointRadius: 0,
-        data: plotUpper,
-        fill: false,
-        tension: 0.3,
-      }, {
-        label: 'Lower Bound',
-        borderColor: 'rgba(158, 158, 158, 0.3)',
-        borderWidth: 1,
-        borderDash: [5, 5],
-        pointRadius: 0,
-        data: plotLower,
-        fill: '-1', // Fill to previous dataset (upper)
-        backgroundColor: 'rgba(158, 158, 158, 0.15)',
-        tension: 0.3,
-      })
+      datasets.push(
+        {
+          label: 'Upper Bound',
+          borderColor: 'rgba(158, 158, 158, 0.3)',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          data: upperPoints,
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: 'Lower Bound',
+          borderColor: 'rgba(158, 158, 158, 0.3)',
+          borderWidth: 1,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          data: lowerPoints,
+          fill: '-1', // Fill to previous dataset (upper)
+          backgroundColor: 'rgba(158, 158, 158, 0.15)',
+          tension: 0.3,
+        },
+      )
     }
 
-    // Add primary forecast line (on top)
     datasets.push({
       label: forecastLabel.value,
       backgroundColor: `${primaryLineColor.value}20`,
       borderColor: primaryLineColor.value,
       borderWidth: 3,
       pointRadius: 3,
-      data: primaryForecast,
+      data: primaryPoints,
       fill: false,
       tension: 0.3,
     })
 
-    return {
-      labels: allLabels.map(d => new Date(d).toLocaleDateString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        year: '2-digit',
-      })),
-      datasets,
-    }
+    return { datasets }
   })
+
+  function resetZoom () {
+    const chart = ChartJS.getChart('forecast-chart')
+    if (chart) {
+      chart.resetZoom()
+      isZoomed.value = false
+    }
+  }
 
   const chartOptions = {
     responsive: true,
@@ -242,13 +285,49 @@
         mode: 'index' as const,
         intersect: false,
       },
+      zoom: {
+        pan: {
+          enabled: true,
+          mode: 'x' as const,
+          onPan: () => {
+            isZoomed.value = true
+          },
+        },
+        zoom: {
+          wheel: {
+            enabled: true,
+            speed: 0.1,
+          },
+          pinch: {
+            enabled: true,
+          },
+          mode: 'x' as const,
+          onZoom: () => {
+            isZoomed.value = true
+          },
+        },
+        limits: {
+          x: { min: 'original' as const, max: 'original' as const },
+          y: { min: 'original' as const, max: 'original' as const },
+        },
+      },
     },
     scales: {
       x: {
+        type: 'time' as const, // Use Time Scale
+        time: {
+          unit: 'day' as const, // Provide a default unit, but it auto-scales
+          displayFormats: {
+            day: 'MMM d',
+            month: 'MMM yyyy',
+          },
+          tooltipFormat: 'PP',
+        },
         grid: { display: false },
         ticks: {
-          maxTicksLimit: 8,
           maxRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 8,
         },
       },
       y: {

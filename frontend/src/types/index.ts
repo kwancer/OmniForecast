@@ -111,6 +111,19 @@ export interface ForecastMetric {
   value: number
 }
 
+export interface DataHealthReport {
+  score: number
+  rating: string
+  explanation: string
+  hyndman_score?: number
+  forecasting_gain_pct?: number
+  trend_strength?: number
+  seasonality_strength?: number
+  decomposition_type?: string
+  winner_name?: string
+  winner_complexity?: number
+}
+
 export interface ForecastResponse {
   forecast: ForecastResult[]
   explanation: string
@@ -119,6 +132,7 @@ export interface ForecastResponse {
   cleaning_report: CleaningReport
   session_id?: string
   model_metadata?: ModelMetadata
+  data_health_report?: DataHealthReport
 }
 
 // --- APP UTILS ---
