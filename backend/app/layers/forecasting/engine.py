@@ -13,6 +13,7 @@ from sklearn.metrics import (
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from statsmodels.tsa.seasonal import seasonal_decompose
+from xgboost import XGBRegressor
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
@@ -575,7 +576,10 @@ class RandomForestForecaster(InternalForecaster):
         self.last_date = None
         self.freq: Optional[str] = None
         self.last_actual_value = 0
+        self.last_actual_value = 0
         self.residuals_std = 0.0
+        self.last_covariate_values = {}
+        self.history_X: Optional[pd.DataFrame] = None
 
     def _add_features(
         self, df: pd.DataFrame, target: Optional[str] = None
@@ -662,11 +666,19 @@ class RandomForestForecaster(InternalForecaster):
         model_features = getattr(self.model, "feature_names_in_", [])
 
         # Build covariate type map for frugal forecasting
-        covariate_type_map = {}
+        covariate_strategy_map = {}
         if ontology:
             for col_def in ontology.columns:
-                if col_def.role == "covariate" and col_def.covariate_type:
-                    covariate_type_map[col_def.column_name] = col_def.covariate_type
+                if col_def.role == "covariate":
+                    if col_def.covariate_strategy:
+                        covariate_strategy_map[col_def.column_name] = (
+                            col_def.covariate_strategy
+                        )
+                    # Fallback mapping if strategy not explicitly set
+                    elif col_def.covariate_type == "exogenous":
+                        covariate_strategy_map[col_def.column_name] = "seasonal_analog"
+                    elif col_def.covariate_type == "controllable":
+                        covariate_strategy_map[col_def.column_name] = "status_quo"
 
         forecast_values = []
         current_lag = self.last_actual_value
@@ -683,7 +695,6 @@ class RandomForestForecaster(InternalForecaster):
                     continue
 
                 val = 0.0
-                # Priority 1: User-provided override (explicit scenario)
                 if feat in overrides and overrides[feat] is not None:
                     override_val = overrides[feat]
                     if isinstance(override_val, list):
@@ -691,20 +702,28 @@ class RandomForestForecaster(InternalForecaster):
                         val = override_val[idx]
                     else:
                         val = float(override_val)
-                # Priority 2: Frugal defaults based on covariate type
-                elif feat in covariate_type_map:
-                    cov_type = covariate_type_map[feat]
-                    if cov_type == "controllable":
-                        # Controllable: Status Quo (last known value)
+                elif feat in covariate_strategy_map:
+                    strategy = covariate_strategy_map[feat]
+                    if (
+                        strategy == "seasonal_analog"
+                        or strategy == "calendar_deterministic"
+                    ):
+                        # Try 1 year lookback
+                        try:
+                            # Handle different frequencies if needed, but DateOffset(years=1) is robust
+                            target_hist_date = date - pd.DateOffset(years=1)
+                            if (
+                                self.history_X is not None
+                                and target_hist_date in self.history_X.index
+                            ):
+                                val = self.history_X.loc[target_hist_date, feat]
+                            else:
+                                # Fallback to status quo if history not found
+                                val = self.last_covariate_values.get(feat, 0.0)
+                        except Exception:
+                            val = self.last_covariate_values.get(feat, 0.0)
+                    else:
                         val = self.last_covariate_values.get(feat, 0.0)
-                    elif cov_type == "exogenous":
-                        # Exogenous: Seasonal Naive (same time last year/season)
-                        # For now, use status quo as fallback
-                        # TODO: Implement seasonal lookup from historical data
-                        val = self.last_covariate_values.get(feat, 0.0)
-                    else:  # static
-                        val = self.last_covariate_values.get(feat, 0.0)
-                # Priority 3: Fallback to last known value
                 elif feat in self.last_covariate_values:
                     val = self.last_covariate_values[feat]
 
@@ -738,6 +757,210 @@ class RandomForestForecaster(InternalForecaster):
             description="Machine learning model triggered by sparse data or active promotions.",
             rationale="Selected because data is sparse or contains external drivers.",
             educational_video_url="https://www.youtube.com/watch?v=J4Wdy0Wc_xQ",
+        )
+
+
+class XGBoostForecaster(InternalForecaster):
+    complexity_score = 6
+    archetype = "The Gradient Specialist (Interactive Drivers & Volatility)"
+
+    def __init__(self):
+        self.model = XGBRegressor(
+            n_estimators=50,
+            max_depth=3,
+            learning_rate=0.1,
+            random_state=42,
+            verbosity=0,
+        )
+        self.time_col: Optional[str] = None
+        self.target_col: Optional[str] = None
+        self.last_date = None
+        self.freq: Optional[str] = None
+        self.last_actual_value = 0
+        self.residuals_std = 0.0
+        self.last_actual_value = 0
+        self.residuals_std = 0.0
+        self.last_covariate_values = {}
+        self.history_X: Optional[pd.DataFrame] = None
+
+    def _add_features(
+        self, df: pd.DataFrame, target: Optional[str] = None
+    ) -> Tuple[pd.DataFrame, pd.Series]:
+        X = pd.DataFrame(index=df.index)
+        X["month"] = df.index.month
+        X["week"] = df.index.isocalendar().week.astype(int)
+
+        for col in df.columns:
+            if (
+                col != target
+                and col != self.time_col
+                and pd.api.types.is_numeric_dtype(df[col])
+            ):
+                X[col] = df[col]
+
+        if target and target in df.columns:
+            y = df[target]
+            X["lag_1"] = df[target].shift(1).fillna(0)
+            return X, y
+        else:
+            X["lag_1"] = 0
+            return X, None
+
+    def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
+        self.time_col = next(
+            c.column_name for c in ontology.columns if c.role == "time_index"
+        )
+        self.target_col = next(
+            c.column_name for c in ontology.columns if c.role == "target"
+        )
+        df = df.set_index(self.time_col)
+        self.last_date = df.index.max()
+        self.freq = pd.infer_freq(df.index) or "D"
+
+        X, y = self._add_features(df, self.target_col)
+        self.last_actual_value = y.iloc[-1]
+
+        self.last_covariate_values = {
+            col: X[col].iloc[-1]
+            for col in X.columns
+            if col not in ["month", "week", "lag_1"]
+        }
+        self.history_X = X.copy()
+
+        split_idx = int(len(X) * 0.8)
+        if split_idx == 0:
+            split_idx = 1
+        X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+
+        if len(X_val) == 0:
+            return [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+
+        X_train = X_train.fillna(0)
+        X_val = X_val.fillna(0)
+
+        self.model.fit(X_train, y_train)
+        val_preds = self.model.predict(X_val)
+
+        residuals = y_val.values - val_preds
+        self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+
+        self.model.fit(X.fillna(0), y)
+
+        return calculate_metrics(y_val, pd.Series(val_preds, index=y_val.index))
+
+    def predict(
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
+    ) -> pd.DataFrame:
+        future_dates = pd.date_range(
+            start=self.last_date, periods=horizon + 1, freq=self.freq
+        )[1:]
+        overrides = ontology.scenario_overrides if ontology else {}
+        model_features = getattr(self.model, "feature_names_in_", [])
+
+        covariate_strategy_map = {}
+        if ontology:
+            for col_def in ontology.columns:
+                if col_def.role == "covariate":
+                    if col_def.covariate_strategy:
+                        covariate_strategy_map[col_def.column_name] = (
+                            col_def.covariate_strategy
+                        )
+                    # Fallback mapping if strategy not explicitly set
+                    elif col_def.covariate_type == "exogenous":
+                        covariate_strategy_map[col_def.column_name] = "seasonal_analog"
+                    elif col_def.covariate_type == "controllable":
+                        covariate_strategy_map[col_def.column_name] = "status_quo"
+
+        forecast_values = []
+        current_lag = self.last_actual_value
+
+        for i, date in enumerate(future_dates):
+            row_data = {
+                "month": [date.month],
+                "week": [int(date.isocalendar().week)],
+                "lag_1": [current_lag],
+            }
+
+            for feat in model_features:
+                if feat in ["month", "week", "lag_1"]:
+                    continue
+
+                val = 0.0
+                if feat in overrides and overrides[feat] is not None:
+                    override_val = overrides[feat]
+                    if isinstance(override_val, list):
+                        idx = min(i, len(override_val) - 1)
+                        val = override_val[idx]
+                    else:
+                        val = float(override_val)
+                elif feat in covariate_strategy_map:
+                    strategy = covariate_strategy_map[feat]
+                    if (
+                        strategy == "seasonal_analog"
+                        or strategy == "calendar_deterministic"
+                    ):
+                        # Try 1 year lookback
+                        try:
+                            # Handle different frequencies if needed, but DateOffset(years=1) is robust
+                            target_hist_date = date - pd.DateOffset(years=1)
+                            if (
+                                self.history_X is not None
+                                and target_hist_date in self.history_X.index
+                            ):
+                                val = self.history_X.loc[target_hist_date, feat]
+                            else:
+                                # Fallback to status quo if history not found
+                                val = self.last_covariate_values.get(feat, 0.0)
+                        except Exception:
+                            val = self.last_covariate_values.get(feat, 0.0)
+                    else:
+                        val = self.last_covariate_values.get(feat, 0.0)
+                elif feat in self.last_covariate_values:
+                    val = self.last_covariate_values[feat]
+
+                row_data[feat] = [val]
+
+            step_X = pd.DataFrame(row_data)
+            for missing in set(model_features) - set(step_X.columns):
+                step_X[missing] = 0
+            step_X = step_X[model_features]
+
+            pred = self.model.predict(step_X)[0]
+            forecast_values.append(pred)
+            current_lag = pred
+
+        predictions = np.array(forecast_values)
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
+        return pd.DataFrame(
+            {
+                "date": future_dates,
+                "mean": predictions,
+                "lower": lower,
+                "upper": upper,
+            }
+        )
+
+    def get_metadata(self) -> ModelMetadata:
+        return ModelMetadata(
+            name="XGBoost (Specialist)",
+            description=(
+                "Gradient boosted trees for non-linear interactions "
+                "and external drivers."
+            ),
+            rationale=(
+                "Selected for its ability to handle complex covariate interactions."
+            ),
+            educational_video_url="",
         )
 
 
@@ -822,10 +1045,9 @@ class SmartForecastEngine:
             covariates_present = True
 
         if sparsity > 0.5 or covariates_present:
-            print(
-                f"LOG: Specialist Triggered (Sparsity={sparsity:.2f}, Covariates={covariates_present}). Adding Random Forest."
-            )
+            print("LOG: ML Specialists Triggered. Adding Random Forest & XGBoost.")
             candidates.append(RandomForestForecaster())
+            candidates.append(XGBoostForecaster())
 
         # 3. Run Tournament
         results = []

@@ -50,7 +50,9 @@ class GeminiIntentAnalyzer:
           If the format is non-standard or unclear, set date_format to null.
 
         - For every column identified as a 'covariate', you MUST classify its
-          'covariate_type':
+          'covariate_type' AND 'covariate_strategy':
+          
+          1. 'covariate_type':
           * 'controllable': If the column represents an internal business
             decision that the user can control.
             Examples: 'Price', 'Discount', 'Ad_Spend', 'Stock_Level',
@@ -58,14 +60,26 @@ class GeminiIntentAnalyzer:
           * 'exogenous': If the column represents an external factor the user
             CANNOT control.
             Examples: 'Temperature', 'Rainfall', 'Humidity', 'Unemployment_Rate',
-            'Competitor_Price', 'GDP', 'Holiday_Flag'
+            'Competitor_Price', 'GDP', 'Holiday_Flag', 'Weekday'
           * 'static': If the value never changes over time (rare in time-series).
-            Examples: 'Store_ID', 'Category', 'Region' (if constant for this
-            series)
+            Examples: 'Store_ID', 'Category', 'Region' (if constant for this series)
+
+          2. 'covariate_strategy': How should we fill this column for future dates?
+          * 'calendar_deterministic': for columns that are known facts about the date.
+            Examples: 'Month', 'DayOfWeek', 'Is_Holiday', 'Weekend_Flag'
+          * 'seasonal_analog': for exogenous variables that likely follow a seasonal pattern.
+            Examples: 'Temperature', 'Rainfall', 'Humidity', 'Foot_Traffic'
+          * 'status_quo': for controllable variables or non-seasonal exogenous ones 
+            where "tomorrow = today" is the safest assumption.
+            Examples: 'Price', 'Tax_Rate', 'Interest_Rate', 'Ad_Spend'
 
           Use semantic understanding of the column name and context to classify
           correctly. When in doubt between controllable and exogenous, prefer
           'exogenous' (safer assumption).
+          When in doubt for strategy:
+            - If it looks like weather -> 'seasonal_analog'
+            - If it looks like a calendar feature -> 'calendar_deterministic'
+            - Else -> 'status_quo'
 
         Output ONLY the JSON adhering to:
         {json.dumps(schema_desc, indent=2)}
