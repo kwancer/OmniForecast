@@ -39,14 +39,33 @@ class GeminiIntentAnalyzer:
         - Identify the 'target' and 'time_index' columns.
         - Infer the user's constraints (e.g. non-negative).
         - LEAVE 'sparsity_ratio' as null (the system will calculate this later).
-        - For the time_index column, CAREFULLY analyze the date format in the sample data
-          and provide the 'date_format' field using Python strftime notation. Examples:
+        - For the time_index column, CAREFULLY analyze the date format in the
+          sample data and provide the 'date_format' field using Python strftime
+          notation. Examples:
           * '2024-01-15' -> '%Y-%m-%d'
           * '88-01-01' (2-digit year, month, day) -> '%y-%m-%d'
           * '15/01/2024' -> '%d/%m/%Y'
           * '1-01' (year-month only, like 2001-01) -> This is non-standard, set null
           * 'Jan 15, 2024' -> '%b %d, %Y'
           If the format is non-standard or unclear, set date_format to null.
+
+        - For every column identified as a 'covariate', you MUST classify its
+          'covariate_type':
+          * 'controllable': If the column represents an internal business
+            decision that the user can control.
+            Examples: 'Price', 'Discount', 'Ad_Spend', 'Stock_Level',
+            'Promotion', 'Staffing_Hours', 'Marketing_Budget'
+          * 'exogenous': If the column represents an external factor the user
+            CANNOT control.
+            Examples: 'Temperature', 'Rainfall', 'Humidity', 'Unemployment_Rate',
+            'Competitor_Price', 'GDP', 'Holiday_Flag'
+          * 'static': If the value never changes over time (rare in time-series).
+            Examples: 'Store_ID', 'Category', 'Region' (if constant for this
+            series)
+
+          Use semantic understanding of the column name and context to classify
+          correctly. When in doubt between controllable and exogenous, prefer
+          'exogenous' (safer assumption).
 
         Output ONLY the JSON adhering to:
         {json.dumps(schema_desc, indent=2)}
@@ -60,7 +79,7 @@ class GeminiIntentAnalyzer:
         # Replace underscores and hyphens with spaces
         s = name.replace("_", " ").replace("-", " ")
         # Insert spaces before capital letters (camelCase)
-        s = re.sub(r'([a-z])([A-Z])', r'\1 \2', s)
+        s = re.sub(r"([a-z])([A-Z])", r"\1 \2", s)
         # Title case
         return s.title().strip()
 

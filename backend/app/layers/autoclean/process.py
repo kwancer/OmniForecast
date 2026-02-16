@@ -63,8 +63,14 @@ class RuleBasedCleaner:
             # Heuristic: Unix timestamps (seconds) are usually > 1 billion (Year 2001+)
             if sample > 1_000_000_000:
                 return pd.to_datetime(series_numeric, unit="s", errors="coerce")
-            # Heuristic: Excel serials are usually < 100,000 (Year 2173)
-            elif sample < 200_000:
+            # Heuristic: 4-digit years (e.g., 1990, 2024) - Handle before Excel serials
+            elif 1700 <= sample <= 2500:
+                return pd.to_datetime(
+                    series_numeric.astype(int).astype(str), format="%Y", errors="coerce"
+                )
+            # Heuristic: Excel serials are usually between 10,000 and 100,000
+            # (matches dates from 1927 to 2173)
+            elif 10_000 <= sample < 100_000:
                 return pd.to_datetime(
                     series_numeric, unit="D", origin="1899-12-30", errors="coerce"
                 )

@@ -165,7 +165,13 @@
     const targetCol = store.targetCol
 
     // Helper to parse dates simply
-    const parseDate = (d: any) => new Date(d).getTime()
+    const parseDate = (d: any) => {
+      // If it's a 4-digit number (year), treat it as a string so new Date("1990") works
+      if (typeof d === 'number' && d > 1700 && d < 2500) {
+        return new Date(d.toString()).getTime()
+      }
+      return new Date(d).getTime()
+    }
 
     // 1. Prepare History Data Points {x, y}
     const historyPoints = store.historyResults.map((row: any) => ({
@@ -282,7 +288,7 @@
     plugins: {
       legend: { display: false },
       tooltip: {
-        mode: 'index' as const,
+        mode: 'x' as const,
         intersect: false,
       },
       zoom: {
@@ -316,10 +322,11 @@
       x: {
         type: 'time' as const, // Use Time Scale
         time: {
-          unit: 'day' as const, // Provide a default unit, but it auto-scales
+          unit: (store.ontology?.problem.granularity.unit as any) || 'day',
           displayFormats: {
             day: 'MMM d',
             month: 'MMM yyyy',
+            year: 'yyyy',
           },
           tooltipFormat: 'PP',
         },
@@ -336,8 +343,7 @@
       },
     },
     interaction: {
-      mode: 'nearest' as const,
-      axis: 'x' as const,
+      mode: 'x' as const,
       intersect: false,
     },
   }

@@ -1,11 +1,32 @@
 <template>
-  <v-card class="pa-4 mb-2 bg-surface" :class="{ 'on-ignore': localState.isIgnored }" variant="outlined">
+  <v-card
+    class="pa-4 mb-2 bg-surface covariate-card"
+    :class="{
+      'on-ignore': localState.isIgnored,
+      'is-controllable': type === 'controllable',
+      'is-exogenous': type === 'exogenous'
+    }"
+    variant="outlined"
+  >
     <div class="d-flex align-center flex-wrap" style="gap: 8px; line-height: 2.0;">
-      <span class="text-medium-emphasis">In the future, I expect </span>
+      <v-tooltip v-if="type === 'exogenous'" location="top">
+        <template #activator="{ props: tProps }">
+          <v-icon
+            v-bind="tProps"
+            class="mr-1"
+            color="info"
+            icon="mdi-alert-circle-outline"
+            size="small"
+          />
+        </template>
+        <span>⚠️ This is an external factor. The AI is making an assumption based on past history.</span>
+      </v-tooltip>
+
+      <span class="text-medium-emphasis">{{ prefixText }}</span>
 
       <b class="text-primary font-weight-bold">{{ column }}</b>
 
-      <span class="text-medium-emphasis"> to </span>
+      <span class="text-medium-emphasis"> {{ joinText }} </span>
 
       <v-menu>
         <template #activator="{ props }">
@@ -21,19 +42,11 @@
         </template>
         <v-list density="compact">
           <v-list-item
-            subtitle="Use last known value"
-            title="Remain Status Quo"
-            @click="setOption('default')"
-          />
-          <v-list-item
-            subtitle="Set a constant value"
-            title="Change to..."
-            @click="setOption('constant')"
-          />
-          <v-list-item
-            subtitle="Upload series of values"
-            title="Follow a Custom Plan"
-            @click="setOption('custom')"
+            v-for="opt in availableOptions"
+            :key="opt.value"
+            :subtitle="opt.subtitle"
+            :title="opt.title"
+            @click="setOption(opt.value)"
           />
           <v-divider />
           <v-list-item
@@ -67,7 +80,7 @@
         <v-textarea
           v-model="customPlanRaw"
           hint="e.g. 10, 12, 15, 14, 10..."
-          label="Paste series of values (comma separated)"
+          :label="customPlanLabel"
           persistent-hint
           rows="2"
           variant="filled"
@@ -93,6 +106,7 @@
   const covariateProps = defineProps<{
     column: string
     modelValue: CovariateState
+    type: 'controllable' | 'exogenous' | 'static'
   }>()
 
   const emit = defineEmits(['update:modelValue'])
@@ -103,6 +117,34 @@
   const customPlanParsed = ref<number[]>([])
 
   const localState = computed(() => covariateProps.modelValue)
+
+  const prefixText = computed(() => {
+    return covariateProps.type === 'controllable' ? 'I plan to set' : 'Assume'
+  })
+
+  const joinText = computed(() => {
+    return covariateProps.type === 'controllable' ? 'to' : 'will be'
+  })
+
+  const customPlanLabel = computed(() => {
+    return covariateProps.type === 'controllable' ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
+  })
+
+  const availableOptions = computed(() => {
+    if (covariateProps.type === 'controllable') {
+      return [
+        { value: 'default', title: 'Keep Current (Status Quo)', subtitle: 'Assume no change from today' },
+        { value: 'constant', title: 'Change to...', subtitle: 'Set a specific constant value' },
+        { value: 'custom', title: 'Follow Custom Plan', subtitle: 'Provide a series of future values' },
+      ] as const
+    } else {
+      return [
+        { value: 'default', title: 'Same as Last Year (Seasonal)', subtitle: 'AI assumption based on history' },
+        { value: 'constant', title: 'Status Quo (Last Value)', subtitle: 'Assume last known value level' },
+        { value: 'custom', title: 'Custom Scenario (Upload)', subtitle: 'Provide your own growth/trend scenario' },
+      ] as const
+    }
+  })
 
   // Init from props
   onMounted(() => {
@@ -121,18 +163,8 @@
   })
 
   const getOptionLabel = computed(() => {
-    switch (option.value) {
-      case 'default': { return 'Remain Status Quo'
-      }
-      case 'constant': { return 'Change to...'
-      }
-      case 'custom': { return 'Follow a Custom Plan'
-      }
-      case 'ignore': { return 'Be Ignored'
-      }
-      default: { return ''
-      }
-    }
+    const opt = availableOptions.value.find(o => o.value === option.value)
+    return opt ? opt.title : (option.value === 'ignore' ? 'Be Ignored' : '')
   })
 
   const getChipColor = computed(() => {
@@ -190,4 +222,22 @@
   opacity: 0.6;
   text-decoration: line-through;
 }
+.covariate-card {
+  transition: all 0.3s ease;
+}
+.is-controllable {
+  border: 1px solid rgba(76, 175, 80, 0.4) !important;
+}
+.is-controllable:hover {
+  border-color: #4CAF50 !important;
+  background-color: rgba(76, 175, 80, 0.05) !important;
+}
+.is-exogenous {
+  border: 1px solid rgba(33, 150, 243, 0.4) !important;
+}
+.is-exogenous:hover {
+  border-color: #2196F3 !important;
+  background-color: rgba(33, 150, 243, 0.05) !important;
+}
 </style>
+

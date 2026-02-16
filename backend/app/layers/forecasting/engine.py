@@ -661,6 +661,13 @@ class RandomForestForecaster(InternalForecaster):
         overrides = ontology.scenario_overrides if ontology else {}
         model_features = getattr(self.model, "feature_names_in_", [])
 
+        # Build covariate type map for frugal forecasting
+        covariate_type_map = {}
+        if ontology:
+            for col_def in ontology.columns:
+                if col_def.role == "covariate" and col_def.covariate_type:
+                    covariate_type_map[col_def.column_name] = col_def.covariate_type
+
         forecast_values = []
         current_lag = self.last_actual_value
 
@@ -676,6 +683,7 @@ class RandomForestForecaster(InternalForecaster):
                     continue
 
                 val = 0.0
+                # Priority 1: User-provided override (explicit scenario)
                 if feat in overrides and overrides[feat] is not None:
                     override_val = overrides[feat]
                     if isinstance(override_val, list):
@@ -683,6 +691,20 @@ class RandomForestForecaster(InternalForecaster):
                         val = override_val[idx]
                     else:
                         val = float(override_val)
+                # Priority 2: Frugal defaults based on covariate type
+                elif feat in covariate_type_map:
+                    cov_type = covariate_type_map[feat]
+                    if cov_type == "controllable":
+                        # Controllable: Status Quo (last known value)
+                        val = self.last_covariate_values.get(feat, 0.0)
+                    elif cov_type == "exogenous":
+                        # Exogenous: Seasonal Naive (same time last year/season)
+                        # For now, use status quo as fallback
+                        # TODO: Implement seasonal lookup from historical data
+                        val = self.last_covariate_values.get(feat, 0.0)
+                    else:  # static
+                        val = self.last_covariate_values.get(feat, 0.0)
+                # Priority 3: Fallback to last known value
                 elif feat in self.last_covariate_values:
                     val = self.last_covariate_values[feat]
 

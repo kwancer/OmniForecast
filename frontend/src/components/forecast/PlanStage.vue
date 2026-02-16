@@ -16,14 +16,37 @@
           class="mb-8"
         />
 
-        <div v-if="covariates.length > 0" class="mb-2 text-caption text-medium-emphasis">SCENARIO CONFIGURATION</div>
-        <div v-for="col in covariates" :key="col" class="mb-2">
-          <CovariateSentence
-            v-if="covariateStates[col]"
-            v-model="covariateStates[col]"
-            :column="col"
-          />
+        <div v-if="controllableCovariates.length > 0">
+          <div class="mb-2 text-caption text-medium-emphasis">MY DECISIONS</div>
+          <div v-for="col in controllableCovariates" :key="col.column_name" class="mb-2">
+            <CovariateSentence
+              v-if="covariateStates[col.column_name]"
+              v-model="covariateStates[col.column_name]!"
+              :column="col.column_name"
+              :type="'controllable'"
+            />
+          </div>
         </div>
+
+        <div v-if="exogenousCovariates.length > 0" class="mt-6">
+          <div class="mb-2 text-caption text-medium-emphasis">EXTERNAL SCENARIOS</div>
+          <div v-for="col in exogenousCovariates" :key="col.column_name" class="mb-2">
+            <CovariateSentence
+              v-if="covariateStates[col.column_name]"
+              v-model="covariateStates[col.column_name]!"
+              :column="col.column_name"
+              :type="'exogenous'"
+            />
+          </div>
+        </div>
+
+        <div v-if="staticCovariates.length > 0" class="mt-6">
+          <div class="mb-2 text-caption text-medium-emphasis">STATIC ATTRIBUTES (Informing Model)</div>
+          <div v-for="col in staticCovariates" :key="col.column_name" class="mb-2">
+            <v-chip class="mr-2 mb-2" size="small" variant="outlined">{{ col.display_name }}</v-chip>
+          </div>
+        </div>
+
 
         <DataXRay v-if="store.ontology" class="mb-4" :ontology="store.ontology" />
 
@@ -65,20 +88,32 @@
   const covariates = computed(() => {
     if (!store.ontology || !sentenceState.value) return []
     return store.ontology.columns
-      .map(c => c.column_name)
-      .filter(c => c !== sentenceState.value?.target_col && c !== sentenceState.value?.time_col)
+      .filter(c => c.role !== 'group_id' && c.column_name !== sentenceState.value?.target_col && c.column_name !== sentenceState.value?.time_col)
+  })
+
+  const controllableCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'controllable')
+  })
+
+  const exogenousCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'exogenous')
+  })
+
+  const staticCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'static')
   })
 
   // Initialize covariate states when covariates change
   watch(covariates, newCovs => {
     for (const col of newCovs) {
-      if (!covariateStates.value[col]) {
-        covariateStates.value[col] = { override: null, isIgnored: false }
+      if (!covariateStates.value[col.column_name]) {
+        covariateStates.value[col.column_name] = { override: null, isIgnored: false }
       }
     }
     // Clean up old
+    const newNames = new Set(newCovs.map(c => c.column_name))
     for (const key in covariateStates.value) {
-      if (!newCovs.includes(key)) delete covariateStates.value[key]
+      if (!newNames.has(key)) delete covariateStates.value[key]
     }
   }, { immediate: true })
 

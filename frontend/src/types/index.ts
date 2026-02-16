@@ -2,6 +2,7 @@
 
 export type ColumnRole = 'time_index' | 'target' | 'group_id' | 'covariate' | 'ignore'
 export type DataType = 'continuous' | 'discrete' | 'binary' | 'categorical' | 'text' | 'datetime'
+export type CovariateType = 'controllable' | 'exogenous' | 'static'
 export type TimeUnit = 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year'
 export type CompletenessStatus = 'complete' | 'partial'
 export type RiskPreference = 'balanced' | 'under_penalty' | 'over_penalty'
@@ -41,6 +42,7 @@ export interface ColumnOntology {
   display_name: string
   role: ColumnRole
   data_type: DataType
+  covariate_type?: CovariateType
   future_availability?: FutureAvailability
   constraints?: Constraints
   resampling_method?: 'mean' | 'sum' | 'last' | 'max' | 'none'

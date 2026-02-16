@@ -53,7 +53,7 @@ class ForecastPipeline:
         forecast_df_json = forecast_df.fillna(0)
         import json
 
-        history_df = clean_df.tail(100).reset_index()
+        history_df = clean_df.reset_index()
         history_data = json.loads(
             history_df.to_json(orient="records", date_format="iso")
         )

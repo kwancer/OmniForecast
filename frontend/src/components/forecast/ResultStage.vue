@@ -32,9 +32,9 @@
                 </thead>
                 <tbody>
                   <tr v-for="(row, i) in store.forecastResults" :key="i">
-                    <td class="font-mono">{{ formatDate(row[store.timeCol]!) }}</td>
+                    <td class="font-mono">{{ formatDate(row.date || row[store.timeCol]) }}</td>
                     <td class="font-mono text-right font-weight-bold text-primary">
-                      {{ formatValue(row[store.targetCol]) }}
+                      {{ formatValue(row.mean ?? row[store.targetCol]) }}
                     </td>
                   </tr>
                 </tbody>
@@ -115,7 +115,22 @@
 
   const store = useForecastStore()
 
-  const formatDate = (val: string | number) => new Date(val).toLocaleDateString()
+  function formatDate (val: any) {
+    if (val === undefined || val === null) return 'N/A'
+    // Handle numeric years (e.g., 1990)
+    if (typeof val === 'number' && val > 1700 && val < 2500) {
+      return val.toString()
+    }
+    const date = new Date(val)
+    if (Number.isNaN(date.getTime())) return 'Invalid Date'
+
+    // If granularity is year, just show the year
+    if (store.ontology?.problem.granularity.unit === 'year') {
+      return date.getFullYear().toString()
+    }
+
+    return date.toLocaleDateString()
+  }
 
   function formatValue (val: any) {
     if (typeof val === 'number') return val.toFixed(2)

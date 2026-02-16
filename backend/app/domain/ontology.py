@@ -1,6 +1,15 @@
+from enum import Enum
 from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
+
+
+class CovariateType(str, Enum):
+    """Classification of covariate types for frugal forecasting."""
+
+    CONTROLLABLE = "controllable"  # e.g., Price, Promotion, Staffing (User Decides)
+    EXOGENOUS = "exogenous"  # e.g., Weather, Competitor Price (External)
+    STATIC = "static"  # e.g., Store Location (Ignored for time-series)
 
 
 class MetaContext(BaseModel):
@@ -45,6 +54,7 @@ class ColumnRoleDefinition(BaseModel):
     data_type: Literal[
         "continuous", "discrete", "binary", "categorical", "text", "datetime"
     ]
+    covariate_type: Optional[CovariateType] = None
     future_availability: Optional[FutureAvailability] = None
     constraints: Optional[Constraints] = None
     resampling_method: Literal["mean", "sum", "last", "max", "none"] = "mean"
