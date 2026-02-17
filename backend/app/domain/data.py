@@ -21,6 +21,14 @@ class ForecastMetric(BaseModel):
     value: float
 
 
+class TournamentResult(BaseModel):
+    model_name: str
+    mae: float
+    complexity: float
+    status: str  # 'winner', 'runner_up', 'rejected'
+    metrics: List[ForecastMetric]
+
+
 class ForecastResponse(BaseModel):
     forecast: List[Dict[str, Any]]
     explanation: str
@@ -30,6 +38,8 @@ class ForecastResponse(BaseModel):
     session_id: Optional[str] = None
     model_metadata: Optional[Dict[str, Any]] = None
     data_health_report: Optional[Dict[str, Any]] = None
+    tournament_results: Optional[List[TournamentResult]] = None
+    backtest_data: Optional[List[Dict[str, Any]]] = None
 
 
 class ErrorResponse(BaseModel):

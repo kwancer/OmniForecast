@@ -17,6 +17,21 @@
         </div>
 
         <v-expansion-panels class="mt-4">
+          <!-- Tournament Analysis -->
+          <v-expansion-panel v-if="store.tournamentResults.length > 0">
+            <v-expansion-panel-title>
+              <v-icon color="success" size="small" start>mdi-comment-text-outline</v-icon>
+              Reasoning
+            </v-expansion-panel-title>
+            <v-expansion-panel-text>
+              <div class="d-flex flex-column gap-6 pa-2">
+                <BacktestChart v-if="store.backtestData.length > 0" :data="store.backtestData" />
+                <ModelTournament :results="store.tournamentResults" />
+              </div>
+            </v-expansion-panel-text>
+          </v-expansion-panel>
+
+          <!-- Raw Data -->
           <v-expansion-panel>
             <v-expansion-panel-title>
               <v-icon color="primary" size="small" start>mdi-table</v-icon>
@@ -116,8 +131,10 @@
 <script setup lang="ts">
   import { computed } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import BacktestChart from './BacktestChart.vue'
   import DataHealthCard from './DataHealthCard.vue'
-  import ForecastChart from './ForecastChart.vue' // <--- IMPORT THE CHART HERE
+  import ForecastChart from './ForecastChart.vue'
+  import ModelTournament from './ModelTournament.vue'
 
   const store = useForecastStore()
 

@@ -126,6 +126,20 @@ export interface DataHealthReport {
   winner_complexity?: number
 }
 
+export interface TournamentResult {
+  model_name: string
+  mae: number
+  complexity: number
+  status: 'winner' | 'runner_up' | 'rejected'
+  metrics: ForecastMetric[]
+}
+
+export interface BacktestPoint {
+  date: string
+  prediction: number
+  actual: number
+}
+
 export interface ForecastResponse {
   forecast: ForecastResult[]
   explanation: string
@@ -135,6 +149,8 @@ export interface ForecastResponse {
   session_id?: string
   model_metadata?: ModelMetadata
   data_health_report?: DataHealthReport
+  tournament_results?: TournamentResult[]
+  backtest_data?: BacktestPoint[]
 }
 
 // --- APP UTILS ---

@@ -1,4 +1,4 @@
-import type { CleaningReport, DataHealthReport, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata } from '@/types'
+import type { BacktestPoint, CleaningReport, DataHealthReport, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata, TournamentResult } from '@/types'
 import { defineStore } from 'pinia'
 import { useAppStore } from './app'
 
@@ -15,7 +15,9 @@ export const useForecastStore = defineStore('forecast', {
     historyResults: [] as ForecastResult[], // <--- New State
     dataHealthReport: null as DataHealthReport | null,
     step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results',
-    modelMetadata: null as ModelMetadata | null, // <--- ADDED
+    modelMetadata: null as ModelMetadata | null,
+    tournamentResults: [] as TournamentResult[],
+    backtestData: [] as BacktestPoint[],
   }),
 
   getters: {
@@ -111,6 +113,8 @@ export const useForecastStore = defineStore('forecast', {
         this.historyResults = data.history
         this.modelMetadata = data.model_metadata ?? null
         this.dataHealthReport = data.data_health_report ?? null
+        this.tournamentResults = data.tournament_results ?? []
+        this.backtestData = data.backtest_data ?? []
         // Move to cleaning step first to show what happened
         this.step = 'cleaning'
         appStore.notify('Modelling sequence complete.', 'success')
@@ -155,7 +159,9 @@ export const useForecastStore = defineStore('forecast', {
       this.explanation = ''
       this.dataHealthReport = null
       this.step = 'upload'
-      this.modelMetadata = null // ADDED
+      this.modelMetadata = null
+      this.tournamentResults = []
+      this.backtestData = []
     },
   },
 })

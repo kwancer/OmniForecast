@@ -54,6 +54,10 @@ class InternalForecaster(ABC):
     archetype: str = "Baseline"
     # Residual standard deviation for interval calculation (set during fit)
     residuals_std: float = 0.0
+    # Hold-out validation predictions (set during fit)
+    validation_predictions: Optional[pd.Series] = None
+    # Hold-out validation actuals (set during fit)
+    validation_actuals: Optional[pd.Series] = None
 
     @abstractmethod
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
@@ -160,6 +164,8 @@ class NaiveForecaster(InternalForecaster):
         # Calculate residuals for confidence intervals
         residuals = val[self.target_col] - val_preds
         self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+        self.validation_predictions = val_preds
+        self.validation_actuals = val[self.target_col]
 
         # Final fit
         self.last_value = df[self.target_col].iloc[-1]
@@ -270,6 +276,8 @@ class SeasonalNaiveForecaster(InternalForecaster):
         # Calculate residuals for confidence intervals
         residuals = val[self.target_col] - val_preds
         self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+        self.validation_predictions = val_preds
+        self.validation_actuals = val[self.target_col]
 
         self.history = df[self.target_col]
         return calculate_metrics(val[self.target_col], val_preds)
@@ -412,6 +420,8 @@ class ETSForecaster(InternalForecaster):
                 freq=self.freq,
             )
             self.fit_result = self.model.fit(optimized=True)
+            self.validation_predictions = val_preds
+            self.validation_actuals = val[self.target_col]
 
             return calculate_metrics(val[self.target_col], val_preds)
         except Exception as e:
@@ -581,6 +591,8 @@ class ARIMAForecaster(InternalForecaster):
             # Calculate residuals for confidence intervals
             residuals = val[self.target_col] - val_preds
             self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
+            self.validation_predictions = val_preds
+            self.validation_actuals = val[self.target_col]
 
             full_model = ARIMA(
                 df[self.target_col],
@@ -724,10 +736,12 @@ class RandomForestForecaster(InternalForecaster):
         # Calculate residuals for confidence intervals
         residuals = y_val.values - val_preds
         self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+        self.validation_predictions = pd.Series(val_preds, index=y_val.index)
+        self.validation_actuals = y_val
 
         self.model.fit(X.fillna(0), y)
 
-        return calculate_metrics(y_val, val_preds)
+        return calculate_metrics(y_val, self.validation_predictions)
 
     def predict(
         self,
@@ -937,10 +951,12 @@ class XGBoostForecaster(InternalForecaster):
 
         residuals = y_val.values - val_preds
         self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+        self.validation_predictions = pd.Series(val_preds, index=y_val.index)
+        self.validation_actuals = y_val
 
         self.model.fit(X.fillna(0), y)
 
-        return calculate_metrics(y_val, pd.Series(val_preds, index=y_val.index))
+        return calculate_metrics(y_val, self.validation_predictions)
 
     def predict(
         self,
@@ -1472,12 +1488,7 @@ class SmartForecastEngine:
         self.data_health_report = self._calculate_predictability_from_tournament(
             series, freq
         )
-        print(
-            f"LOG: Predictability Score = {self.data_health_report.get('score', 0)}/100 "
-            f"({self.data_health_report.get('rating', 'Unknown')}) - "
-            f"Hyndman: {self.data_health_report.get('hyndman_score', 0)}/100, "
-            f"Gain: {self.data_health_report.get('forecasting_gain_pct', 0):.1f}%"
-        )
+
         return metrics
 
     def predict(
@@ -1494,3 +1505,59 @@ class SmartForecastEngine:
         if not self.active_model:
             return NaiveForecaster().get_metadata()
         return self.active_model.get_metadata()
+
+    def get_backtest_data(self) -> List[Dict[str, Any]]:
+        """Returns comparison data for the validation period."""
+        if not self.active_model or self.active_model.validation_predictions is None:
+            return []
+
+        preds = self.active_model.validation_predictions
+        actuals = self.active_model.validation_actuals
+
+        if actuals is None:
+            return []
+
+        # Merge onto the same dates
+        combined = pd.DataFrame(
+            {"date": preds.index, "prediction": preds.values, "actual": actuals.values}
+        ).fillna(0)
+
+        import json
+
+        return json.loads(combined.to_json(orient="records", date_format="iso"))
+
+    def get_tournament_results(self) -> List[Dict[str, Any]]:
+        """Returns summarized results of all candidates."""
+        if not self.tournament_results or not self.active_model:
+            return []
+
+        winner_mae = next(
+            (
+                r["mae"]
+                for r in self.tournament_results
+                if r["model"] == self.active_model
+            ),
+            float("inf"),
+        )
+        TOLERANCE = 1.05
+
+        results = []
+        for r in self.tournament_results:
+            model = r["model"]
+            mae = r["mae"]
+            status = "rejected"
+            if model == self.active_model:
+                status = "winner"
+            elif mae <= winner_mae * TOLERANCE:
+                status = "runner_up"
+
+            results.append(
+                {
+                    "model_name": model.get_metadata().name,
+                    "mae": mae,
+                    "complexity": model.complexity_score,
+                    "status": status,
+                    "metrics": [m.model_dump() for m in r["metrics"]],
+                }
+            )
+        return results
