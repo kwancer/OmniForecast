@@ -7,45 +7,111 @@
       </div>
 
       <div class="d-flex align-center gap-4">
-        <!-- Zoom Reset Button -->
-        <v-btn
-          v-if="isZoomed"
-          color="primary"
-          prepend-icon="mdi-restore"
-          size="small"
-          variant="outlined"
-          @click="resetZoom"
+        <!-- Risk View Toggle -->
+        <v-btn-toggle
+          v-model="riskView"
+          density="comfortable"
+          mandatory
+          selected-class="bg-primary text-white"
         >
-          Reset Zoom
-        </v-btn>
+          <v-btn size="small" value="off">Standard</v-btn>
+          <v-btn size="small" value="on">Risk View</v-btn>
+        </v-btn-toggle>
 
-        <!-- Legend -->
-        <div class="d-flex gap-4 text-caption">
-          <div class="d-flex align-center">
-            <v-sheet class="mr-2" color="grey" height="2" width="12" />
-            <span>Historical Data</span>
-          </div>
-          <div class="d-flex align-center">
-            <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
-            <span class="font-weight-bold">{{ forecastLabel }}</span>
-          </div>
-          <div v-if="hasIntervals" class="d-flex align-center">
-            <v-sheet
-              class="mr-2"
-              color="grey-lighten-2"
-              height="8"
-              style="opacity: 0.5"
-              width="12"
-            />
-            <span>Confidence Range</span>
-          </div>
+        <!-- Action Buttons -->
+        <div class="d-flex align-center gap-2">
+          <v-btn
+            icon="mdi-camera"
+            size="small"
+            title="Save as Image"
+            variant="text"
+            @click="exportImage"
+          />
+          <v-btn
+            icon="mdi-download"
+            size="small"
+            title="Export CSV"
+            variant="text"
+            @click="exportCSV"
+          />
+          <v-btn
+            v-if="isZoomed"
+            class="ml-2"
+            color="primary"
+            prepend-icon="mdi-restore"
+            size="small"
+            title="Reset Zoom"
+            variant="tonal"
+            @click="resetZoom"
+          >
+            Reset Zoom
+          </v-btn>
         </div>
       </div>
     </div>
 
+    <!-- Legend Bar -->
+    <div class="d-flex justify-center gap-6 mb-4 text-caption">
+      <!-- Standard Legend -->
+      <template v-if="riskView === 'off'">
+        <div class="d-flex align-center">
+          <v-sheet class="mr-2" color="grey" height="2" width="12" />
+          <span>Historical</span>
+        </div>
+        <div class="d-flex align-center">
+          <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
+          <span>Forecast</span>
+        </div>
+        <div v-if="hasIntervals" class="d-flex align-center">
+          <v-sheet
+            class="mr-2"
+            color="blue-darken-2"
+            height="12"
+            style="opacity: 0.1"
+            width="12"
+          />
+          <span>Confidence Range</span>
+        </div>
+      </template>
+
+      <!-- Fan Chart Key (Risk View) -->
+      <template v-else>
+        <div class="d-flex align-center">
+          <v-sheet
+            class="mr-2 rounded-sm"
+            color="blue-lighten-4"
+            height="12"
+            style="opacity: 0.6"
+            width="12"
+          />
+          <span>80% Confidence (Outer)</span>
+        </div>
+        <div class="d-flex align-center">
+          <v-sheet
+            class="mr-2 rounded-sm"
+            color="blue-lighten-2"
+            height="12"
+            style="opacity: 0.6"
+            width="12"
+          />
+          <span>60% Confidence (Middle)</span>
+        </div>
+        <div class="d-flex align-center">
+          <v-sheet
+            class="mr-2 rounded-sm"
+            color="blue-darken-2"
+            height="12"
+            style="opacity: 0.8"
+            width="12"
+          />
+          <span>30% Confidence (Inner)</span>
+        </div>
+      </template>
+    </div>
+
     <!-- Risk Preference Message -->
     <v-alert
-      v-if="riskMessage"
+      v-if="riskMessage && riskView === 'off'"
       class="mb-4"
       :color="riskAlertColor"
       density="compact"
@@ -57,8 +123,17 @@
       {{ riskMessage }}
     </v-alert>
 
-    <div class="flex-grow-1 position-relative" style="min-height: 300px;">
+    <div class="flex-grow-1 position-relative" style="min-height: 350px;">
       <Line id="forecast-chart" :data="chartData" :options="chartOptions" />
+    </div>
+
+    <!-- Mini-Map / Range Selector -->
+    <div class="mt-4" style="height: 60px; width: 100%; opacity: 0.8;">
+      <Line
+        id="mini-chart"
+        :data="miniChartData"
+        :options="miniChartOptions"
+      />
     </div>
   </v-card>
 </template>
@@ -73,7 +148,7 @@
     LinearScale,
     LineElement,
     PointElement,
-    TimeScale, // Import TimeScale
+    TimeScale,
     Title,
     Tooltip,
   } from 'chart.js'
@@ -82,9 +157,8 @@
   import { Line } from 'vue-chartjs'
 
   import { useForecastStore } from '@/stores/forecast'
-  import 'chartjs-adapter-date-fns' // Import date adapter
+  import 'chartjs-adapter-date-fns'
 
-  // Register TimeScale instead of just CategoryScale
   ChartJS.register(
     LinearScale,
     PointElement,
@@ -99,13 +173,28 @@
 
   const store = useForecastStore()
   const isZoomed = ref(false)
+  const riskView = ref('off')
+
+  // Range Selector State
+  const rangeMin = ref<number | null>(null)
+  const rangeMax = ref<number | null>(null)
+
+  // Shared Date Parsing Logic
+  function parseDate (d: any): number {
+    if (d === null || d === undefined) return Number.NaN
+    // Handle 4-digit years (as numbers or strings)
+    const num = Number(d)
+    if (!Number.isNaN(num) && num > 1100 && num < 2500) {
+      return new Date(num, 0, 1).getTime()
+    }
+    return new Date(d).getTime()
+  }
 
   // Risk Preference styling
   const riskPreference = computed<RiskPreference>(() => {
     return store.ontology?.risk_preference || 'balanced'
   })
 
-  // ... (color and label logic remains same)
   const primaryLineColor = computed(() => {
     switch (riskPreference.value) {
       case 'under_penalty': { return '#F44336' }
@@ -114,21 +203,13 @@
     }
   })
 
-  const forecastLabel = computed(() => {
-    switch (riskPreference.value) {
-      case 'under_penalty': { return 'Upper Bound (Safety)' }
-      case 'over_penalty': { return 'Lower Bound (Conservative)' }
-      default: { return 'Forecast' }
-    }
-  })
-
   const riskMessage = computed(() => {
     switch (riskPreference.value) {
       case 'under_penalty': {
-        return 'Showing upper bound (P90) to minimize risk of stockouts. Plan for higher inventory levels.'
+        return 'Showing upper bound (P90) to minimize risk of stockouts.'
       }
       case 'over_penalty': {
-        return 'Showing lower bound (P10) to minimize waste. Order conservatively to avoid excess.'
+        return 'Showing lower bound (P10) to minimize waste.'
       }
       default: { return null }
     }
@@ -152,8 +233,9 @@
 
   const hasIntervals = computed(() => {
     if (store.forecastResults.length === 0) return false
-    const firstRow = store.forecastResults[0]
-    return firstRow?.lower !== undefined && firstRow?.upper !== undefined
+    const row = store.forecastResults[0]
+    if (!row) return false
+    return row.conf_80_upper !== undefined || (row.lower !== undefined && row.upper !== undefined)
   })
 
   const chartData = computed(() => {
@@ -164,114 +246,161 @@
     const timeCol = store.timeCol
     const targetCol = store.targetCol
 
-    // Helper to parse dates simply
-    const parseDate = (d: any) => {
-      // If it's a 4-digit number (year), treat it as a string so new Date("1990") works
-      if (typeof d === 'number' && d > 1700 && d < 2500) {
-        return new Date(d.toString()).getTime()
-      }
-      return new Date(d).getTime()
-    }
-
-    // 1. Prepare History Data Points {x, y}
     const historyPoints = store.historyResults.map((row: any) => ({
       x: parseDate(row[timeCol]),
       y: row[targetCol],
     }))
 
-    // 2. Prepare Forecast Data Points {x, y, lower, upper}
-    // We treat them as points now, not parallel arrays
-    const forecastPoints = store.forecastResults.map((row: any) => ({
-      x: parseDate(row.date || row[timeCol]),
-      y: row.mean ?? row[targetCol],
-      lower: row.lower,
-      upper: row.upper,
-    }))
-
-    // 3. Connect History to Forecast
-    // To make a continuous line, the forecast should start where history ends
-    // or we verify if there's a gap. Usually we just append.
-    // For the "mean" line, we might want a visually distinct line, so we keep them separate datasets usually.
-    // But to connect them visually without a gap, we add the last history point to the forecast dataset.
     const lastHistoryPoint = historyPoints.at(-1)
 
-    // Forecast Main Line
-    const forecastMainPoints = [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.y }))]
+    // Build the foreground/background datasets based on Risk View toggle
+    if (riskView.value === 'on') {
+      const forecastData = store.forecastResults.map((row: any) => ({
+        x: parseDate(row.date || row.year || row[timeCol]),
+        median: row.median_forecast ?? row.mean ?? row[targetCol],
+        p10: row.conf_80_lower,
+        p90: row.conf_80_upper,
+        p20: row.conf_60_lower,
+        p80: row.conf_80_upper,
+        p35: row.conf_30_lower,
+        p65: row.conf_30_upper,
+      }))
 
-    // Forecast Intervals (if needed)
-    const upperPoints = hasIntervals.value
-      ? [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.upper }))]
-      : []
-    const lowerPoints = hasIntervals.value
-      ? [lastHistoryPoint, ...forecastPoints.map((p: any) => ({ x: p.x, y: p.lower }))]
-      : []
+      // Connector point with range info (all range points start from the same history point)
+      const connect = (y: number, upper?: number) => ({ x: lastHistoryPoint?.x, y, upper })
 
-    // 4. Select Primary Forecast based on Risk
-    let primaryPoints
-    switch (riskPreference.value) {
-      case 'under_penalty': {
-        primaryPoints = upperPoints.length > 0 ? upperPoints : forecastMainPoints
-        break
+      return {
+        datasets: [
+          {
+            label: 'Historical',
+            borderColor: '#9E9E9E',
+            borderWidth: 2,
+            pointRadius: 0,
+            data: historyPoints,
+            tension: 0.1,
+          },
+          // 80% Band (Outer)
+          {
+            label: '80% Upper',
+            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p90 }))],
+            borderColor: 'transparent',
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3,
+          },
+          {
+            label: '80% Confidence',
+            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p10, upper: p.p90 }))],
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(187, 222, 251, 0.2)', // Light Blue
+            fill: '-1',
+            pointRadius: 0,
+            tension: 0.3,
+          },
+          // 60% Band (Middle)
+          {
+            label: '60% Upper',
+            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p80 }))],
+            borderColor: 'transparent',
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3,
+          },
+          {
+            label: '60% Confidence',
+            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p20, upper: p.p80 }))],
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(100, 181, 246, 0.4)', // Medium Blue
+            fill: '-1',
+            pointRadius: 0,
+            tension: 0.3,
+          },
+          // 30% Band (Inner)
+          {
+            label: '30% Upper',
+            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p65 }))],
+            borderColor: 'transparent',
+            pointRadius: 0,
+            fill: false,
+            tension: 0.3,
+          },
+          {
+            label: '30% Confidence',
+            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p35, upper: p.p65 }))],
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(25, 118, 210, 0.6)', // Dark Blue
+            fill: '-1',
+            pointRadius: 0,
+            tension: 0.3,
+          },
+          // Median Line
+          {
+            label: 'Median Forecast',
+            borderColor: '#0D47A1',
+            borderWidth: 3,
+            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.median }))],
+            pointRadius: 3,
+            fill: false,
+            tension: 0.3,
+          },
+        ],
       }
-      case 'over_penalty': {
-        primaryPoints = lowerPoints.length > 0 ? lowerPoints : forecastMainPoints
-        break
-      }
-      default: {
-        primaryPoints = forecastMainPoints
-      }
-    }
+    } else {
+      // Standard View
+      const forecastPoints = store.forecastResults.map((row: any) => ({
+        x: parseDate(row.date || row.year || row[timeCol]),
+        median: row.median_forecast ?? row.mean ?? row[targetCol],
+        lower: row.lower,
+        upper: row.upper,
+      }))
 
-    const datasets: any[] = [
-      {
-        label: 'Historical',
-        borderColor: '#9E9E9E',
-        borderWidth: 2,
-        pointRadius: 0,
-        pointHitRadius: 10,
-        data: historyPoints,
-        tension: 0.1,
-      },
-    ]
+      const connect = (y: number, upper?: number) => ({ x: lastHistoryPoint?.x, y, upper })
 
-    if (hasIntervals.value) {
-      datasets.push(
+      const datasets: any[] = [
         {
-          label: 'Upper Bound',
-          borderColor: 'rgba(158, 158, 158, 0.3)',
-          borderWidth: 1,
-          borderDash: [5, 5],
+          label: 'Historical',
+          borderColor: '#9E9E9E',
+          borderWidth: 2,
           pointRadius: 0,
-          data: upperPoints,
-          fill: false,
-          tension: 0.3,
+          data: historyPoints,
+          tension: 0.1,
         },
-        {
-          label: 'Lower Bound',
-          borderColor: 'rgba(158, 158, 158, 0.3)',
-          borderWidth: 1,
-          borderDash: [5, 5],
-          pointRadius: 0,
-          data: lowerPoints,
-          fill: '-1', // Fill to previous dataset (upper)
-          backgroundColor: 'rgba(158, 158, 158, 0.15)',
-          tension: 0.3,
-        },
-      )
+      ]
+
+      if (hasIntervals.value) {
+        datasets.push(
+          {
+            label: 'Forecast Upper',
+            borderColor: 'transparent',
+            pointRadius: 0,
+            data: [connect(lastHistoryPoint?.y), ...forecastPoints.map(p => ({ x: p.x, y: p.upper }))],
+            fill: false,
+            tension: 0.3,
+          },
+          {
+            label: 'Confidence Range',
+            borderColor: 'transparent',
+            backgroundColor: 'rgba(24, 103, 192, 0.1)',
+            fill: '-1',
+            pointRadius: 0,
+            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastPoints.map(p => ({ x: p.x, y: p.lower, upper: p.upper }))],
+            tension: 0.3,
+          },
+        )
+      }
+
+      datasets.push({
+        label: 'Forecast',
+        borderColor: primaryLineColor.value,
+        borderWidth: 3,
+        pointRadius: 3,
+        data: [connect(lastHistoryPoint?.y), ...forecastPoints.map(p => ({ x: p.x, y: p.median }))],
+        fill: false,
+        tension: 0.3,
+      })
+
+      return { datasets }
     }
-
-    datasets.push({
-      label: forecastLabel.value,
-      backgroundColor: `${primaryLineColor.value}20`,
-      borderColor: primaryLineColor.value,
-      borderWidth: 3,
-      pointRadius: 3,
-      data: primaryPoints,
-      fill: false,
-      tension: 0.3,
-    })
-
-    return { datasets }
   })
 
   function resetZoom () {
@@ -279,17 +408,102 @@
     if (chart) {
       chart.resetZoom()
       isZoomed.value = false
+      rangeMin.value = null
+      rangeMax.value = null
     }
   }
 
-  const chartOptions = {
+  function exportImage () {
+    const chart = ChartJS.getChart('forecast-chart')
+    if (chart && chart.canvas) {
+      const url = (chart.canvas as HTMLCanvasElement).toDataURL('image/png')
+      const link = document.createElement('a')
+      link.download = `forecast_export_${new Date().toISOString().split('T')[0]}.png`
+      link.href = url
+      link.click()
+    }
+  }
+
+  function exportCSV () {
+    const data = store.forecastResults
+    if (!data || data.length === 0) return
+
+    const timeCol = store.timeCol
+    const headers = ['Date', 'Median', '80_Lower', '80_Upper', '60_Lower', '60_Upper', '30_Lower', '30_Upper']
+    const rows = data.map((row: any) => [
+      row.date || row.year || row[timeCol],
+      row.median_forecast ?? row.mean,
+      row.conf_80_lower,
+      row.conf_80_upper,
+      row.conf_60_lower,
+      row.conf_60_upper,
+      row.conf_30_lower,
+      row.conf_30_upper,
+    ])
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `forecast_data_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
+
+  const suggestedUnit = computed(() => {
+    const minUnit = (store.ontology?.problem.granularity.unit as any) || 'day'
+    if (store.forecastResults.length === 0 && store.historyResults.length === 0) return minUnit
+
+    const historyTimes = store.historyResults.map((r: any) => parseDate(r[store.timeCol]))
+    const forecastTimes = store.forecastResults.map((r: any) => parseDate(r.date || r.year || r[store.timeCol]))
+    const allTimes = [...historyTimes, ...forecastTimes].filter(t => !Number.isNaN(t))
+
+    if (allTimes.length < 2) return minUnit
+    const rangeMs = Math.max(...allTimes) - Math.min(...allTimes)
+    const yearMs = 365 * 24 * 60 * 60 * 1000
+
+    if (rangeMs > 5 * yearMs && ['minute', 'second'].includes(minUnit)) return 'month'
+    if (rangeMs > yearMs && ['minute', 'second'].includes(minUnit)) return 'day'
+    if (rangeMs > 50 * yearMs) return 'year'
+
+    return minUnit
+  })
+
+  const chartOptions = computed<any>(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    layout: {
+      padding: {
+        bottom: 10,
+        left: 5,
+        right: 15,
+      },
+    },
     plugins: {
       legend: { display: false },
       tooltip: {
-        mode: 'x' as const,
+        mode: 'nearest' as const,
+        axis: 'x' as const,
         intersect: false,
+        callbacks: {
+          label: (context: any) => {
+            const dataset = context.dataset
+            if (dataset.label?.includes('Upper')) return null // Hide helper datasets
+
+            let label = dataset.label || ''
+            if (label) label += ': '
+
+            const raw = dataset.data[context.dataIndex]
+            const y = context.parsed.y
+            if (y === null) return label
+
+            // Show range if upper bound is present in data point
+            if (raw && typeof raw === 'object' && raw.upper !== undefined) {
+              return `${label}${y.toLocaleString()} - ${raw.upper.toLocaleString()}`
+            }
+            return `${label}${y.toLocaleString()}`
+          },
+        },
       },
       zoom: {
         pan: {
@@ -300,13 +514,8 @@
           },
         },
         zoom: {
-          wheel: {
-            enabled: true,
-            speed: 0.1,
-          },
-          pinch: {
-            enabled: true,
-          },
+          wheel: { enabled: true, speed: 0.1 },
+          pinch: { enabled: true },
           mode: 'x' as const,
           onZoom: () => {
             isZoomed.value = true
@@ -320,9 +529,11 @@
     },
     scales: {
       x: {
-        type: 'time' as const, // Use Time Scale
+        type: 'time' as const,
+        min: rangeMin.value ?? undefined,
+        max: rangeMax.value ?? undefined,
         time: {
-          unit: (store.ontology?.problem.granularity.unit as any) || 'day',
+          unit: suggestedUnit.value,
           displayFormats: {
             day: 'MMM d',
             month: 'MMM yyyy',
@@ -331,11 +542,7 @@
           tooltipFormat: 'PP',
         },
         grid: { display: false },
-        ticks: {
-          maxRotation: 0,
-          autoSkip: true,
-          maxTicksLimit: 8,
-        },
+        ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8 },
       },
       y: {
         border: { display: false },
@@ -343,8 +550,66 @@
       },
     },
     interaction: {
-      mode: 'x' as const,
+      mode: 'nearest' as const,
+      axis: 'x' as const,
       intersect: false,
     },
-  }
+  }))
+
+  // Mini-Chart Logic
+  const miniChartData = computed(() => {
+    if (store.historyResults.length === 0) return { datasets: [] }
+    const timeCol = store.timeCol
+    const targetCol = store.targetCol
+
+    const historyPoints = store.historyResults.map((row: any) => ({
+      x: parseDate(row[timeCol]),
+      y: row[targetCol],
+    }))
+
+    return {
+      datasets: [
+        {
+          data: historyPoints,
+          borderColor: '#9E9E9E',
+          borderWidth: 1,
+          pointRadius: 0,
+          fill: true,
+          backgroundColor: 'rgba(158, 158, 158, 0.1)',
+          tension: 0.1,
+        },
+      ],
+    }
+  })
+
+  const miniChartOptions = computed(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false },
+      zoom: {
+        zoom: {
+          drag: {
+            enabled: true,
+            backgroundColor: 'rgba(24, 103, 192, 0.1)',
+            borderColor: 'rgba(24, 103, 192, 0.4)',
+            borderWidth: 1,
+          },
+          mode: 'x' as const,
+          onZoomComplete: ({ chart }: any) => {
+            const { min, max } = chart.scales.x
+            rangeMin.value = min
+            rangeMax.value = max
+            isZoomed.value = true
+          },
+        },
+      },
+    },
+    scales: {
+      x: { type: 'time' as const, display: false },
+      y: { display: false },
+    },
+  }))
 </script>
+

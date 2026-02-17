@@ -60,9 +60,14 @@ class RuleBasedCleaner:
         series_numeric = pd.to_numeric(series, errors="coerce")
         if series_numeric.notna().sum() > (len(series) * 0.5):  # If mostly numeric
             sample = series_numeric.dropna().iloc[0]
-            # Heuristic: Unix timestamps (seconds) are usually > 1 billion (Year 2001+)
-            if sample > 1_000_000_000:
+            # Heuristic: Unix timestamps (seconds vs milliseconds)
+            # 1 billion < sample < 10 billion: likely seconds (Year 2001 to 2286)
+            if 1_000_000_000 <= sample < 10_000_000_000:
                 return pd.to_datetime(series_numeric, unit="s", errors="coerce")
+            # sample > 10 billion: likely milliseconds (Year 1970 10M ms is early,
+            # but 1T is 2001). Most modern MS timestamps are in the 1.5T to 2T range.
+            elif sample >= 10_000_000_000:
+                return pd.to_datetime(series_numeric, unit="ms", errors="coerce")
             # Heuristic: 4-digit years (e.g., 1990, 2024) - Handle before Excel serials
             elif 1700 <= sample <= 2500:
                 return pd.to_datetime(

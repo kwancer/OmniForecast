@@ -67,15 +67,37 @@ class InternalForecaster(ABC):
         interval_width: float = 0.80,
     ) -> pd.DataFrame:
         """
-        Generate forecasts with confidence intervals.
+        Generate forecasts with multi-layer confidence intervals.
 
-        Returns DataFrame with columns: ['date', 'mean', 'lower', 'upper']
+        Returns DataFrame with columns:
+        ['date', 'median_forecast', 'conf_30_lower', 'conf_30_upper',
+         'conf_60_lower', 'conf_60_upper', 'conf_80_lower', 'conf_80_upper']
         """
         pass
 
     @abstractmethod
     def get_metadata(self) -> ModelMetadata:
         pass
+
+    def _calculate_multi_layer_intervals(
+        self,
+        predictions: np.ndarray,
+        residuals_std: float,
+    ) -> Dict[str, np.ndarray]:
+        """
+        Calculate multiple levels of confidence intervals using standard normal distribution.
+        """
+        # We need layers for 30%, 60%, and 80%
+        widths = [0.30, 0.60, 0.80]
+        results = {}
+        for width in widths:
+            alpha = 1 - width
+            z_score = stats.norm.ppf(1 - alpha / 2)
+            margin = z_score * residuals_std
+            label = int(width * 100)
+            results[f"conf_{label}_lower"] = predictions - margin
+            results[f"conf_{label}_upper"] = predictions + margin
+        return results
 
     def _calculate_intervals(
         self,
@@ -84,15 +106,7 @@ class InternalForecaster(ABC):
         residuals_std: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Calculate confidence intervals using z-score approach.
-
-        Args:
-            predictions: Array of point predictions
-            interval_width: Width of confidence interval (e.g., 0.80 for P10/P90)
-            residuals_std: Standard deviation of residuals from training
-
-        Returns:
-            Tuple of (lower_bounds, upper_bounds)
+        Legacy single-layer interval calculator.
         """
         alpha = 1 - interval_width
         z_score = stats.norm.ppf(1 - alpha / 2)
@@ -162,17 +176,31 @@ class NaiveForecaster(InternalForecaster):
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
         predictions = np.array([self.last_value] * horizon)
+
+        # Multi-layer intervals
+        intervals = self._calculate_multi_layer_intervals(
+            predictions, self.residuals_std
+        )
+
+        # Legacy columns for compatibility
         lower, upper = self._calculate_intervals(
             predictions, interval_width, self.residuals_std
         )
-        return pd.DataFrame(
-            {
-                "date": future_dates,
-                "mean": predictions,
-                "lower": lower,
-                "upper": upper,
-            }
-        )
+
+        df_data = {
+            "date": future_dates,
+            "mean": predictions,  # legacy
+            "median_forecast": predictions,
+            "lower": lower,  # legacy
+            "upper": upper,  # legacy
+            **intervals,
+        }
+
+        # If it's annual data, also add 'year' column to match user request schema
+        if self.freq == "A" or self.freq == "Y":
+            df_data["year"] = [d.year for d in future_dates]
+
+        return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -263,17 +291,30 @@ class SeasonalNaiveForecaster(InternalForecaster):
             preds.append(last_season[i % self.season_length])
 
         predictions = np.array(preds)
+
+        # Multi-layer intervals
+        intervals = self._calculate_multi_layer_intervals(
+            predictions, self.residuals_std
+        )
+
+        # Legacy columns
         lower, upper = self._calculate_intervals(
             predictions, interval_width, self.residuals_std
         )
-        return pd.DataFrame(
-            {
-                "date": future_dates,
-                "mean": predictions,
-                "lower": lower,
-                "upper": upper,
-            }
-        )
+
+        df_data = {
+            "date": future_dates,
+            "mean": predictions,
+            "median_forecast": predictions,
+            "lower": lower,
+            "upper": upper,
+            **intervals,
+        }
+
+        if self.freq == "A" or self.freq == "Y":
+            df_data["year"] = [d.year for d in future_dates]
+
+        return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -395,45 +436,79 @@ class ETSForecaster(InternalForecaster):
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
 
-        # Simulation-based confidence intervals
+        # Simulation-based confidence intervals (as requested)
         try:
             # Generate simulation paths
-            # nsimulations = horizon (number of steps to simulate)
-            # repetitions = number of simulation paths to generate
             simulations = self.fit_result.simulate(
                 nsimulations=horizon,
                 anchor="end",
                 repetitions=1000,
             )
-            # simulations shape: (horizon, 1000) - rows are time steps, cols are paths
+            # simulations shape: (horizon, 1000)
+
+            # Calculate required percentiles
+            # Median: 50%
+            median_vals = np.percentile(simulations, 50, axis=1)
+
+            # Layer 1 (Outer/80%): 10th and 90th
+            conf_80_lower = np.percentile(simulations, 10, axis=1)
+            conf_80_upper = np.percentile(simulations, 90, axis=1)
+
+            # Layer 2 (Middle/60%): 20th and 80th
+            conf_60_lower = np.percentile(simulations, 20, axis=1)
+            conf_60_upper = np.percentile(simulations, 80, axis=1)
+
+            # Layer 3 (Inner/30%): 35th and 65th
+            conf_30_lower = np.percentile(simulations, 35, axis=1)
+            conf_30_upper = np.percentile(simulations, 65, axis=1)
+
+            # Fallback for legacy interval_width
             alpha = 1 - interval_width
-            lower_quantile = alpha / 2
-            upper_quantile = 1 - alpha / 2
+            lower = np.percentile(simulations, (alpha / 2) * 100, axis=1)
+            upper = np.percentile(simulations, (1 - alpha / 2) * 100, axis=1)
 
-            lower = np.percentile(simulations, lower_quantile * 100, axis=1)
-            upper = np.percentile(simulations, upper_quantile * 100, axis=1)
-            # Use point forecast as mean (more stable than median of simulations)
-            mean_vals = forecast_values.values
+            df_data = {
+                "date": future_dates,
+                "median_forecast": median_vals,
+                "mean": forecast_values.values,  # Keep actual point forecast as mean
+                "lower": lower,
+                "upper": upper,
+                "conf_80_lower": conf_80_lower,
+                "conf_80_upper": conf_80_upper,
+                "conf_60_lower": conf_60_lower,
+                "conf_60_upper": conf_60_upper,
+                "conf_30_lower": conf_30_lower,
+                "conf_30_upper": conf_30_upper,
+            }
 
-            # Validate lengths match
-            if len(lower) != horizon or len(upper) != horizon:
-                raise ValueError(f"Simulation shape mismatch: expected {horizon}")
+            if self.freq == "A" or self.freq == "Y":
+                df_data["year"] = [d.year for d in future_dates]
+
+            return pd.DataFrame(df_data)
 
         except Exception as e:
             print(f"LOG: ETS simulation failed, using point forecast: {e}")
-            # Fallback: use point forecast, no intervals
+            # Fallback: use residual-based approach if simulation fails
             mean_vals = forecast_values.values
-            lower = mean_vals.copy()
-            upper = mean_vals.copy()
+            intervals = self._calculate_multi_layer_intervals(
+                mean_vals, self.residuals_std
+            )
+            lower, upper = self._calculate_intervals(
+                mean_vals, interval_width, self.residuals_std
+            )
 
-        return pd.DataFrame(
-            {
+            df_data = {
                 "date": future_dates,
                 "mean": mean_vals,
+                "median_forecast": mean_vals,
                 "lower": lower,
                 "upper": upper,
+                **intervals,
             }
-        )
+            if self.freq == "A" or self.freq == "Y":
+                df_data["year"] = [d.year for d in future_dates]
+
+            return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -529,30 +604,31 @@ class ARIMAForecaster(InternalForecaster):
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
 
-        # Try to use ARIMA's built-in confidence intervals
         try:
             forecast_obj = self.fit_result.get_forecast(steps=horizon)
             mean_vals = forecast_obj.predicted_mean.values
-            alpha = 1 - interval_width
-            conf_int = forecast_obj.conf_int(alpha=alpha)
-            lower = conf_int.iloc[:, 0].values
-            upper = conf_int.iloc[:, 1].values
-        except Exception as e:
-            print(f"LOG: ARIMA conf_int failed, using residual-based: {e}")
-            # Fallback to residual-based approach
+        except Exception:
             mean_vals = self.fit_result.forecast(horizon).values
-            lower, upper = self._calculate_intervals(
-                mean_vals, interval_width, self.residuals_std
-            )
 
-        return pd.DataFrame(
-            {
-                "date": future_dates,
-                "mean": mean_vals,
-                "lower": lower,
-                "upper": upper,
-            }
+        # Multi-layer intervals
+        intervals = self._calculate_multi_layer_intervals(mean_vals, self.residuals_std)
+        lower, upper = self._calculate_intervals(
+            mean_vals, interval_width, self.residuals_std
         )
+
+        df_data = {
+            "date": future_dates,
+            "mean": mean_vals,
+            "median_forecast": mean_vals,
+            "lower": lower,
+            "upper": upper,
+            **intervals,
+        }
+
+        if self.freq == "A" or self.freq == "Y":
+            df_data["year"] = [d.year for d in future_dates]
+
+        return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -742,14 +818,27 @@ class RandomForestForecaster(InternalForecaster):
         lower, upper = self._calculate_intervals(
             predictions, interval_width, self.residuals_std
         )
-        return pd.DataFrame(
-            {
-                "date": future_dates,
-                "mean": predictions,
-                "lower": lower,
-                "upper": upper,
-            }
+        # Multi-layer intervals
+        intervals = self._calculate_multi_layer_intervals(
+            predictions, self.residuals_std
         )
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
+
+        df_data = {
+            "date": future_dates,
+            "mean": predictions,
+            "median_forecast": predictions,
+            "lower": lower,
+            "upper": upper,
+            **intervals,
+        }
+
+        if self.freq == "A" or self.freq == "Y":
+            df_data["year"] = [d.year for d in future_dates]
+
+        return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
@@ -941,14 +1030,27 @@ class XGBoostForecaster(InternalForecaster):
         lower, upper = self._calculate_intervals(
             predictions, interval_width, self.residuals_std
         )
-        return pd.DataFrame(
-            {
-                "date": future_dates,
-                "mean": predictions,
-                "lower": lower,
-                "upper": upper,
-            }
+        # Multi-layer intervals
+        intervals = self._calculate_multi_layer_intervals(
+            predictions, self.residuals_std
         )
+        lower, upper = self._calculate_intervals(
+            predictions, interval_width, self.residuals_std
+        )
+
+        df_data = {
+            "date": future_dates,
+            "mean": predictions,
+            "median_forecast": predictions,
+            "lower": lower,
+            "upper": upper,
+            **intervals,
+        }
+
+        if self.freq == "A" or self.freq == "Y":
+            df_data["year"] = [d.year for d in future_dates]
+
+        return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(

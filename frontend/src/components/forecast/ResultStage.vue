@@ -23,18 +23,26 @@
               View Raw Forecast Data
             </v-expansion-panel-title>
             <v-expansion-panel-text>
-              <v-table density="compact" fixed-header height="300px">
+              <v-table density="compact" fixed-header height="350px">
                 <thead>
                   <tr>
                     <th class="text-left">Date</th>
-                    <th class="text-right">Predicted Value</th>
+                    <th class="text-right">Lower (80%)</th>
+                    <th class="text-right">Median</th>
+                    <th class="text-right">Upper (80%)</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="(row, i) in store.forecastResults" :key="i">
-                    <td class="font-mono">{{ formatDate(row.date || row[store.timeCol]) }}</td>
+                    <td class="font-mono">{{ formatDate(row.date || row.year || row[store.timeCol]) }}</td>
+                    <td class="font-mono text-right text-medium-emphasis">
+                      {{ formatValue(row.conf_80_lower ?? row.lower) }}
+                    </td>
                     <td class="font-mono text-right font-weight-bold text-primary">
-                      {{ formatValue(row.mean ?? row[store.targetCol]) }}
+                      {{ formatValue(row.median_forecast ?? row.mean ?? row[store.targetCol]) }}
+                    </td>
+                    <td class="font-mono text-right text-medium-emphasis">
+                      {{ formatValue(row.conf_80_upper ?? row.upper) }}
                     </td>
                   </tr>
                 </tbody>
@@ -64,7 +72,7 @@
             <v-icon class="mr-2" icon="mdi-shield-check-outline" />
             <span class="font-weight-bold">Executive Summary</span>
           </div>
-          <p class="text-body-2" style="white-space: pre-line;">{{ store.explanation }}</p>
+          <p class="text-body-2" style="white-space: pre-line;">{{ formattedExplanation }}</p>
         </v-card>
 
         <v-card v-if="store.modelMetadata" class="pa-4 mb-4" color="accent" variant="tonal">
@@ -86,8 +94,6 @@
             Learn More
           </v-btn>
         </v-card>
-
-        <v-btn block class="mb-4" prepend-icon="mdi-download" variant="outlined">Export JSON</v-btn>
 
         <v-divider class="mb-4" />
 
@@ -115,6 +121,25 @@
 
   const store = useForecastStore()
 
+  // Format numbers in the explanation string
+  const formattedExplanation = computed(() => {
+    if (!store.explanation) return ''
+    // Regex to find floats or integers (including those with decimals)
+    // Avoid small indices like "10 periods" by checking length or context if needed,
+    // but typically toLocaleString is fine for all numbers > 999.
+    return store.explanation.replace(/\b\d+(\.\d+)?\b/g, match => {
+      const num = Number.parseFloat(match)
+      // Only format large numbers or those with many digits to avoid mangling small integers like "10"
+      if (!Number.isNaN(num) && (num >= 1000 || match.includes('.'))) {
+        return num.toLocaleString(undefined, {
+          minimumFractionDigits: match.includes('.') ? 2 : 0,
+          maximumFractionDigits: 2,
+        })
+      }
+      return match
+    })
+  })
+
   function formatDate (val: any) {
     if (val === undefined || val === null) return 'N/A'
     // Handle numeric years (e.g., 1990)
@@ -133,7 +158,9 @@
   }
 
   function formatValue (val: any) {
-    if (typeof val === 'number') return val.toFixed(2)
+    if (typeof val === 'number') {
+      return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
     return val
   }
 
@@ -156,16 +183,17 @@
   }
 
   function formatMetricValue (metric: any) {
+    const val = typeof metric.value === 'number' ? metric.value : 0
     if (metric.name === 'MAE') {
-      return `±${metric.value.toFixed(2)}`
+      return `±${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     }
     if (metric.name === 'MAPE') {
-      return `${metric.value.toFixed(1)}%`
+      return `${val.toFixed(1)}%`
     }
     if (metric.name === 'R²') {
-      return `${(metric.value * 100).toFixed(0)}%`
+      return `${(val * 100).toFixed(0)}%`
     }
-    return metric.value.toFixed(2)
+    return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
   }
 </script>
 
