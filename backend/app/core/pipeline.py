@@ -35,9 +35,6 @@ class ForecastPipeline:
         # 1. AutoClean FIRST - This handles robust date parsing
         clean_df, cleaning_report = self.cleaner.clean(df, ontology)
 
-        # 2. Select Model (on CLEAN data - dates are now valid)
-        self.forecaster.select_model(clean_df, ontology)
-
         # 3. Forecast Fit (model already selected, just re-fit on same data)
         metrics = self.forecaster.fit(clean_df, ontology)
 
