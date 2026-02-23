@@ -4,13 +4,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from scipy import stats
+from pmdarima import auto_arima
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import (
     mean_absolute_error,
     mean_absolute_percentage_error,
     mean_squared_error,
 )
-from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 from xgboost import XGBRegressor
 
@@ -530,28 +530,18 @@ class ETSForecaster(InternalForecaster):
 
 class ARIMAForecaster(InternalForecaster):
     """
-    ARIMA candidate for the tournament.
+    AutoARIMA implementation using pmdarima for fast, automated model selection.
     """
 
-    def __init__(self, order=(1, 1, 1), seasonal_order=(0, 0, 0, 0)):
-        self.order = order
-        self.seasonal_order = seasonal_order
-        # Complexity scoring heuristic:
-        #   - Start from a base complexity of 1.
-        #   - Add (sum of ARIMA order + sum of first three seasonal_order terms) / 6.0.
-        #   - The 4th seasonal_order term (seasonal period) is intentionally excluded.
-        #   - The raw score can be outside [1, 4]; we clamp it afterward for a stable 1–4 scale.
-        self.complexity_score = 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
-        # Clamp to the public 1–4 complexity scale
-        self.complexity_score = max(1, min(4, self.complexity_score))
-        self.archetype = "The Autoregressive Pattern (Correlation with Past)"
-
-        self.fit_result = None
+    def __init__(self):
+        self.model = None
         self.time_col = None
         self.target_col = None
         self.last_date = None
         self.freq = None
         self.residuals_std = 0.0
+        self.complexity_score = 1.0  # Default, gets updated in fit()
+        self.archetype = "The Autoregressive Pattern (Correlation with Past)"
 
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(
@@ -560,50 +550,79 @@ class ARIMAForecaster(InternalForecaster):
         self.target_col = next(
             c.column_name for c in ontology.columns if c.role == "target"
         )
-        df = df.set_index(self.time_col)
-        self.last_date = df.index.max()
-        self.freq = pd.infer_freq(df.index) or "D"
+        df_index = df.set_index(self.time_col)
+        self.last_date = df_index.index.max()
+        self.freq = pd.infer_freq(df_index.index) or "D"
 
-        split_idx = int(len(df) * 0.8)
+        split_idx = int(len(df_index) * 0.8)
         if split_idx == 0:
             split_idx = 1
-        train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+        train, val = df_index.iloc[:split_idx], df_index.iloc[split_idx:]
 
         if len(val) == 0:
-            # No validation data available: avoid returning perfect (zero) metrics
-            # which would mislead model selection. Use infinite errors instead.
             return [
                 ForecastMetric(name="MAE", value=float("inf")),
                 ForecastMetric(name="RMSE", value=float("inf")),
                 ForecastMetric(name="MAPE", value=float("inf")),
             ]
 
-        try:
-            model = ARIMA(
-                train[self.target_col],
-                order=self.order,
-                seasonal_order=self.seasonal_order,
-            )
-            fit_result = model.fit()
-            val_preds = fit_result.forecast(len(val))
+        # Speed Constraints (Crucial)
+        autoarima_params = {
+            "stepwise": True,
+            "suppress_warnings": True,
+            "error_action": "ignore",
+            "max_p": 3,
+            "max_q": 3,
+            "max_d": 2,
+        }
 
-            # Calculate residuals for confidence intervals
-            residuals = val[self.target_col] - val_preds
-            self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
-            self.validation_predictions = val_preds
+        # Seasonal handling: 12 for month, 7 for day
+        if self.freq in ["M", "MS", "BM", "BMS"]:
+            autoarima_params.update({"seasonal": True, "m": 12, "max_P": 2, "max_Q": 2})
+        elif self.freq in ["D", "B"]:
+            autoarima_params.update({"seasonal": True, "m": 7, "max_P": 2, "max_Q": 2})
+
+        try:
+            # Fit AutoARIMA on 80% training split to generate validation predictions
+            temp_model = auto_arima(train[self.target_col], **autoarima_params)
+            val_preds = temp_model.predict(n_periods=len(val))
+
+            # Calculate residuals standard deviation for confidence intervals
+            residuals = val[self.target_col].values - val_preds
+            self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+            self.validation_predictions = pd.Series(val_preds, index=val.index)
             self.validation_actuals = val[self.target_col]
 
-            full_model = ARIMA(
-                df[self.target_col],
-                order=self.order,
-                seasonal_order=self.seasonal_order,
-            )
-            self.fit_result = full_model.fit()
+            # Refit the model on the entire 100% dataframe
+            self.model = auto_arima(df_index[self.target_col], **autoarima_params)
 
-            return calculate_metrics(val[self.target_col], val_preds)
+            # Dynamic Complexity Scoring:
+            # 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
+
+            order = self.model.order
+            seasonal_order = self.model.seasonal_order
+            raw_complexity = 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
+            self.complexity_score = max(1.0, min(4.0, raw_complexity))
+
+            # Update archetype string based on seasonal terms selected
+            if sum(seasonal_order[:3]) > 0:
+                self.archetype = (
+                    "The Seasonal Autoregressive Pattern "
+                    "(Seasonality + Past Correlation)"
+                )
+            else:
+                self.archetype = "The Autoregressive Pattern (Correlation with Past)"
+
+            return calculate_metrics(val[self.target_col], self.validation_predictions)
+
         except Exception as e:
-            print(f"LOG: ARIMA {self.order} failed: {e}")
-            return [ForecastMetric(name="MAE", value=float("inf"))]
+            print(f"LOG: AutoARIMA fit failed: {e}")
+            inf_metrics = [
+                ForecastMetric(name="MAE", value=float("inf")),
+                ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
+            ]
+            return inf_metrics
 
     def predict(
         self,
@@ -611,17 +630,19 @@ class ARIMAForecaster(InternalForecaster):
         ontology: Optional[ForecastOntology] = None,
         interval_width: float = 0.80,
     ) -> pd.DataFrame:
+        if not self.model:
+            raise ValueError("Model must be fitted before predict.")
+
         future_dates = pd.date_range(
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
 
-        try:
-            forecast_obj = self.fit_result.get_forecast(steps=horizon)
-            mean_vals = forecast_obj.predicted_mean.values
-        except Exception:
-            mean_vals = self.fit_result.forecast(horizon).values
+        # Point forecast
+        mean_vals = self.model.predict(n_periods=horizon)
+        if hasattr(mean_vals, "values"):
+            mean_vals = mean_vals.values
 
-        # Multi-layer intervals
+        # Generate multi-layer confidence intervals using base class logic
         intervals = self._calculate_multi_layer_intervals(mean_vals, self.residuals_std)
         lower, upper = self._calculate_intervals(
             mean_vals, interval_width, self.residuals_std
@@ -636,16 +657,20 @@ class ARIMAForecaster(InternalForecaster):
             **intervals,
         }
 
-        if self.freq == "A" or self.freq == "Y":
+        if self.freq in ["A", "Y", "AS", "YS"]:
             df_data["year"] = [d.year for d in future_dates]
 
         return pd.DataFrame(df_data)
 
     def get_metadata(self) -> ModelMetadata:
+        model_name = "AutoARIMA"
+        if self.model:
+            model_name = f"AutoARIMA {self.model.order}{self.model.seasonal_order}"
+
         return ModelMetadata(
-            name=f"ARIMA {self.order}",
-            description="AutoRegressive Integrated Moving Average model.",
-            rationale="Captures autocorrelations in the data.",
+            name=model_name,
+            description="Automated selection of ARIMA parameters for optimal fit.",
+            rationale=f"Selected due to: {self.archetype}",
             educational_video_url="https://www.youtube.com/watch?v=3UmyHed0iYe",
         )
 
@@ -1131,7 +1156,7 @@ class SmartForecastEngine:
                 seasonal="mul",
             ),  # Score 4
             # ARIMA Candidate
-            ARIMAForecaster(order=(1, 1, 1)),  # Score ~1.5
+            ARIMAForecaster(),  # Automated via pmdarima
         ]
 
         # 2. Check Triggers for Specialist (Random Forest - Score 5)
