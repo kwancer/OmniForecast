@@ -8,7 +8,7 @@
     <div class="d-flex align-center justify-space-between mb-3">
       <div class="flex-grow-1">
         <div class="text-overline text-medium-emphasis mb-1">
-          Data Predictability
+          Forecast Skill Score
         </div>
         <div class="d-flex align-center">
           <span class="text-h3 font-weight-bold" :class="textColorClass">
@@ -100,64 +100,59 @@
           <div class="text-body-2">
             <strong>⚠️ Why is the forecast conservative?</strong>
             <br>
-            Your data is highly random, so a flat or simple forecast is statistically the most accurate prediction.
+            This score measures how much predictable structure exists in your data compared to a baseline. A score of 0 indicates the data is functionally random or highly chaotic to standard models, resulting in a baseline forecast.
           </div>
         </v-alert>
 
         <!-- Dual Metrics Display -->
         <div class="mt-3">
-          <!-- Hyndman Decomposition Metrics -->
+          <!-- MSE Comparison: Naive Baseline vs. Winner -->
+          <!-- MSE is used (not RMSE) because FSS = 1 - MSE_winner/MSE_naive -->
+          <!-- which is algebraically identical to out-of-sample R². -->
           <div
-            v-if="dataHealthReport.trend_strength !== undefined"
-            class="mb-3"
+            v-if="dataHealthReport.mse_naive !== undefined && dataHealthReport.mse_winner !== undefined"
+            class="mt-3"
           >
-            <div class="text-caption text-medium-emphasis mb-2">
-              Hyndman Decomposition Score: {{ dataHealthReport.hyndman_score }}/100
+            <div class="d-flex align-center gap-1 mb-2">
+              <span class="text-caption text-medium-emphasis">Out-of-Sample MSE Comparison</span>
+              <v-tooltip location="top" max-width="320">
+                <template #activator="{ props: tip }">
+                  <v-icon v-bind="tip" class="text-medium-emphasis" size="14">mdi-information-outline</v-icon>
+                </template>
+                <span>
+                  MSE (Mean Squared Error) is used here — not RMSE — because the FSS formula
+                  <strong>FSS = 1 - MSE_winner / MSE_naive</strong> is algebraically identical
+                  to the out-of-sample R² statistic. Squaring errors before dividing ensures
+                  the ratio is scale-invariant and mathematically consistent with R².
+                </span>
+              </v-tooltip>
             </div>
             <div class="d-flex gap-3">
-              <div class="flex-1">
-                <div class="text-caption text-medium-emphasis">Trend Strength</div>
-                <v-progress-linear
-                  color="primary"
-                  height="8"
-                  :model-value="(dataHealthReport.trend_strength ?? 0) * 100"
-                  rounded
-                />
-                <div class="text-caption mt-1">{{ ((dataHealthReport.trend_strength ?? 0) * 100).toFixed(0) }}%</div>
-              </div>
-              <div class="flex-1">
-                <div class="text-caption text-medium-emphasis">Seasonality Strength</div>
-                <v-progress-linear
-                  color="secondary"
-                  height="8"
-                  :model-value="(dataHealthReport.seasonality_strength ?? 0) * 100"
-                  rounded
-                />
-                <div class="text-caption mt-1">{{ ((dataHealthReport.seasonality_strength ?? 0) * 100).toFixed(0) }}%</div>
-              </div>
+              <v-card class="flex-1 pa-3" color="surface" variant="outlined">
+                <div class="text-caption text-medium-emphasis">Naive Baseline MSE</div>
+                <div class="text-h6 font-weight-bold font-mono text-error">
+                  {{ formatMse(dataHealthReport.mse_naive) }}
+                </div>
+                <div class="text-caption text-medium-emphasis mt-1">Flat-line forecast</div>
+              </v-card>
+              <v-card class="flex-1 pa-3" color="surface" variant="outlined">
+                <div class="text-caption text-medium-emphasis">Winner MSE</div>
+                <div class="text-h6 font-weight-bold font-mono text-success">
+                  {{ formatMse(dataHealthReport.mse_winner) }}
+                </div>
+                <div class="text-caption text-medium-emphasis mt-1">{{ dataHealthReport.winner_name }}</div>
+              </v-card>
             </div>
-          </div>
-
-          <!-- Tournament Results -->
-          <div
-            v-if="dataHealthReport.forecasting_gain_pct !== undefined"
-            class="d-flex gap-3"
-          >
-            <div class="flex-1">
-              <div class="text-caption text-medium-emphasis">Forecasting Gain</div>
-              <div class="text-h6 font-weight-medium">
-                {{ dataHealthReport.forecasting_gain_pct.toFixed(1) }}%
-              </div>
-              <div class="text-caption">vs. naive baseline</div>
-            </div>
-            <div v-if="dataHealthReport.winner_name" class="flex-1">
-              <div class="text-caption text-medium-emphasis">Winning Model</div>
-              <div class="text-body-2 font-weight-medium">
-                {{ dataHealthReport.winner_name }}
-              </div>
-              <div class="text-caption">
-                Complexity: {{ dataHealthReport.winner_complexity }}/5
-              </div>
+            <v-progress-linear
+              class="mt-3"
+              color="primary"
+              height="6"
+              :model-value="dataHealthReport.score"
+              rounded
+            />
+            <div class="text-caption text-medium-emphasis mt-1">
+              FSS: {{ dataHealthReport.score }}/100 — equivalent to R² = {{ (dataHealthReport.score / 100).toFixed(2) }}
+              (MSE reduced from {{ formatMse(dataHealthReport.mse_naive) }} → {{ formatMse(dataHealthReport.mse_winner) }})
             </div>
           </div>
         </div>
@@ -175,6 +170,15 @@
   }>()
 
   const showDetails = ref(false)
+
+  function formatMse (val: number | undefined | null) {
+    if (val === undefined || val === null || !Number.isFinite(val)) return 'N/A'
+    if (val === 0) return '0'
+    // Use scientific notation for very small values, otherwise adaptive fixed precision
+    if (val < 0.001) return val.toExponential(4)
+    if (val < 1) return val.toFixed(6)
+    return val.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  }
 
   const borderColorClass = computed(() => {
     if (!props.dataHealthReport) return ''

@@ -12,7 +12,6 @@ from sklearn.metrics import (
 )
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
-from statsmodels.tsa.seasonal import seasonal_decompose
 from xgboost import XGBRegressor
 
 from app.domain.data import ForecastMetric
@@ -1174,17 +1173,29 @@ class SmartForecastEngine:
             try:
                 metrics = model.fit(df, ontology)
                 mae = next((m.value for m in metrics if m.name == "MAE"), float("inf"))
+                mse = next((m.value for m in metrics if m.name == "MSE"), None)
+                # Derive MSE from RMSE (calculate_metrics always emits RMSE, never MSE)
+                if mse is None:
+                    rmse_val = next(
+                        (m.value for m in metrics if m.name == "RMSE"), None
+                    )
+                    mse = (
+                        rmse_val**2
+                        if (rmse_val is not None and np.isfinite(rmse_val))
+                        else float("inf")
+                    )
 
                 results.append(
                     {
                         "model": model,
                         "mae": mae,
+                        "mse": mse,
                         "complexity": model.complexity_score,
                         "metrics": metrics,
                     }
                 )
                 print(
-                    f"LOG: {model.get_metadata().name} finished. MAE={mae:.4f}, Score={model.complexity_score}"
+                    f"LOG: {model.get_metadata().name} finished. MAE={mae:.4f}, MSE={mse:.4f}, Score={model.complexity_score}"
                 )
             except Exception as e:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
@@ -1214,121 +1225,19 @@ class SmartForecastEngine:
             )
 
         self.active_model = winner["model"]
-        self.tournament_results = valid_results  # Store for predictability calculation
+        self.tournament_results = valid_results  # Store for FSS calculation
         return winner["metrics"]
 
-    def _calculate_hyndman_score(self, series: pd.Series, freq: str) -> Dict[str, Any]:
+    def _calculate_fss(self) -> Dict[str, Any]:
         """
-        Model-independent Hyndman feature-based forecastability analysis.
-        Measures inherent data structure via seasonal decomposition.
-        Returns trend strength, seasonality strength, and composite score.
-        """
-        # 1. Minimum length check
-        if len(series) < 14:
-            return {
-                "hyndman_score": 0,
-                "trend_strength": 0,
-                "seasonality_strength": 0,
-                "decomposition_type": "none",
-            }
+        Forecast Skill Score (FSS) — a mathematically pure, out-of-sample R²
+        metric relative to the Naive baseline.
 
-        try:
-            # 2. Determine period
-            period_map = {"D": 7, "W": 52, "M": 12, "Q": 4, "Y": 1}
-            period = period_map.get(freq, 7)
-            if period == 1:
-                period = 7
+        FSS = max(0, 1 - MSE_winner / MSE_naive) × 100
 
-            # 3. Data-driven decomposition type selection
-            # Check if multiplicative is appropriate
-            use_multiplicative = False
-            if (series > 0).all():
-                # Test for growing variance (multiplicative indicator)
-                try:
-                    # Split into thirds and compare variance
-                    n = len(series)
-                    var1 = series[: n // 3].var()
-                    var3 = series[2 * n // 3 :].var()
-                    if var3 > var1 * 1.5:  # Variance growing
-                        use_multiplicative = True
-                except:
-                    pass
-
-            # 4. Perform decomposition
-            model_type = "multiplicative" if use_multiplicative else "additive"
-
-            try:
-                decomp = seasonal_decompose(
-                    series, model=model_type, period=period, extrapolate_trend="freq"
-                )
-            except:
-                # Fallback to additive if multiplicative fails
-                model_type = "additive"
-                decomp = seasonal_decompose(
-                    series, model="additive", period=period, extrapolate_trend="freq"
-                )
-
-            # 5. Calculate Hyndman strength metrics
-            if model_type == "multiplicative":
-                # Work in log space for multiplicative
-                trend_comp = np.log(decomp.trend + 1e-10)
-                seasonal_comp = np.log(decomp.seasonal)
-                resid_comp = np.log(decomp.resid + 1e-10)
-
-                valid_mask = np.isfinite(trend_comp) & np.isfinite(resid_comp)
-                trend_comp = trend_comp[valid_mask]
-                seasonal_comp = seasonal_comp[valid_mask]
-                resid_comp = resid_comp[valid_mask]
-
-                var_resid = np.var(resid_comp)
-                var_detrend = np.var(seasonal_comp + resid_comp)
-                var_deseason = np.var(trend_comp + resid_comp)
-
-                trend_strength = (
-                    max(0, 1 - (var_resid / var_deseason)) if var_deseason > 1e-6 else 0
-                )
-                season_strength = (
-                    max(0, 1 - (var_resid / var_detrend)) if var_detrend > 1e-6 else 0
-                )
-            else:
-                # Standard additive variance calculations
-                var_resid = decomp.resid.var()
-                var_trend = (decomp.trend + decomp.resid).var()
-                trend_strength = (
-                    max(0, 1 - (var_resid / var_trend)) if var_trend > 1e-6 else 0
-                )
-
-                var_season = (decomp.seasonal + decomp.resid).var()
-                season_strength = (
-                    max(0, 1 - (var_resid / var_season)) if var_season > 1e-6 else 0
-                )
-
-            # 6. Composite Hyndman score
-            hyndman_score = int((trend_strength + season_strength) / 2 * 100)
-
-            return {
-                "hyndman_score": min(100, max(0, hyndman_score)),
-                "trend_strength": round(trend_strength, 2),
-                "seasonality_strength": round(season_strength, 2),
-                "decomposition_type": model_type,
-            }
-
-        except Exception as e:
-            print(f"LOG: Hyndman calculation failed: {e}")
-            return {
-                "hyndman_score": 0,
-                "trend_strength": 0,
-                "seasonality_strength": 0,
-                "decomposition_type": "error",
-            }
-
-    def _calculate_predictability_from_tournament(
-        self, series: pd.Series, freq: str
-    ) -> Dict[str, Any]:
-        """
-        Dual-metric predictability analysis:
-        1. Hyndman score (model-independent, theoretical)
-        2. Forecasting gain (tournament-based, practical)
+        Edge cases:
+          - MSE_naive == 0  →  perfect naive forecast, data is a flat line → 100
+          - MSE_winner >= MSE_naive  →  max(0, ...) clamps to 0
         """
         if not self.tournament_results or not self.active_model:
             return {
@@ -1337,11 +1246,6 @@ class SmartForecastEngine:
                 "explanation": "No tournament results available.",
             }
 
-        # METRIC 1: Hyndman decomposition (model-independent)
-        hyndman_metrics = self._calculate_hyndman_score(series, freq)
-        hyndman_score = hyndman_metrics["hyndman_score"]
-
-        # METRIC 2: Tournament validation (model-specific)
         naive_result = next(
             (
                 r
@@ -1357,98 +1261,75 @@ class SmartForecastEngine:
 
         if not naive_result or not winner_result:
             return {
-                "score": hyndman_score,
+                "score": 0,
                 "rating": "Unknown",
                 "explanation": "Could not compare models.",
-                **hyndman_metrics,
             }
 
-        naive_mae = naive_result["mae"]
-        winner_mae = winner_result["mae"]
-        winner_complexity = winner_result["complexity"]
+        mse_naive = naive_result.get("mse", float("inf"))
+        mse_winner = winner_result.get("mse", float("inf"))
         winner_name = self.active_model.get_metadata().name
+        winner_complexity = winner_result["complexity"]
 
-        forecasting_gain = (
-            ((naive_mae - winner_mae) / naive_mae * 100) if naive_mae > 1e-6 else 0
+        # RMSE is already computed inside calculate_metrics() as sqrt(MSE).
+        # Derive it here from the stored MSE to avoid redundant computation.
+        rmse_naive = (
+            float(np.sqrt(mse_naive)) if np.isfinite(mse_naive) else float("inf")
+        )
+        rmse_winner = (
+            float(np.sqrt(mse_winner)) if np.isfinite(mse_winner) else float("inf")
         )
 
-        # COMBINED SCORING & INTERPRETATION
-        # Weight: 60% Hyndman (theoretical) + 40% Gain (practical)
-        combined_score = int(0.6 * hyndman_score + 0.4 * min(100, forecasting_gain * 2))
+        print(
+            f"LOG: FSS Calculation — RMSE_naive={rmse_naive:.4f}, RMSE_winner={rmse_winner:.4f}"
+        )
 
-        # SPECIAL CASES & EXPLANATIONS
-        is_ml_model = isinstance(self.active_model, RandomForestForecaster)
-
-        # Case 1: XGBoost/ML wins + Low Hyndman + High Gain = Non-linear patterns
-        if is_ml_model and hyndman_score < 35 and forecasting_gain > 25:
-            rating = "Medium (Non-Linear)"
-            explanation = (
-                f"Unusual patterns detected! Traditional decomposition found weak structure "
-                f"(Hyndman: {hyndman_score}/100), but {winner_name} achieved {forecasting_gain:.1f}% "
-                f"improvement over naive. Your data likely has complex, non-linear relationships "
-                f"or interaction effects that statistical models miss."
-            )
-            combined_score = max(
-                combined_score, 55
-            )  # Boost for finding hidden patterns
-
-        # Case 2: High Hyndman + High Gain = Perfect alignment
-        elif hyndman_score >= 70 and forecasting_gain >= 50:
-            rating = "High"
-            explanation = (
-                f"Excellent forecastability! Strong traditional patterns detected "
-                f"(Trend: {hyndman_metrics['trend_strength']}, Seasonality: {hyndman_metrics['seasonality_strength']}) "
-                f"and {winner_name} exploits them effectively ({forecasting_gain:.1f}% gain over naive)."
-            )
-
-        # Case 3: High Hyndman + Low Gain = Patterns exist but hard to exploit
-        elif hyndman_score >= 60 and forecasting_gain < 15:
-            rating = "Medium (Complex)"
-            explanation = (
-                f"Patterns detected but difficult to forecast. Decomposition shows structure "
-                f"({hyndman_score}/100), but models only achieve {forecasting_gain:.1f}% gain. "
-                f"Data may have chaotic dynamics or regime changes."
-            )
-
-        # Case 4: Low Hyndman + Low Gain = Random walk
-        elif hyndman_score < 30 and forecasting_gain < 10:
-            rating = "Low (Random)"
-            explanation = (
-                f"Random walk detected. Minimal traditional structure ({hyndman_score}/100) "
-                f"and {winner_name} barely beats naive ({forecasting_gain:.1f}% gain). "
-                f"Data is highly unpredictable."
-            )
-            combined_score = min(combined_score, 25)
-
-        # Case 5: Medium range
+        # Edge case: perfect naive (data is truly flat)
+        if mse_naive < 1e-10:
+            fss = 100
         else:
-            if combined_score >= 60:
-                rating = "Medium-High"
-            else:
-                rating = "Medium"
-            explanation = (
-                f"Moderate forecastability. Decomposition score: {hyndman_score}/100. "
-                f"Tournament winner ({winner_name}) improves {forecasting_gain:.1f}% over naive baseline."
-            )
+            raw = 1.0 - (mse_winner / mse_naive)
+            fss = int(round(max(0.0, raw) * 100))
 
-        # Special override: Naive wins
-        if isinstance(self.active_model, (NaiveForecaster, SeasonalNaiveForecaster)):
-            combined_score = min(combined_score, 25)
+        # Derive rating from score
+        if fss >= 70:
+            rating = "High"
+        elif fss >= 40:
+            rating = "Medium"
+        elif fss > 0:
+            rating = "Low"
+        else:
             rating = "Low (Random)"
+
+        # Build explanation
+        if fss == 0:
             explanation = (
-                f"Simplest model won ({winner_name}), confirming random walk behavior. "
-                f"Hyndman score: {hyndman_score}/100, Gain: {forecasting_gain:.1f}%."
+                f"The best model ({winner_name}) could not beat the naive baseline on "
+                f"the held-out validation set (RMSE_winner={rmse_winner:.4f} \u2265 "
+                f"RMSE_naive={rmse_naive:.4f}). "
+                f"This score of 0 indicates the data is functionally random or highly "
+                f"chaotic to standard models, resulting in a baseline forecast."
+            )
+        elif fss == 100:
+            explanation = (
+                f"Perfect forecastability: the naive baseline has zero error, "
+                f"meaning the series is a flat line. {winner_name} confirms this."
+            )
+        else:
+            explanation = (
+                f"{winner_name} reduces error by {fss}% compared to the naive baseline "
+                f"(RMSE_naive={rmse_naive:.4f} \u2192 RMSE_winner={rmse_winner:.4f}). "
+                f"The higher this score, the more predictable structure exists in your data."
             )
 
         return {
-            "score": min(100, max(0, combined_score)),
+            "score": fss,
             "rating": rating,
             "explanation": explanation,
-            "hyndman_score": hyndman_score,
-            "forecasting_gain_pct": round(forecasting_gain, 2),
-            "trend_strength": hyndman_metrics["trend_strength"],
-            "seasonality_strength": hyndman_metrics["seasonality_strength"],
-            "decomposition_type": hyndman_metrics["decomposition_type"],
+            "mse_naive": round(float(mse_naive), 6),
+            "mse_winner": round(float(mse_winner), 6),
+            "rmse_naive": round(rmse_naive, 4),
+            "rmse_winner": round(rmse_winner, 4),
             "winner_name": winner_name,
             "winner_complexity": winner_complexity,
         }
@@ -1467,27 +1348,8 @@ class SmartForecastEngine:
         # Always run the tournament for each forecast
         metrics = self.select_model(df, ontology)
 
-        # Extract series and frequency for predictability calculation
-        time_col = next(
-            c.column_name for c in ontology.columns if c.role == "time_index"
-        )
-        target_col = next(c.column_name for c in ontology.columns if c.role == "target")
-        series = df[target_col]
-
-        # Infer frequency from time column
-        try:
-            freq_str = pd.infer_freq(pd.to_datetime(df[time_col]))
-            if freq_str:
-                freq = freq_str[0].upper()  # D, W, M, Q, Y
-            else:
-                freq = "M"  # Default to monthly
-        except:
-            freq = "M"
-
-        # Calculate predictability after tournament
-        self.data_health_report = self._calculate_predictability_from_tournament(
-            series, freq
-        )
+        # Calculate FSS after tournament
+        self.data_health_report = self._calculate_fss()
 
         return metrics
 
@@ -1551,13 +1413,30 @@ class SmartForecastEngine:
             elif mae <= winner_mae * TOLERANCE:
                 status = "runner_up"
 
-            results.append(
-                {
-                    "model_name": model.get_metadata().name,
-                    "mae": mae,
-                    "complexity": model.complexity_score,
-                    "status": status,
-                    "metrics": [m.model_dump() for m in r["metrics"]],
-                }
+            # Read RMSE directly from the stored ForecastMetric objects —
+            # calculate_metrics() always emits RMSE; reading it here avoids the
+            # brittle mse→sqrt round-trip that was producing float('inf').
+            rmse_val = next(
+                (float(m.value) for m in r["metrics"] if m.name == "RMSE"),
+                None,
             )
+            # Derive MSE from RMSE (MSE = RMSE²) for the FSS tooltip display.
+            mse_val = (
+                round(rmse_val**2, 6)
+                if (rmse_val is not None and np.isfinite(rmse_val))
+                else None
+            )
+
+            row: Dict[str, Any] = {
+                "model_name": model.get_metadata().name,
+                "mae": mae,
+                "complexity": model.complexity_score,
+                "status": status,
+                "metrics": [m.model_dump() for m in r["metrics"]],
+            }
+            if rmse_val is not None and np.isfinite(rmse_val):
+                row["rmse"] = round(rmse_val, 4)
+            if mse_val is not None:
+                row["mse"] = mse_val
+            results.append(row)
         return results

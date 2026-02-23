@@ -117,11 +117,10 @@ export interface DataHealthReport {
   score: number
   rating: string
   explanation: string
-  hyndman_score?: number
-  forecasting_gain_pct?: number
-  trend_strength?: number
-  seasonality_strength?: number
-  decomposition_type?: string
+  mse_naive?: number
+  mse_winner?: number
+  rmse_naive?: number
+  rmse_winner?: number
   winner_name?: string
   winner_complexity?: number
 }
@@ -129,6 +128,8 @@ export interface DataHealthReport {
 export interface TournamentResult {
   model_name: string
   mae: number
+  mse?: number
+  rmse?: number
   complexity: number
   status: 'winner' | 'runner_up' | 'rejected'
   metrics: ForecastMetric[]
