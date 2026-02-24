@@ -4,7 +4,7 @@ import re
 import traceback
 from typing import Optional
 
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -224,18 +224,18 @@ class GeminiIntentAnalyzer:
 
         try:
             print("DEBUG: Configuring Gemini...")
-            genai.configure(api_key=api_key)
-            model = genai.GenerativeModel(
-                "gemini-2.5-flash",
-                generation_config={"response_mime_type": "application/json"},
-            )
+            client = genai.Client(api_key=api_key)
 
             print("DEBUG: Constructing prompt...")
             # Stage 1: LLM Inference
             prompt = self._construct_prompt(df.head(), user_prompt)
 
             print("DEBUG: Calling Gemini API...")
-            response = model.generate_content(prompt)
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config={"response_mime_type": "application/json"}
+            )
             print("DEBUG: Gemini response received.")
 
             ontology = ForecastOntology.model_validate_json(response.text)

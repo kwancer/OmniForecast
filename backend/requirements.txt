@@ -14,7 +14,7 @@ greenlet
 pytest
 ruff
 httpx
-google-generativeai
+google-genai
 psycopg2-binary
 xgboost
 pmdarima
