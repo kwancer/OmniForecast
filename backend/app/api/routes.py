@@ -1,17 +1,91 @@
+import asyncio
 import io
 import uuid
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.pipeline import get_pipeline
 from app.domain.data import ForecastResponse
 from app.domain.ontology import ForecastOntology
+from app.services.progress_tracker import get_progress_tracker
 from app.services.storage.database import ForecastSession, get_db
 
 router = APIRouter()
+
+
+@router.get("/forecast/progress/{session_id}")
+async def stream_forecast_progress(session_id: str):
+    """
+    Server-Sent Events endpoint that streams forecast progress updates.
+    
+    Args:
+        session_id: The forecast session ID to track
+    
+    Returns:
+        SSE stream with progress updates
+    """
+    tracker = get_progress_tracker()
+    
+    async def event_generator():
+        """Generate SSE events for forecast progress."""
+        try:
+            # Send initial state immediately
+            import json
+            initial_data = {
+                "current": 0,
+                "total": 0,
+                "model_name": "Initializing...",
+                "completed": False
+            }
+            yield f"data: {json.dumps(initial_data)}\n\n"
+            
+            last_state = None
+            while True:
+                progress = tracker.get_progress(session_id)
+                
+                if progress:
+                    # Create state tuple to detect any changes
+                    current_state = (progress.current, progress.total, progress.model_name, progress.completed)
+                    
+                    # Send update if state changed
+                    if current_state != last_state:
+                        # Format SSE message
+                        data = {
+                            "current": progress.current,
+                            "total": progress.total,
+                            "model_name": progress.model_name,
+                            "completed": progress.completed
+                        }
+                        
+                        # Send JSON data as SSE event
+                        yield f"data: {json.dumps(data)}\n\n"
+                        last_state = current_state
+                        
+                        # If completed, send final message and close
+                        if progress.completed:
+                            await asyncio.sleep(0.5)  # Allow client to receive final update
+                            break
+                
+                # Poll every 100ms for more responsive updates
+                await asyncio.sleep(0.1)
+                
+        except asyncio.CancelledError:
+            # Client disconnected
+            pass
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
 
 
 @router.post("/plan", response_model=ForecastOntology)
@@ -22,7 +96,7 @@ async def create_plan(
     Analyzes the uploaded file and user prompt to generate a Forecast Ontology (Plan).
     Persists the initial intent and ontology.
     """
-    if not file.filename.endswith(".csv"):
+    if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
 
     try:
@@ -82,11 +156,24 @@ async def generate_forecast(
         # Run Pipeline
         print("DEBUG: Running Pipeline...")
         pipeline = get_pipeline()
+        
+        # Set up progress tracking callback (only if session_id exists)
+        if session_id:
+            tracker = get_progress_tracker()
+            
+            def progress_callback(current: int, total: int, model_name: str):
+                """Callback that updates progress state."""
+                print(f"[Progress] Callback invoked: {current}/{total} - {model_name}")
+                tracker.update_progress(session_id, current, total, model_name)
+            
+            # Set the callback on the forecaster
+            pipeline.forecaster.set_progress_callback(progress_callback)
+            print(f"[Progress] Callback registered for session {session_id}")
 
         # FRUGAL OPTIMIZATION: Only run selection ONCE inside the pipeline.
         # pipeline.forecaster.select_model(df, ontology) -> REMOVED
 
-        response = pipeline.run_forecast(df, ontology)
+        response = await asyncio.to_thread(pipeline.run_forecast, df, ontology)
         print("DEBUG: Pipeline finished.")
 
         # CAPTURE SELECTED MODEL METADATA
@@ -103,13 +190,13 @@ async def generate_forecast(
                     .first()
                 )
                 if db_session:
-                    db_session.cleaning_report = response.cleaning_report.model_dump()
-                    db_session.forecast_results = response.forecast
-                    db_session.metrics = [m.model_dump() for m in response.metrics]
-                    db_session.explanation = response.explanation
+                    db_session.cleaning_report = response.cleaning_report.model_dump()  # type: ignore[assignment]
+                    db_session.forecast_results = response.forecast  # type: ignore[assignment]
+                    db_session.metrics = [m.model_dump() for m in response.metrics]  # type: ignore[assignment]
+                    db_session.explanation = response.explanation  # type: ignore[assignment]
 
                     # UPDATE ONTOLOGY with selected model
-                    db_session.ontology = ontology.model_dump()
+                    db_session.ontology = ontology.model_dump()  # type: ignore[assignment]
 
                     print("DEBUG: Committing to DB...")
                     db.commit()
@@ -126,7 +213,7 @@ async def generate_forecast(
 
     except ValidationError as e:
         print(f"DEBUG: ValidationError: {e}")
-        raise HTTPException(status_code=400, detail=f"Invalid Ontology: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid Ontology: {e}") from e
     except Exception as e:
         print(f"DEBUG: Unexpected error in /forecast: {e}")
         import traceback

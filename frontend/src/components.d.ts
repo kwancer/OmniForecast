@@ -26,6 +26,7 @@ declare module 'vue' {
     OntologySentence: typeof import('./components/forecast/OntologySentence.vue')['default']
     OntologyViewer: typeof import('./components/forecast/OntologyViewer.vue')['default']
     PlanStage: typeof import('./components/forecast/PlanStage.vue')['default']
+    ProgressView: typeof import('./components/forecast/ProgressView.vue')['default']
     ResultStage: typeof import('./components/forecast/ResultStage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']

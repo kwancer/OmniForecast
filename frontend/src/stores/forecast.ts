@@ -18,6 +18,12 @@ export const useForecastStore = defineStore('forecast', {
     modelMetadata: null as ModelMetadata | null,
     tournamentResults: [] as TournamentResult[],
     backtestData: [] as BacktestPoint[],
+    // Progress tracking
+    showProgress: false,
+    progressCurrent: 0,
+    progressTotal: 0,
+    progressCurrentModel: '',
+    progressCompleted: false,
   }),
 
   getters: {
@@ -90,6 +96,21 @@ export const useForecastStore = defineStore('forecast', {
 
       const appStore = useAppStore()
       this.loading = true
+      this.showProgress = true
+      this.progressCurrent = 0
+      this.progressTotal = 0
+      this.progressCurrentModel = 'Initializing...'
+      this.progressCompleted = false
+
+      console.log('[Forecast] Starting execution, showProgress:', this.showProgress)
+
+      // Start SSE connection for progress updates
+      const sessionId = this.ontology.session_id
+      console.log('[Forecast] Session ID:', sessionId)
+      if (sessionId) {
+        this.connectProgressStream(sessionId)
+      }
+
       try {
         const formData = new FormData()
         formData.append('file', this.file)
@@ -115,14 +136,50 @@ export const useForecastStore = defineStore('forecast', {
         this.dataHealthReport = data.data_health_report ?? null
         this.tournamentResults = data.tournament_results ?? []
         this.backtestData = data.backtest_data ?? []
-        // Move to cleaning step first to show what happened
+        
+        // Hide progress and move to cleaning step
+        this.showProgress = false
         this.step = 'cleaning'
         appStore.notify('Modelling sequence complete.', 'success')
       } catch (error: any) {
+        this.showProgress = false
         appStore.notify(error.message || 'Forecast failed', 'error')
       } finally {
         this.loading = false
       }
+    },
+
+    connectProgressStream (sessionId: string) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+      const eventSource = new EventSource(`${apiUrl}/forecast/progress/${sessionId}`)
+
+      console.log('[Progress] SSE connection started for session:', sessionId)
+
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data)
+          console.log('[Progress] Received update:', data)
+          this.progressCurrent = data.current
+          this.progressTotal = data.total
+          this.progressCurrentModel = data.model_name
+          this.progressCompleted = data.completed
+
+          if (data.completed) {
+            console.log('[Progress] Completed, closing SSE connection')
+            eventSource.close()
+          }
+        } catch (error) {
+          console.error('[Progress] Error parsing progress data:', error)
+        }
+      }
+
+      eventSource.onerror = (error) => {
+        console.error('[Progress] SSE connection error:', error)
+        eventSource.close()
+      }
+
+      // Store reference for cleanup
+      ;(this as any)._progressEventSource = eventSource
     },
 
     loadSampleData () {
@@ -150,6 +207,12 @@ export const useForecastStore = defineStore('forecast', {
     },
 
     reset () {
+      // Close any active SSE connection
+      if ((this as any)._progressEventSource) {
+        ;(this as any)._progressEventSource.close()
+        ;(this as any)._progressEventSource = null
+      }
+
       this.file = null
       this.intent = ''
       this.ontology = null
@@ -162,6 +225,11 @@ export const useForecastStore = defineStore('forecast', {
       this.modelMetadata = null
       this.tournamentResults = []
       this.backtestData = []
+      this.showProgress = false
+      this.progressCurrent = 0
+      this.progressTotal = 0
+      this.progressCurrentModel = ''
+      this.progressCompleted = false
     },
   },
 })

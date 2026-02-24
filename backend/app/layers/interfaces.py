@@ -1,4 +1,4 @@
-from typing import Any, List, Protocol, Tuple
+from typing import Any, Callable, List, Protocol, Tuple
 
 import pandas as pd
 
@@ -49,6 +49,17 @@ class ForecastEngine(Protocol):
     def select_model(self, ontology: ForecastOntology) -> None:
         """
         Selects the forecasting model based on the ontology.
+        """
+        ...
+
+    def set_progress_callback(
+        self, callback: Callable[[int, int, str], None] | None
+    ) -> None:
+        """
+        Sets a callback function to report progress during model tournament.
+        
+        Args:
+            callback: Function that takes (current, total, model_name) as arguments
         """
         ...
 

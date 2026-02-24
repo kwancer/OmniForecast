@@ -27,7 +27,26 @@
             </template>
           </div>
 
-          <v-window v-model="currentStepIndex" class="flex-grow-1" style="height: 100%" :touch="false">
+          <!-- Progress Overlay (shown when forecast is running) -->
+          <transition name="fade">
+            <div v-if="store.showProgress" class="flex-grow-1 fill-height">
+              <ProgressView
+                :completed="store.progressCompleted"
+                :current="store.progressCurrent"
+                :current-model="store.progressCurrentModel"
+                :total="store.progressTotal"
+              />
+            </div>
+          </transition>
+
+          <!-- Main Content Windows -->
+          <v-window
+            v-show="!store.showProgress"
+            v-model="currentStepIndex"
+            class="flex-grow-1"
+            style="height: 100%"
+            :touch="false"
+          >
             <v-window-item class="fill-height" value="1">
               <UploadStage v-if="currentStepIndex === '1'" />
             </v-window-item>
@@ -56,6 +75,7 @@
 
   import CleaningStage from './forecast/CleaningStage.vue'
   import PlanStage from './forecast/PlanStage.vue'
+  import ProgressView from './forecast/ProgressView.vue'
   import ResultStage from './forecast/ResultStage.vue'
   // Components
   import UploadStage from './forecast/UploadStage.vue'
@@ -82,3 +102,20 @@
     },
   })
 </script>
+
+<style scoped>
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: opacity 0.4s ease;
+  }
+
+  .fade-enter-from,
+  .fade-leave-to {
+    opacity: 0;
+  }
+
+  .fade-enter-to,
+  .fade-leave-from {
+    opacity: 1;
+  }
+</style>

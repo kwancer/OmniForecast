@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -25,6 +25,18 @@ class SmartForecastEngine:
         self.active_model: Optional[InternalForecaster] = None
         self.tournament_results: List[Dict] = []
         self.data_health_report: Dict[str, Any] = {}
+        self.progress_callback: Optional[Callable[[int, int, str], None]] = None
+
+    def set_progress_callback(
+        self, callback: Callable[[int, int, str], None]
+    ) -> None:
+        """
+        Set a callback function to report tournament progress.
+        
+        Args:
+            callback: Function that takes (current, total, model_name) as arguments
+        """
+        self.progress_callback = callback
 
     def select_model(
         self, df: pd.DataFrame, ontology: ForecastOntology
@@ -101,8 +113,18 @@ class SmartForecastEngine:
 
         # 3. Run Tournament
         results = []
+        total_models = len(candidates)
+        
+        print(f"[Tournament] Starting with {total_models} models, callback: {self.progress_callback is not None}")
 
-        for model in candidates:
+        for idx, model in enumerate(candidates):
+            model_name = model.get_metadata().name
+            
+            # Report progress at start
+            if self.progress_callback:
+                print(f"[Tournament] Reporting progress: {idx}/{total_models} - {model_name}")
+                self.progress_callback(idx, total_models, model_name)
+            
             try:
                 metrics = model.fit(df, ontology)
                 mae = next((m.value for m in metrics if m.name == "MAE"), float("inf"))
@@ -130,8 +152,18 @@ class SmartForecastEngine:
                 print(
                     f"LOG: {model.get_metadata().name} finished. MAE={mae:.4f}, MSE={mse:.4f}, Score={model.complexity_score}"
                 )
+                
+                # Report progress after completion
+                if self.progress_callback:
+                    print(f"[Tournament] Model completed: {idx + 1}/{total_models}")
+                    self.progress_callback(idx + 1, total_models, f"{model_name} ✓")
+                    
             except (ValueError, RuntimeError, TypeError) as e:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
+        
+        # Report completion
+        if self.progress_callback:
+            self.progress_callback(total_models, total_models, "Tournament Complete")
 
         # 4. Selection Logic (The Rashomon Set)
         valid_results = [r for r in results if np.isfinite(r["mae"]) and r["mae"] > 0.0]
