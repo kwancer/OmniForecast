@@ -98,6 +98,7 @@ export interface CleaningReport {
   initial_shape: number[]
   final_shape: number[]
   summary: string
+  cleaned_sample?: Record<string, any>[]
 }
 
 export interface ForecastResult {

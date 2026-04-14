@@ -142,6 +142,25 @@ class RuleBasedCleaner:
                 )
             )
 
+        # 0.5 Update ignored_columns to reflect stripped names if needed
+        cols_to_drop = []
+        if getattr(ontology, "ignored_columns", None):
+            cols_to_drop.extend([c.strip() for c in ontology.ignored_columns])
+        for col_def in ontology.columns:
+            if col_def.role == "ignore":
+                cols_to_drop.append(col_def.column_name.strip())
+
+        actual_drops = [c for c in set(cols_to_drop) if c in df.columns]
+        if actual_drops:
+            df = df.drop(columns=actual_drops)
+            actions.append(
+                CleaningAction(
+                    column=", ".join(actual_drops),
+                    action="column_dropping",
+                    description=f"Dropped {len(actual_drops)} column(s) marked as ignored.",
+                )
+            )
+
         # Reconcile Ontology with Cleaned DataFrame
         # If the LLM outputted "Column " (with space) but we have "Column" (stripped),
         # we update the ontology's column name to match the DataFrame.
@@ -360,6 +379,12 @@ class RuleBasedCleaner:
         df.index.name = time_col
         final_df = df.reset_index()
 
+        sample_df = final_df.head(15).copy()
+        for col in sample_df.columns:
+            if pd.api.types.is_datetime64_any_dtype(sample_df[col]):
+                sample_df[col] = sample_df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
+        cleaned_sample = sample_df.to_dict(orient="records")
+
         report = CleaningReport(
             actions=actions,
             initial_shape=initial_shape,
@@ -368,6 +393,7 @@ class RuleBasedCleaner:
                 f"Cleaned dataset. Performed {len(actions)} specific "
                 f"transformations to prepare for modeling."
             ),
+            cleaned_sample=cleaned_sample,
         )
 
         return final_df, report

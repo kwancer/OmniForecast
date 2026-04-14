@@ -47,14 +47,8 @@ export default defineConfig({
       },
     }),
     Fonts({
-      fontsource: {
-        families: [
-          {
-            name: 'Roboto',
-            weights: [100, 300, 400, 500, 700, 900],
-            styles: ['normal', 'italic'],
-          },
-        ],
+      google: {
+        families: ['Inter', 'Space Grotesk', 'JetBrains Mono'],
       },
     }),
   ],

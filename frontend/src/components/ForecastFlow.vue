@@ -7,23 +7,27 @@
           <div class="d-flex align-center flex-shrink-0 bg-surface border-b px-4 py-2 overflow-x-auto" style="min-height: 64px; gap: 8px">
             <template v-for="(step, i) in ['Data Upload', 'Mission Plan', 'Data Cleaning', 'Analytic Output']" :key="i">
               <div
-                class="d-flex align-center cursor-pointer"
-                :class="{'text-primary': Number(currentStepIndex) >= i + 1, 'text-medium-emphasis': Number(currentStepIndex) < i + 1}"
-                style="white-space: nowrap;"
+                class="d-flex align-center cursor-pointer hover-lift rounded-pill px-2 py-1"
+                :class="{
+                  'text-primary font-weight-bold': Number(currentStepIndex) === i + 1,
+                  'text-medium-emphasis': Number(currentStepIndex) !== i + 1,
+                  'opacity-60': Number(currentStepIndex) < i + 1
+                }"
+                style="white-space: nowrap; transition: all 0.3s ease;"
               >
                 <v-avatar
                   class="mr-2"
                   :color="Number(currentStepIndex) > i + 1 ? 'success' : (Number(currentStepIndex) === i + 1 ? 'primary' : 'grey')"
                   size="24"
-                  variant="tonal"
+                  :variant="Number(currentStepIndex) === i + 1 ? 'flat' : 'tonal'"
                 >
                   <v-icon v-if="Number(currentStepIndex) > i + 1" size="16">mdi-check</v-icon>
                   <span v-else class="text-caption font-weight-bold">{{ i + 1 }}</span>
                 </v-avatar>
-                <span class="text-caption font-weight-medium hidden-xs">{{ step }}</span>
-                <span v-if="Number(currentStepIndex) === i + 1" class="text-caption font-weight-medium d-sm-none">{{ step }}</span>
+                <span class="text-caption hidden-xs" :class="{'font-weight-bold': Number(currentStepIndex) === i + 1, 'font-weight-medium': Number(currentStepIndex) !== i + 1}">{{ step }}</span>
+                <span v-if="Number(currentStepIndex) === i + 1" class="text-caption font-weight-bold d-sm-none">{{ step }}</span>
               </div>
-              <v-divider v-if="i < 3" class="mx-2" style="height: 24px" vertical />
+              <v-divider v-if="i < 3" class="mx-2" style="height: 24px; opacity: 0.3;" vertical />
             </template>
           </div>
 

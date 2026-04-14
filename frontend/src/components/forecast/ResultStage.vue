@@ -1,129 +1,145 @@
 <template>
-  <v-container class="fill-height d-flex flex-column pa-2 pa-md-4">
-    <div class="d-flex align-center mb-4">
-      <v-btn icon="mdi-arrow-left" variant="text" @click="store.setStep('plan')" />
-      <h2 class="text-h5 font-header ml-2">Analytic Output</h2>
+  <v-container class="fill-height d-flex flex-column pa-0" fluid>
+    <div class="d-flex align-center px-4 py-4 w-100 bg-surface border-b">
+      <v-btn
+        class="hover-lift"
+        icon="mdi-arrow-left"
+        size="small"
+        variant="tonal"
+        @click="store.setStep('plan')"
+      />
+      <div class="ml-4">
+        <h2 class="text-h6 font-weight-bold font-header mb-0">Analytic Output</h2>
+      </div>
+      <v-spacer />
+
+      <div class="text-caption text-medium-emphasis mr-4 text-right hidden-sm-and-down">
+        Review final model results
+      </div>
+
+      <v-btn
+        class="ml-2 hover-lift font-weight-bold"
+        color="primary"
+        elevation="0"
+        variant="flat"
+        @click="store.reset()"
+      >
+        New Forecast
+        <v-icon end>mdi-refresh</v-icon>
+      </v-btn>
     </div>
 
-    <v-row class="flex-grow-1 overflow-y-auto">
+    <v-row class="flex-grow-1 ma-0 w-100 bg-background overflow-hidden">
+      <v-col class="h-100 overflow-y-auto pa-6 d-flex justify-center" cols="12">
+        <div style="max-width: 1200px; width: 100%;">
+          <v-row>
 
-      <v-col class="d-flex flex-column gap-4" cols="12" md="8">
+            <v-col class="d-flex flex-column gap-4" cols="12" md="8">
 
-        <!-- Data Health Card -->
-        <DataHealthCard :data-health-report="store.dataHealthReport" />
+              <!-- Data Health Card -->
+              <DataHealthCard :data-health-report="store.dataHealthReport" />
 
-        <div style="height: 450px; width: 100%;">
-          <ForecastChart />
-        </div>
-
-        <v-expansion-panels class="mt-4">
-          <!-- Tournament Analysis -->
-          <v-expansion-panel v-if="store.tournamentResults.length > 0">
-            <v-expansion-panel-title>
-              <v-icon color="success" size="small" start>mdi-comment-text-outline</v-icon>
-              Reasoning
-            </v-expansion-panel-title>
-            <v-expansion-panel-text>
-              <div class="d-flex flex-column gap-6 pa-2">
-                <BacktestChart v-if="store.backtestData.length > 0" :data="store.backtestData" />
-                <ModelTournament :results="store.tournamentResults" />
+              <div style="height: 450px; width: 100%;">
+                <ForecastChart />
               </div>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
 
-          <!-- Raw Data -->
-          <v-expansion-panel>
-            <v-expansion-panel-title>
-              <v-icon color="primary" size="small" start>mdi-table</v-icon>
-              View Raw Forecast Data
-            </v-expansion-panel-title>
-            <v-expansion-panel-text>
-              <v-table density="compact" fixed-header height="350px">
-                <thead>
-                  <tr>
-                    <th class="text-left">Date</th>
-                    <th class="text-right">Lower (80%)</th>
-                    <th class="text-right">Median</th>
-                    <th class="text-right">Upper (80%)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, i) in store.forecastResults" :key="i">
-                    <td class="font-mono">{{ formatDate(row.date || row.year || row[store.timeCol]) }}</td>
-                    <td class="font-mono text-right text-medium-emphasis">
-                      {{ formatValue(row.conf_80_lower ?? row.lower) }}
-                    </td>
-                    <td class="font-mono text-right font-weight-bold text-primary">
-                      {{ formatValue(row.median_forecast ?? row.mean ?? row[store.targetCol]) }}
-                    </td>
-                    <td class="font-mono text-right text-medium-emphasis">
-                      {{ formatValue(row.conf_80_upper ?? row.upper) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </v-table>
-            </v-expansion-panel-text>
-          </v-expansion-panel>
-        </v-expansion-panels>
+              <v-expansion-panels class="mt-4">
+                <!-- Tournament Analysis -->
+                <v-expansion-panel v-if="store.tournamentResults.length > 0">
+                  <v-expansion-panel-title>
+                    <v-icon color="success" size="small" start>mdi-comment-text-outline</v-icon>
+                    Reasoning
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <div class="d-flex flex-column gap-6 pa-2">
+                      <BacktestChart v-if="store.backtestData.length > 0" :data="store.backtestData" />
+                      <ModelTournament :results="store.tournamentResults" />
+                    </div>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
 
-      </v-col>
+                <!-- Raw Data -->
+                <v-expansion-panel>
+                  <v-expansion-panel-title>
+                    <v-icon color="primary" size="small" start>mdi-table</v-icon>
+                    View Raw Forecast Data
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-table density="compact" fixed-header height="350px">
+                      <thead>
+                        <tr>
+                          <th class="text-left">Date</th>
+                          <th class="text-right">Lower (80%)</th>
+                          <th class="text-right">Median</th>
+                          <th class="text-right">Upper (80%)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="(row, i) in store.forecastResults" :key="i">
+                          <td class="font-mono">{{ formatDate(row.date || row.year || row[store.timeCol]) }}</td>
+                          <td class="font-mono text-right text-medium-emphasis">
+                            {{ formatValue(row.conf_80_lower ?? row.lower) }}
+                          </td>
+                          <td class="font-mono text-right font-weight-bold text-primary">
+                            {{ formatValue(row.median_forecast ?? row.mean ?? row[store.targetCol]) }}
+                          </td>
+                          <td class="font-mono text-right text-medium-emphasis">
+                            {{ formatValue(row.conf_80_upper ?? row.upper) }}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </v-table>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+              </v-expansion-panels>
 
-      <v-col cols="12" md="4">
-
-        <v-card class="pa-4 mb-4 bg-surface" variant="outlined">
-          <div class="d-flex align-center mb-2">
-            <div class="text-overline">Reliability Metrics</div>
-          </div>
-          <v-row dense>
-            <v-col v-for="metric in displayMetrics" :key="metric.name" cols="6">
-              <div class="text-caption text-medium-emphasis text-truncate">{{ getMetricLabel(metric.name) }}</div>
-              <div class="text-subtitle-2 font-weight-bold font-mono">{{ formatMetricValue(metric) }}</div>
             </v-col>
-          </v-row>
-        </v-card>
 
-        <v-card class="pa-4 mb-4" color="secondary" variant="tonal">
-          <div class="d-flex align-center mb-2">
-            <v-icon class="mr-2" icon="mdi-shield-check-outline" />
-            <span class="font-weight-bold">Executive Summary</span>
-          </div>
-          <p class="text-body-2" style="white-space: pre-line;">{{ formattedExplanation }}</p>
-        </v-card>
+            <v-col cols="12" md="4">
 
-        <v-card v-if="store.modelMetadata" class="pa-4 mb-4" color="accent" variant="tonal">
-          <div class="d-flex align-center mb-2">
-            <v-icon class="mr-2" icon="mdi-brain" />
-            <span class="font-weight-bold">Selected Model: {{ store.modelMetadata.name }}</span>
-          </div>
-          <p class="text-body-2 mb-2">{{ store.modelMetadata.description }}</p>
-          <p class="text-body-2 text-medium-emphasis font-italic mb-2">Why? {{ store.modelMetadata.rationale }}</p>
-          <v-btn
-            v-if="store.modelMetadata.educational_video_url"
-            color="primary"
-            :href="store.modelMetadata.educational_video_url"
-            prepend-icon="mdi-youtube"
-            size="small"
-            target="_blank"
-            variant="outlined"
-          >
-            Learn More
-          </v-btn>
-        </v-card>
+              <v-card class="pa-4 mb-4 bg-surface" variant="outlined">
+                <div class="d-flex align-center mb-2">
+                  <div class="text-overline">Reliability Metrics</div>
+                </div>
+                <v-row dense>
+                  <v-col v-for="metric in displayMetrics" :key="metric.name" cols="6">
+                    <div class="text-caption text-medium-emphasis text-truncate">{{ getMetricLabel(metric.name) }}</div>
+                    <div class="text-subtitle-2 font-weight-bold font-mono">{{ formatMetricValue(metric) }}</div>
+                  </v-col>
+                </v-row>
+              </v-card>
 
-        <v-divider class="mb-4" />
+              <v-card class="pa-4 mb-4" color="secondary" variant="tonal">
+                <div class="d-flex align-center mb-2">
+                  <v-icon class="mr-2" icon="mdi-shield-check-outline" />
+                  <span class="font-weight-bold">Executive Summary</span>
+                </div>
+                <p class="text-body-2" style="white-space: pre-line;">{{ formattedExplanation }}</p>
+              </v-card>
 
-        <v-btn
-          block
-          color="primary"
-          elevation="2"
-          size="x-large"
-          @click="store.reset()"
-        >
-          New Forecast
-          <v-icon end>mdi-refresh</v-icon>
-        </v-btn>
+              <v-card v-if="store.modelMetadata" class="pa-4 mb-4" color="accent" variant="tonal">
+                <div class="d-flex align-center mb-2">
+                  <v-icon class="mr-2" icon="mdi-brain" />
+                  <span class="font-weight-bold">Selected Model: {{ store.modelMetadata.name }}</span>
+                </div>
+                <p class="text-body-2 mb-2">{{ store.modelMetadata.description }}</p>
+                <p class="text-body-2 text-medium-emphasis font-italic mb-2">Why? {{ store.modelMetadata.rationale }}</p>
+                <v-btn
+                  v-if="store.modelMetadata.educational_video_url"
+                  color="primary"
+                  :href="store.modelMetadata.educational_video_url"
+                  prepend-icon="mdi-youtube"
+                  size="small"
+                  target="_blank"
+                  variant="outlined"
+                >
+                  Learn More
+                </v-btn>
+              </v-card>
+
+            </v-col></v-row>
+        </div>
       </v-col>
-
     </v-row>
   </v-container>
 </template>

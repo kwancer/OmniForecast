@@ -21,6 +21,7 @@ declare module 'vue' {
     DataXRay: typeof import('./components/forecast/DataXRay.vue')['default']
     ForecastChart: typeof import('./components/forecast/ForecastChart.vue')['default']
     ForecastFlow: typeof import('./components/ForecastFlow.vue')['default']
+    IntentProgressView: typeof import('./components/forecast/IntentProgressView.vue')['default']
     ModelTournament: typeof import('./components/forecast/ModelTournament.vue')['default']
     NotificationHost: typeof import('./components/NotificationHost.vue')['default']
     OntologySentence: typeof import('./components/forecast/OntologySentence.vue')['default']

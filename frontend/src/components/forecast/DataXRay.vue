@@ -12,7 +12,7 @@
       </v-expansion-panel-title>
 
       <v-expansion-panel-text>
-        <v-row class="mb-6 mt-2">
+        <v-row class="mb-2 mt-2">
           <v-col cols="12" md="4">
             <div class="text-caption text-medium-emphasis mb-1">Data Completeness</div>
             <div class="d-flex align-center">
@@ -43,96 +43,38 @@
           </v-col>
         </v-row>
 
-        <v-divider class="mb-6" />
+        <v-divider class="mb-4 mt-2" />
 
-        <div class="text-overline mb-4">Structure Analysis (First 5 Rows)</div>
-
-        <v-row class="align-stretch" dense>
-
-          <v-col cols="12" md="3">
-            <v-card class="h-100 d-flex flex-column border-secondary-light" variant="outlined">
-              <div class="pa-3 bg-grey-lighten-4 border-b">
-                <div class="text-subtitle-2 font-weight-bold text-medium-emphasis d-flex align-center">
-                  <v-icon size="small" start>mdi-clock-outline</v-icon>
-                  TIMELINE
-                </div>
-              </div>
-              <v-table class="bg-transparent flex-grow-1" density="compact">
-                <thead>
-                  <th class="text-left pt-2">
-                    {{ timeCol?.display_name || timeCol?.column_name || 'Index' }}
-                  </th>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, i) in sampleRows" :key="i">
-                    <td class="font-mono text-caption">{{ formatVal(row[timeCol?.column_name || '']) }}</td>
-                  </tr>
-                </tbody>
-              </v-table>
-            </v-card>
-          </v-col>
-
-          <v-col cols="12" :md="featureCols.length > 0 ? 6 : 1">
-            <v-card v-if="featureCols.length > 0" class="h-100 d-flex flex-column border-info-light" variant="outlined">
-              <div class="pa-3 bg-blue-grey-lighten-5 border-b">
-                <div class="text-subtitle-2 font-weight-bold text-info-darken-2 d-flex align-center">
-                  <v-icon size="small" start>mdi-table-column-plus-after</v-icon>
-                  PREDICTORS (COVARIATES)
-                </div>
-              </div>
-              <div class="overflow-x-auto">
-                <v-table class="bg-transparent" density="compact">
-                  <thead>
-                    <tr>
-                      <th v-for="col in featureCols" :key="col.column_name" class="text-left pt-2 text-no-wrap">
-                        {{ col.display_name || col.column_name }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, i) in sampleRows" :key="i">
-                      <td v-for="col in featureCols" :key="col.column_name" class="font-mono text-caption text-no-wrap">
-                        {{ formatVal(row[col.column_name]) }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
-              </div>
-            </v-card>
-
-            <div v-else class="h-100 d-flex align-center justify-center border rounded border-dashed text-medium-emphasis text-caption pa-4 text-center">
-              No additional predictors found.<br>Forecasting using history only.
-            </div>
-          </v-col>
-
-          <v-col class="d-flex align-center justify-center" cols="12" md="1">
-            <v-icon color="medium-emphasis" size="large">mdi-arrow-right-thick</v-icon>
-          </v-col>
-
-          <v-col cols="12" md="2">
-            <v-card class="h-100 d-flex flex-column border-primary" style="border-width: 2px !important;" variant="outlined">
-              <div class="pa-3 bg-blue-lighten-5 border-b">
-                <div class="text-subtitle-2 font-weight-bold text-primary d-flex align-center">
-                  <v-icon size="small" start>mdi-target</v-icon>
-                  TARGET
-                </div>
-              </div>
-              <v-table class="bg-transparent flex-grow-1" density="compact">
-                <thead>
-                  <th class="text-left pt-2 font-weight-bold">
-                    {{ targetCol?.display_name || targetCol?.column_name }}
-                  </th>
-                </thead>
-                <tbody>
-                  <tr v-for="(row, i) in sampleRows" :key="i">
-                    <td class="font-mono text-caption font-weight-bold text-primary">{{ formatVal(row[targetCol?.column_name || '']) }}</td>
-                  </tr>
-                </tbody>
-              </v-table>
-            </v-card>
-          </v-col>
-
-        </v-row>
+        <!-- Column details table -->
+        <div class="text-overline mb-3">Column Metadata</div>
+        <v-table class="bg-transparent text-caption" density="compact">
+          <thead>
+            <tr>
+              <th class="text-left">Column</th>
+              <th class="text-left">Role</th>
+              <th class="text-left">Data Type</th>
+              <th class="text-left hidden-sm-and-down">Covariate Type</th>
+              <th class="text-left hidden-sm-and-down">Resampling</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="col in ontology.columns" :key="col.column_name" :class="{ 'opacity-40': col.role === 'ignore' }">
+              <td class="font-weight-bold font-mono">{{ col.display_name || col.column_name }}</td>
+              <td>
+                <v-chip
+                  :color="getRoleColor(col.role)"
+                  size="x-small"
+                  :variant="col.role === 'ignore' ? 'outlined' : 'flat'"
+                >
+                  {{ col.role.replace('_', ' ').toUpperCase() }}
+                </v-chip>
+              </td>
+              <td class="text-capitalize">{{ col.data_type }}</td>
+              <td class="hidden-sm-and-down text-capitalize">{{ col.covariate_type || '—' }}</td>
+              <td class="hidden-sm-and-down text-capitalize">{{ col.resampling_method || '—' }}</td>
+            </tr>
+          </tbody>
+        </v-table>
 
       </v-expansion-panel-text>
     </v-expansion-panel>
@@ -140,29 +82,12 @@
 </template>
 
 <script setup lang="ts">
-  import type { ForecastOntology } from '@/types'
+  import type { ColumnRole, ForecastOntology } from '@/types'
   import { computed } from 'vue'
 
   const props = defineProps<{
     ontology: ForecastOntology
   }>()
-
-  // --- HELPERS FOR THE VIEW ---
-
-  const timeCol = computed(() => props.ontology.columns.find(c => c.role === 'time_index'))
-  const targetCol = computed(() => props.ontology.columns.find(c => c.role === 'target'))
-
-  // Get all columns that are NOT time, target, or ignored
-  const featureCols = computed(() =>
-    props.ontology.columns.filter(c =>
-      !['time_index', 'target', 'ignore'].includes(c.role),
-    ),
-  )
-
-  const sampleRows = computed(() => {
-    // If backend provides data, use it. Otherwise, return empty array (or mock data if strictly needed)
-    return props.ontology.sample_data || []
-  })
 
   const sparsityPercent = computed(() => {
     const target = props.ontology.columns.find(c => c.role === 'target')
@@ -170,22 +95,26 @@
     return ratio * 100
   })
 
-  function formatVal (val: any) {
-    if (val === null || val === undefined) return '-'
-    if (typeof val === 'number') return Number.isInteger(val) ? val : val.toFixed(2)
-    if (typeof val === 'string' && val.length > 15) return val.slice(0, 12) + '...'
-    return val
+  function getRoleColor (role: ColumnRole): string {
+    switch (role) {
+      case 'target': { return 'primary'
+      }
+      case 'time_index': { return 'secondary'
+      }
+      case 'group_id': { return 'warning'
+      }
+      case 'covariate': { return 'info'
+      }
+      case 'ignore': { return 'grey'
+      }
+      default: { return 'grey'
+      }
+    }
   }
 </script>
 
 <style scoped>
 .font-mono {
   font-family: 'Roboto Mono', monospace;
-}
-.border-dashed {
-  border-style: dashed !important;
-}
-.border-primary {
-  border-color: rgb(var(--v-theme-primary)) !important;
 }
 </style>

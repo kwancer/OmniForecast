@@ -14,6 +14,7 @@ class CleaningReport(BaseModel):
     initial_shape: List[int]
     final_shape: List[int]
     summary: str
+    cleaned_sample: Optional[List[Dict[str, Any]]] = None
 
 
 class ForecastMetric(BaseModel):
