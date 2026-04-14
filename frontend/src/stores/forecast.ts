@@ -136,7 +136,7 @@ export const useForecastStore = defineStore('forecast', {
         this.dataHealthReport = data.data_health_report ?? null
         this.tournamentResults = data.tournament_results ?? []
         this.backtestData = data.backtest_data ?? []
-        
+
         // Hide progress and move to cleaning step
         this.showProgress = false
         this.step = 'cleaning'
@@ -155,7 +155,7 @@ export const useForecastStore = defineStore('forecast', {
 
       console.log('[Progress] SSE connection started for session:', sessionId)
 
-      eventSource.onmessage = (event) => {
+      eventSource.addEventListener('message', event => {
         try {
           const data = JSON.parse(event.data)
           console.log('[Progress] Received update:', data)
@@ -171,12 +171,12 @@ export const useForecastStore = defineStore('forecast', {
         } catch (error) {
           console.error('[Progress] Error parsing progress data:', error)
         }
-      }
+      })
 
-      eventSource.onerror = (error) => {
+      eventSource.addEventListener('error', error => {
         console.error('[Progress] SSE connection error:', error)
         eventSource.close()
-      }
+      })
 
       // Store reference for cleanup
       ;(this as any)._progressEventSource = eventSource

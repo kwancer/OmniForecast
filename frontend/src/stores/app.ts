@@ -4,7 +4,7 @@ import { defineStore } from 'pinia'
 export const useAppStore = defineStore('app', {
   state: () => ({
     notifications: [] as AppNotification[],
-    theme: 'dark' as 'light' | 'dark',
+    theme: 'light' as 'light' | 'dark',
   }),
 
   actions: {
