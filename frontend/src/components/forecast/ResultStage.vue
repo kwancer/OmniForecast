@@ -34,24 +34,31 @@
         <div style="max-width: 1200px; width: 100%;">
           <v-row>
 
-            <v-col class="d-flex flex-column gap-4" cols="12" md="8">
+            <!-- ═══ LEFT: Charts & Data ═══ -->
+            <v-col class="d-flex flex-column" cols="12" md="8" style="gap: 20px;">
 
               <!-- Data Health Card -->
               <DataHealthCard :data-health-report="store.dataHealthReport" />
 
-              <div style="height: 450px; width: 100%;">
+              <!-- Forecast Chart -->
+              <div class="chart-container" style="height: 450px; width: 100%;">
                 <ForecastChart />
               </div>
 
-              <v-expansion-panels class="mt-4">
+              <!-- Expandable Panels -->
+              <v-expansion-panels class="styled-panels" variant="accordion">
                 <!-- Tournament Analysis -->
-                <v-expansion-panel v-if="store.tournamentResults.length > 0">
-                  <v-expansion-panel-title>
-                    <v-icon color="success" size="small" start>mdi-comment-text-outline</v-icon>
-                    Reasoning
+                <v-expansion-panel v-if="store.tournamentResults.length > 0" rounded="lg">
+                  <v-expansion-panel-title class="font-weight-bold">
+                    <div class="d-flex align-center">
+                      <div class="panel-icon panel-icon--success mr-3">
+                        <v-icon color="white" size="16">mdi-comment-text-outline</v-icon>
+                      </div>
+                      Reasoning & Model Tournament
+                    </div>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
-                    <div class="d-flex flex-column gap-6 pa-2">
+                    <div class="d-flex flex-column pa-2" style="gap: 24px;">
                       <BacktestChart v-if="store.backtestData.length > 0" :data="store.backtestData" />
                       <ModelTournament :results="store.tournamentResults" />
                     </div>
@@ -59,10 +66,14 @@
                 </v-expansion-panel>
 
                 <!-- Raw Data -->
-                <v-expansion-panel>
-                  <v-expansion-panel-title>
-                    <v-icon color="primary" size="small" start>mdi-table</v-icon>
-                    View Raw Forecast Data
+                <v-expansion-panel rounded="lg">
+                  <v-expansion-panel-title class="font-weight-bold">
+                    <div class="d-flex align-center">
+                      <div class="panel-icon panel-icon--primary mr-3">
+                        <v-icon color="white" size="16">mdi-table</v-icon>
+                      </div>
+                      View Raw Forecast Data
+                    </div>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
                     <v-table density="compact" fixed-header height="350px">
@@ -95,35 +106,49 @@
 
             </v-col>
 
+            <!-- ═══ RIGHT: Sidebar Insights ═══ -->
             <v-col cols="12" md="4">
 
-              <v-card class="pa-4 mb-4 bg-surface" variant="outlined">
-                <div class="d-flex align-center mb-2">
-                  <div class="text-overline">Reliability Metrics</div>
+              <!-- Reliability Metrics -->
+              <div class="insight-card mb-5">
+                <div class="insight-card__header">
+                  <div class="panel-icon panel-icon--primary mr-3">
+                    <v-icon color="white" size="16">mdi-chart-bar</v-icon>
+                  </div>
+                  <span class="text-overline font-weight-bold">Reliability Metrics</span>
                 </div>
-                <v-row dense>
+                <v-row class="mt-3" dense>
                   <v-col v-for="metric in displayMetrics" :key="metric.name" cols="6">
-                    <div class="text-caption text-medium-emphasis text-truncate">{{ getMetricLabel(metric.name) }}</div>
-                    <div class="text-subtitle-2 font-weight-bold font-mono">{{ formatMetricValue(metric) }}</div>
+                    <div class="metric-tile">
+                      <div class="metric-tile__value">{{ formatMetricValue(metric) }}</div>
+                      <div class="metric-tile__label">{{ getMetricLabel(metric.name) }}</div>
+                    </div>
                   </v-col>
                 </v-row>
-              </v-card>
+              </div>
 
-              <v-card class="pa-4 mb-4" color="secondary" variant="tonal">
-                <div class="d-flex align-center mb-2">
-                  <v-icon class="mr-2" icon="mdi-shield-check-outline" />
+              <!-- Executive Summary -->
+              <div class="insight-card insight-card--secondary mb-5">
+                <div class="insight-card__header">
+                  <div class="panel-icon panel-icon--secondary mr-3">
+                    <v-icon color="white" size="16">mdi-shield-check-outline</v-icon>
+                  </div>
                   <span class="font-weight-bold">Executive Summary</span>
                 </div>
-                <p class="text-body-2" style="white-space: pre-line;">{{ formattedExplanation }}</p>
-              </v-card>
+                <p class="text-body-2 mt-3 mb-0" style="white-space: pre-line; line-height: 1.6;">{{ formattedExplanation }}</p>
+              </div>
 
-              <v-card v-if="store.modelMetadata" class="pa-4 mb-4" color="accent" variant="tonal">
-                <div class="d-flex align-center mb-2">
-                  <v-icon class="mr-2" icon="mdi-brain" />
-                  <span class="font-weight-bold">Selected Model: {{ store.modelMetadata.name }}</span>
+              <!-- Selected Model -->
+              <div v-if="store.modelMetadata" class="insight-card insight-card--violet mb-5">
+                <div class="insight-card__header">
+                  <div class="panel-icon panel-icon--primary mr-3">
+                    <v-icon color="white" size="16">mdi-brain</v-icon>
+                  </div>
+                  <span class="font-weight-bold">Selected Model</span>
+                  <v-chip class="ml-2" color="primary" size="x-small" variant="flat">{{ store.modelMetadata.name }}</v-chip>
                 </div>
-                <p class="text-body-2 mb-2">{{ store.modelMetadata.description }}</p>
-                <p class="text-body-2 text-medium-emphasis font-italic mb-2">Why? {{ store.modelMetadata.rationale }}</p>
+                <p class="text-body-2 mt-3 mb-2">{{ store.modelMetadata.description }}</p>
+                <p class="text-body-2 text-medium-emphasis font-italic mb-3">Why? {{ store.modelMetadata.rationale }}</p>
                 <v-btn
                   v-if="store.modelMetadata.educational_video_url"
                   color="primary"
@@ -135,7 +160,7 @@
                 >
                   Learn More
                 </v-btn>
-              </v-card>
+              </div>
 
             </v-col></v-row>
         </div>
@@ -231,10 +256,120 @@
 </script>
 
 <style scoped>
-.gap-4 {
-  gap: 16px;
-}
 .font-mono {
-  font-family: 'Roboto Mono', monospace;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+}
+
+/* ─── Chart Container ─── */
+.chart-container {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(var(--v-theme-primary), 0.08);
+  background: rgb(var(--v-theme-surface));
+}
+
+/* ─── Panel Icon Badges ─── */
+.panel-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.panel-icon--primary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-primary)), rgba(var(--v-theme-primary), 0.7));
+}
+
+.panel-icon--secondary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
+}
+
+.panel-icon--success {
+  background: linear-gradient(135deg, rgb(var(--v-theme-success)), rgba(var(--v-theme-success), 0.7));
+}
+
+/* ─── Expansion Panels ─── */
+.styled-panels {
+  gap: 8px;
+}
+
+.styled-panels :deep(.v-expansion-panel) {
+  border: 1px solid rgba(var(--v-theme-primary), 0.08) !important;
+  border-radius: 12px !important;
+  margin-bottom: 8px;
+}
+
+.styled-panels :deep(.v-expansion-panel::before) {
+  box-shadow: none !important;
+}
+
+.styled-panels :deep(.v-expansion-panel-title) {
+  font-size: 0.9rem;
+}
+
+/* ─── Insight Cards (sidebar) ─── */
+.insight-card {
+  background: rgba(var(--v-theme-primary), 0.03);
+  border: 1px solid rgba(var(--v-theme-primary), 0.08);
+  border-radius: 16px;
+  padding: 20px;
+  transition: border-color 0.3s ease;
+}
+
+.insight-card:hover {
+  border-color: rgba(var(--v-theme-primary), 0.15);
+}
+
+.insight-card--secondary {
+  background: rgba(var(--v-theme-secondary), 0.04);
+  border-color: rgba(var(--v-theme-secondary), 0.1);
+}
+
+.insight-card--secondary:hover {
+  border-color: rgba(var(--v-theme-secondary), 0.2);
+}
+
+.insight-card--violet {
+  background: rgba(var(--v-theme-primary), 0.04);
+  border-color: rgba(var(--v-theme-primary), 0.1);
+}
+
+.insight-card__header {
+  display: flex;
+  align-items: center;
+}
+
+/* ─── Metric Tiles ─── */
+.metric-tile {
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(var(--v-theme-primary), 0.04);
+  border: 1px solid rgba(var(--v-theme-primary), 0.06);
+  text-align: center;
+  transition: all 0.25s ease;
+}
+
+.metric-tile:hover {
+  border-color: rgba(var(--v-theme-primary), 0.15);
+  transform: translateY(-1px);
+}
+
+.metric-tile__value {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.15rem;
+  color: rgb(var(--v-theme-primary));
+}
+
+.metric-tile__label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  margin-top: 4px;
+  font-weight: 500;
 }
 </style>

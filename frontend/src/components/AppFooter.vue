@@ -7,7 +7,7 @@
     style="background-color: transparent;"
   >
     <div class="d-flex align-center">
-      <span>&copy; {{ new Date().getFullYear() }} — OmniForecast</span>
+      <span>&copy; {{ new Date().getFullYear() }} — AskForecast</span>
       <v-divider class="mx-3" vertical />
       <router-link class="text-decoration-none text-medium-emphasis hover-lift d-inline-block" to="/help">Help</router-link>
       <v-divider class="mx-3" vertical />

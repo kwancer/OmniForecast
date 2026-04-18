@@ -19,47 +19,57 @@ export default createVuetify({
       light: {
         dark: false,
         colors: {
-          'primary': '#4F46E5', // Indigo
-          'secondary': '#0D9488', // Teal
-          'surface': '#FFFFFF',
+          'primary': '#6366F1', // Neural Violet — AI/Intent Layer
+          'secondary': '#F97316', // Signal Orange — Forecast/Action
+          'surface': '#FFFFFF', // Paper White — Clarity
           'background': '#FAFAFA',
-          'surface-light': '#F3F4F6', // Lighter background
+          'surface-light': '#F1F0FB', // Violet-tinted light surface
+          'on-background': '#0F172A', // Void Slate text
+          'on-surface': '#0F172A', // Void Slate text
           'error': '#EF4444',
-          'info': '#3B82F6',
+          'info': '#6366F1', // Neural Violet for info
           'success': '#10B981',
-          'warning': '#F59E0B',
+          'warning': '#F97316', // Signal Orange
+          'void-slate': '#0F172A',
+          'signal-orange': '#F97316',
+          'neural-violet': '#6366F1',
         },
       },
       dark: {
         dark: true,
         colors: {
-          'primary': '#6366F1', // Indigo a bit lighter
-          'secondary': '#14B8A6', // Vibrant Teal
-          'surface': '#18181B', // Zinc-900
-          'background': '#09090B', // Zinc-950
-          'surface-light': '#27272A', // Zinc-800
+          'primary': '#818CF8', // Neural Violet — brighter for dark bg
+          'secondary': '#FB923C', // Signal Orange — brighter for dark bg
+          'surface': '#1E293B', // Slate-800
+          'background': '#0F172A', // Void Slate — calm authority
+          'surface-light': '#334155', // Slate-700
+          'on-background': '#F1F5F9',
+          'on-surface': '#F1F5F9',
           'error': '#F87171',
-          'info': '#60A5FA',
+          'info': '#818CF8', // Neural Violet
           'success': '#34D399',
-          'warning': '#FBBF24',
+          'warning': '#FB923C', // Signal Orange
+          'void-slate': '#0F172A',
+          'signal-orange': '#FB923C',
+          'neural-violet': '#818CF8',
         },
       },
     },
   },
   defaults: {
     VApp: {
-      class: 'font-body', // Hook to our main font implicitly or relying on SASS
+      class: 'font-body',
     },
     VCard: {
       rounded: 'xl',
       border: true,
       elevation: 0,
-      class: 'border-opacity-50 border-s-sm border-s-white', // Slight glass touch
+      class: 'border-opacity-50 border-s-sm border-s-white',
     },
     VBtn: {
       variant: 'flat',
       rounded: 'lg',
-      class: 'font-weight-bold text-none', // Removes uppercase text standard
+      class: 'font-weight-bold text-none',
     },
     VTextField: {
       variant: 'outlined',

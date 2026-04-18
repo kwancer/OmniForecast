@@ -40,17 +40,21 @@
 
     <v-row class="flex-grow-1 ma-0 w-100 bg-background overflow-hidden">
       <v-col class="h-100 overflow-y-auto pa-6 d-flex justify-center" cols="12">
-        <div style="max-width: 1000px; width: 100%;">
+        <div style="max-width: 860px; width: 100%;">
 
-          <div class="text-center mb-8 mt-2">
-            <h1 class="text-h3 font-weight-bold font-header">What would you like to forecast?</h1>
-            <p class="text-body-1 text-medium-emphasis mt-2">Just upload your CSV data and explain below.</p>
+          <!-- Hero Heading -->
+          <div class="text-center mb-8 mt-4">
+            <h1 class="text-h3 font-weight-bold font-header hero-heading">What would you like to forecast?</h1>
+            <p class="text-body-1 text-medium-emphasis mt-3" style="max-width: 520px; margin: 0 auto;">
+              Upload your time-series data and describe your goal — we handle the rest.
+            </p>
           </div>
 
+          <!-- Platform Briefing -->
           <div class="platform-briefing mb-8">
             <div class="d-flex align-center justify-space-between px-4 py-2">
               <div class="d-flex align-center">
-                <v-icon class="mr-3" color="primary" icon="mdi-information-outline" size="18" />
+                <v-icon class="mr-3" color="primary" icon="mdi-shield-check-outline" size="18" />
                 <span class="text-caption font-weight-medium text-medium-emphasis">
                   We use AI to interpret your goals and statistical models to execute them.
                 </span>
@@ -68,79 +72,143 @@
             <v-expand-transition>
               <div v-if="showIntegrityDetail" class="px-4 pb-4">
                 <div class="text-caption pt-2 border-t opacity-80" style="line-height: 1.5; color: rgba(var(--v-theme-on-surface), 1);">
-                  Unlike chat-based LLMs that generate code on-the-fly, OmniForecast uses proven deterministic algorithms for modeling. This ensures your forecasts are statistically sound, reproducible, and grounded in your historical data.
+                  Unlike chat-based LLMs that generate code on-the-fly, AskForecast uses proven deterministic algorithms for modeling. This ensures your forecasts are statistically sound, reproducible, and grounded in your historical data.
                 </div>
               </div>
             </v-expand-transition>
           </div>
 
-          <!-- FILE + INTENT INPUTS -->
-          <v-card class="pa-5 pa-md-6 mb-6 upload-card" variant="outlined">
-            <div class="d-flex align-center mb-1">
-              <v-file-input
-                v-model="file"
+          <!-- ═══ MAIN INPUT AREA ═══ -->
+          <div class="input-area">
+
+            <!-- ═══ DRAG & DROP ZONE ═══ -->
+            <div
+              class="dropzone"
+              :class="{
+                'dropzone--active': isDragOver,
+                'dropzone--has-file': !!file,
+              }"
+              @click="triggerFileInput"
+              @dragenter.prevent="onDragEnter"
+              @dragleave.prevent="onDragLeave"
+              @dragover.prevent
+              @drop.prevent="onDrop"
+            >
+              <!-- Hidden native file input -->
+              <input
+                ref="fileInputRef"
                 accept=".csv"
-                class="w-100"
-                color="primary"
-                hide-details
-                label="Historical Data (CSV)"
-                prepend-icon="mdi-database"
+                style="display: none"
+                type="file"
+                @change="onFileInputChange"
               />
-              <v-tooltip location="top">
-                <template #activator="{ props }">
-                  <v-icon v-bind="props" class="ml-2" color="medium-emphasis">mdi-help-circle-outline</v-icon>
-                </template>
-                <span>Upload a CSV file containing at least one date column and one numeric value column.</span>
-              </v-tooltip>
-            </div>
 
-            <!-- File stats strip (appears after file is selected) -->
-            <v-expand-transition>
-              <div v-if="fileStats" class="d-flex align-center flex-wrap mt-3 gap-3">
-                <v-chip color="primary" prepend-icon="mdi-file-delimited" size="small" variant="tonal">
-                  {{ fileStats.name }}
-                </v-chip>
-                <v-chip prepend-icon="mdi-weight" size="small" variant="outlined">
-                  {{ fileStats.sizeLabel }}
-                </v-chip>
-                <v-chip v-if="fileStats.rowCount" prepend-icon="mdi-table-row" size="small" variant="outlined">
-                  ~{{ fileStats.rowCount.toLocaleString() }} rows
-                </v-chip>
-                <v-chip v-if="fileStats.colCount" prepend-icon="mdi-table-column" size="small" variant="outlined">
-                  {{ fileStats.colCount }} columns
-                </v-chip>
+              <!-- Empty state -->
+              <div v-if="!file" class="dropzone__empty">
+                <div class="dropzone__icon-wrap">
+                  <v-icon
+                    class="dropzone__icon"
+                    :class="{ 'dropzone__icon--pulse': isDragOver }"
+                    :color="isDragOver ? 'primary' : 'medium-emphasis'"
+                    size="48"
+                  >
+                    mdi-cloud-upload-outline
+                  </v-icon>
+                </div>
+                <div class="mt-4">
+                  <span class="text-body-1 font-weight-bold" :class="isDragOver ? 'text-primary' : ''">
+                    {{ isDragOver ? 'Drop your file here' : 'Drag & drop your CSV file' }}
+                  </span>
+                </div>
+                <div class="mt-1 text-caption text-medium-emphasis">
+                  or <span class="text-primary font-weight-bold cursor-pointer">browse files</span> — CSV up to 10 MB
+                </div>
               </div>
-            </v-expand-transition>
 
-            <div class="d-flex justify-end mt-3 mb-4">
-              <v-btn
-                class="text-none"
-                color="secondary"
-                prepend-icon="mdi-auto-fix"
-                size="small"
-                variant="text"
-                @click="store.loadSampleData"
-              >
-                Try with Sample Sales Data
-              </v-btn>
+              <!-- File loaded state -->
+              <div v-else class="dropzone__loaded">
+                <div class="d-flex align-center">
+                  <div class="file-icon-wrap mr-4">
+                    <v-icon color="primary" size="28">mdi-file-delimited-outline</v-icon>
+                  </div>
+                  <div class="flex-grow-1">
+                    <div class="d-flex align-center mb-1">
+                      <span class="text-body-2 font-weight-bold text-truncate" style="max-width: 300px;">{{ fileStats?.name }}</span>
+                      <v-chip class="ml-2" color="success" prepend-icon="mdi-check-circle" size="x-small" variant="tonal">Loaded</v-chip>
+                    </div>
+                    <div class="d-flex align-center flex-wrap file-meta-row">
+                      <span v-if="fileStats?.sizeLabel" class="file-meta-item">
+                        <v-icon size="12">mdi-weight</v-icon> {{ fileStats.sizeLabel }}
+                      </span>
+                      <span v-if="fileStats?.rowCount" class="file-meta-item">
+                        <v-icon size="12">mdi-table-row</v-icon> {{ fileStats.rowCount.toLocaleString() }} rows
+                      </span>
+                      <span v-if="fileStats?.colCount" class="file-meta-item">
+                        <v-icon size="12">mdi-table-column</v-icon> {{ fileStats.colCount }} cols
+                      </span>
+                    </div>
+                  </div>
+                  <v-btn
+                    color="error"
+                    icon="mdi-close"
+                    size="small"
+                    variant="text"
+                    @click.stop="clearFile"
+                  />
+                </div>
+              </div>
             </div>
 
-            <v-textarea
-              v-model="intent"
-              class="w-100"
-              color="primary"
-              hint="Describe what you want to predict in plain English."
-              persistent-hint
-              placeholder="e.g. Forecast sales for the next 12 months, focusing on seasonal trends..."
-              prepend-icon="mdi-text-box-search-outline"
-              rows="4"
-            />
-          </v-card>
+            <!-- Sample Data Link (contextual, only when no file) -->
+            <transition name="fade-up">
+              <div v-if="!file" class="text-center mt-3 mb-2">
+                <v-btn
+                  class="text-none"
+                  color="secondary"
+                  prepend-icon="mdi-auto-fix"
+                  size="small"
+                  variant="text"
+                  @click="store.loadSampleData"
+                >
+                  Or try with sample sales data
+                </v-btn>
+              </div>
+            </transition>
+
+            <!-- ═══ INTENT INPUT ═══ -->
+            <div class="intent-input-wrap mt-6">
+              <div class="intent-input-label d-flex align-center mb-2">
+                <v-icon class="mr-2" color="primary" size="18">mdi-message-text-outline</v-icon>
+                <span class="text-caption font-weight-bold text-uppercase" style="letter-spacing: 1px;">Your Forecast Goal</span>
+              </div>
+              <div class="intent-box" :class="{ 'intent-box--focused': isIntentFocused }">
+                <textarea
+                  ref="intentTextareaRef"
+                  v-model="intentValue"
+                  class="intent-textarea"
+                  placeholder="e.g. Forecast monthly revenue for the next 12 months, focusing on seasonal trends and growth..."
+                  rows="4"
+                  @blur="isIntentFocused = false"
+                  @focus="isIntentFocused = true"
+                />
+                <div class="intent-box__footer">
+                  <span class="text-caption text-medium-emphasis">
+                    <v-icon size="12">mdi-lightbulb-outline</v-icon>
+                    Be specific about what to predict, how far ahead, and any patterns to focus on.
+                  </span>
+                  <span class="text-caption" :class="intentValue.length > 0 ? 'text-primary' : 'text-disabled'">
+                    {{ intentValue.length }} chars
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <!-- DATA PREVIEW -->
           <v-expand-transition>
-            <div v-if="previewData" class="mt-2">
+            <div v-if="previewData" class="mt-8">
               <div class="d-flex align-center mb-4">
+                <v-icon class="mr-2" color="secondary" size="20">mdi-table-eye</v-icon>
                 <h3 class="text-subtitle-1 font-weight-bold">Data Preview</h3>
                 <v-chip class="ml-3" size="x-small" variant="outlined">First {{ previewData.rows.length }} Rows</v-chip>
               </div>
@@ -197,8 +265,58 @@
     set: val => store.setIntent(val),
   })
 
+  // Local intent value for textarea (syncs with store)
+  const intentValue = ref(intent.value || '')
+  watch(intentValue, val => { intent.value = val })
+  watch(intent, val => { if (val !== intentValue.value) intentValue.value = val || '' })
+
   // State for the "Learn more" alert toggle
   const showIntegrityDetail = ref(false)
+
+  // ─── Drag & Drop ───
+  const isDragOver = ref(false)
+  const fileInputRef = ref<HTMLInputElement | null>(null)
+  const intentTextareaRef = ref<HTMLTextAreaElement | null>(null)
+  const isIntentFocused = ref(false)
+  let dragCounter = 0
+
+  function triggerFileInput () {
+    fileInputRef.value?.click()
+  }
+
+  function onFileInputChange (e: Event) {
+    const target = e.target as HTMLInputElement
+    if (target.files && target.files[0]) {
+      file.value = target.files[0]
+    }
+  }
+
+  function onDragEnter () {
+    dragCounter++
+    isDragOver.value = true
+  }
+
+  function onDragLeave () {
+    dragCounter--
+    if (dragCounter <= 0) {
+      isDragOver.value = false
+      dragCounter = 0
+    }
+  }
+
+  function onDrop (e: DragEvent) {
+    isDragOver.value = false
+    dragCounter = 0
+    const droppedFile = e.dataTransfer?.files?.[0]
+    if (droppedFile && droppedFile.name.endsWith('.csv')) {
+      file.value = droppedFile
+    }
+  }
+
+  function clearFile () {
+    file.value = null
+    if (fileInputRef.value) fileInputRef.value.value = ''
+  }
 
   // ─── File Stats ───
   interface FileStats {
@@ -284,26 +402,190 @@
 
 <style scoped>
 .font-mono {
-  font-family: 'Roboto Mono', monospace;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
 }
 
+/* ─── Hero ─── */
+.hero-heading {
+  background: linear-gradient(135deg,
+    rgb(var(--v-theme-primary)) 0%,
+    rgb(var(--v-theme-secondary)) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── Platform Briefing ─── */
 .platform-briefing {
   background: rgba(var(--v-theme-primary), 0.04);
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow: hidden;
 }
 
-.upload-card {
-  border-color: rgba(var(--v-theme-primary), 0.12) !important;
-  transition: border-color 0.3s ease;
+/* ─── Input Area ─── */
+.input-area {
+  background: rgba(var(--v-theme-primary), 0.02);
+  border: 1px solid rgba(var(--v-theme-primary), 0.06);
+  border-radius: 20px;
+  padding: 28px;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
-.upload-card:hover,
-.upload-card:focus-within {
-  border-color: rgba(var(--v-theme-primary), 0.3) !important;
+.input-area:hover {
+  border-color: rgba(var(--v-theme-primary), 0.12);
 }
 
+/* ─── Dropzone ─── */
+.dropzone {
+  position: relative;
+  border: 2px dashed rgba(var(--v-theme-primary), 0.2);
+  border-radius: 16px;
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  background: rgba(var(--v-theme-primary), 0.02);
+}
+
+.dropzone:hover {
+  border-color: rgba(var(--v-theme-primary), 0.4);
+  background: rgba(var(--v-theme-primary), 0.04);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(var(--v-theme-primary), 0.08);
+}
+
+.dropzone--active {
+  border-color: rgb(var(--v-theme-primary)) !important;
+  background: rgba(var(--v-theme-primary), 0.08) !important;
+  transform: translateY(-2px) scale(1.005);
+  box-shadow: 0 8px 32px rgba(var(--v-theme-primary), 0.15) !important;
+}
+
+.dropzone--has-file {
+  border-style: solid;
+  border-color: rgba(var(--v-theme-primary), 0.15);
+  padding: 20px 24px;
+  cursor: default;
+  background: rgba(var(--v-theme-primary), 0.03);
+}
+
+.dropzone--has-file:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.dropzone__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.08);
+  transition: all 0.3s ease;
+}
+
+.dropzone:hover .dropzone__icon-wrap {
+  background: rgba(var(--v-theme-primary), 0.12);
+  transform: scale(1.05);
+}
+
+.dropzone--active .dropzone__icon-wrap {
+  background: rgba(var(--v-theme-primary), 0.18);
+  transform: scale(1.1);
+}
+
+.dropzone__icon {
+  transition: transform 0.3s ease;
+}
+
+.dropzone__icon--pulse {
+  animation: icon-pulse 1s ease-in-out infinite;
+}
+
+@keyframes icon-pulse {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ─── File Loaded State ─── */
+.file-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(var(--v-theme-primary), 0.08);
+  flex-shrink: 0;
+}
+
+.file-meta-row {
+  gap: 12px;
+}
+
+.file-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+}
+
+/* ─── Intent Input ─── */
+.intent-input-wrap {
+  position: relative;
+}
+
+.intent-box {
+  position: relative;
+  border: 1px solid rgba(var(--v-theme-primary), 0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  background: rgba(var(--v-theme-surface), 1);
+}
+
+.intent-box:hover {
+  border-color: rgba(var(--v-theme-primary), 0.3);
+}
+
+.intent-box--focused {
+  border-color: rgb(var(--v-theme-primary)) !important;
+  box-shadow: 0 0 0 3px rgba(var(--v-theme-primary), 0.1),
+              0 4px 16px rgba(var(--v-theme-primary), 0.06);
+}
+
+.intent-textarea {
+  width: 100%;
+  padding: 16px 20px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: rgb(var(--v-theme-on-surface));
+  background: transparent;
+}
+
+.intent-textarea::placeholder {
+  color: rgba(var(--v-theme-on-surface), 0.35);
+  font-style: italic;
+}
+
+.intent-box__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-top: 1px solid rgba(var(--v-theme-primary), 0.06);
+  background: rgba(var(--v-theme-primary), 0.02);
+}
+
+/* ─── Preview ─── */
 .preview-card {
   border-color: rgba(var(--v-theme-secondary), 0.2) !important;
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02) !important;
@@ -313,7 +595,19 @@
   border-bottom: 2px solid var(--v-border-color) !important;
 }
 
-.gap-3 {
-  gap: 8px;
+/* ─── Transitions ─── */
+.fade-up-enter-active,
+.fade-up-leave-active {
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.fade-up-enter-from {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.fade-up-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 </style>

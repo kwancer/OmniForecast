@@ -5,7 +5,7 @@
         <div class="text-center mb-10">
           <h2 class="text-h3 font-weight-bold mb-2">Help & Support</h2>
           <p class="text-body-1 text-medium-emphasis">
-            Need assistance with OmniForecast? Here to help.
+            Need assistance with AskForecast? Here to help.
           </p>
         </div>
 

@@ -1,6 +1,6 @@
 <template>
   <v-container class="fill-height d-flex flex-column pa-0" fluid>
-    <!-- ═══════════════ TOP BAR (mirrors CleaningStage) ═══════════════ -->
+    <!-- ═══════════════ TOP BAR ═══════════════ -->
     <div class="d-flex align-center px-4 py-4 w-100 bg-surface border-b">
       <v-btn
         class="hover-lift"
@@ -14,21 +14,21 @@
       </div>
       <v-spacer />
 
-      <!-- Stat pills – mirrors CleaningStage's shape display -->
-      <div class="hidden-sm-and-down d-flex align-center bg-surface-light px-4 py-2 rounded-lg border">
-        <div class="text-center mx-2">
-          <div class="text-caption text-medium-emphasis text-uppercase" style="font-size: 10px;">Columns</div>
-          <div class="font-weight-bold font-mono">{{ totalColumns }}</div>
+      <!-- Stat pills -->
+      <div class="hidden-sm-and-down d-flex align-center stat-pills">
+        <div class="stat-pill">
+          <div class="stat-pill__label">Columns</div>
+          <div class="stat-pill__value">{{ totalColumns }}</div>
         </div>
         <v-divider class="mx-2" vertical />
-        <div class="text-center mx-2">
-          <div class="text-caption text-medium-emphasis text-uppercase" style="font-size: 10px;">Features</div>
-          <div class="font-weight-bold font-mono text-secondary">{{ totalFeatures }}</div>
+        <div class="stat-pill">
+          <div class="stat-pill__label">Features</div>
+          <div class="stat-pill__value text-secondary">{{ totalFeatures }}</div>
         </div>
         <v-divider class="mx-2" vertical />
-        <div class="text-center mx-2">
-          <div class="text-caption text-medium-emphasis text-uppercase" style="font-size: 10px;">Domain</div>
-          <div class="font-weight-bold font-mono text-primary">{{ store.ontology?.meta.domain_inference || '—' }}</div>
+        <div class="stat-pill">
+          <div class="stat-pill__label">Domain</div>
+          <div class="stat-pill__value text-primary">{{ store.ontology?.meta.domain_inference || '—' }}</div>
         </div>
       </div>
 
@@ -51,12 +51,16 @@
       <!-- ─────── LEFT PANEL: Column Ontology Pipeline ─────── -->
       <v-col class="panel-col overflow-y-auto border-r bg-surface" cols="12" md="4" style="border-right-width: 1px !important;">
         <div class="pa-4">
-          <h3 class="text-subtitle-1 font-weight-bold mb-2 d-flex align-center">
-            <v-icon color="secondary" start>mdi-sitemap-outline</v-icon>
-            Column Ontology
-          </h3>
-          <div class="text-caption text-medium-emphasis mb-5">
-            How each column in your dataset has been classified. Click to reassign.
+          <div class="section-header mb-4">
+            <div class="section-header__icon section-header__icon--secondary">
+              <v-icon color="white" size="18">mdi-sitemap-outline</v-icon>
+            </div>
+            <div>
+              <h3 class="text-subtitle-1 font-weight-bold mb-0">Column Ontology</h3>
+              <div class="text-caption text-medium-emphasis">
+                How each column has been classified. Click to reassign.
+              </div>
+            </div>
           </div>
 
           <!-- TIMELINE of columns -->
@@ -241,15 +245,17 @@
         <div class="pa-4 pa-md-6 d-flex flex-column">
 
           <!-- SECTION 1: Forecast Intent (Natural Language) -->
-          <div class="mb-6">
+          <div class="section-card mb-6">
             <div class="d-flex align-center mb-4">
-              <div>
-                <h3 class="text-subtitle-1 font-weight-bold d-flex align-center ma-0">
-                  <v-icon color="primary" start>mdi-target-account</v-icon>
-                  Forecast Intent
-                </h3>
-                <div class="text-caption text-medium-emphasis mt-1">
-                  This is what we understood from your prompt. Click edit to adjust.
+              <div class="section-header">
+                <div class="section-header__icon section-header__icon--primary">
+                  <v-icon color="white" size="18">mdi-target-account</v-icon>
+                </div>
+                <div>
+                  <h3 class="text-subtitle-1 font-weight-bold ma-0">Forecast Intent</h3>
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    This is what we understood from your prompt. Click edit to adjust.
+                  </div>
                 </div>
               </div>
               <v-spacer />
@@ -271,16 +277,18 @@
             />
           </div>
 
-          <v-divider class="mb-6" />
-
           <!-- SECTION 2: Scenario Overrides -->
-          <div v-if="controllableCovariates.length > 0 || exogenousCovariates.length > 0" class="mb-6">
-            <h3 class="text-subtitle-1 font-weight-bold mb-4 d-flex align-center">
-              <v-icon color="secondary" start>mdi-tune-variant</v-icon>
-              Scenario Configuration
-            </h3>
-            <div class="text-caption text-medium-emphasis mb-4">
-              Define how external and controllable factors behave in the forecast window. You can also configure these from the column timeline on the left.
+          <div v-if="controllableCovariates.length > 0 || exogenousCovariates.length > 0" class="section-card mb-6">
+            <div class="section-header mb-4">
+              <div class="section-header__icon section-header__icon--secondary">
+                <v-icon color="white" size="18">mdi-tune-variant</v-icon>
+              </div>
+              <div>
+                <h3 class="text-subtitle-1 font-weight-bold mb-0">Scenario Configuration</h3>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  Define how external and controllable factors behave in the forecast window.
+                </div>
+              </div>
             </div>
 
             <!-- Controllable Covariates -->
@@ -319,14 +327,17 @@
           </div>
 
           <!-- SECTION 3: Static Attributes -->
-          <div v-if="staticCovariates.length > 0" class="mb-6">
-            <v-divider class="mb-6" />
-            <h3 class="text-subtitle-1 font-weight-bold mb-3 d-flex align-center">
-              <v-icon color="medium-emphasis" start>mdi-tag-multiple-outline</v-icon>
-              Static Attributes
-            </h3>
-            <div class="text-caption text-medium-emphasis mb-3">
-              Time-invariant descriptors that characterize the data but do not change during the forecast window.
+          <div v-if="staticCovariates.length > 0" class="section-card mb-6">
+            <div class="section-header mb-4">
+              <div class="section-header__icon" style="background: rgba(var(--v-theme-on-surface), 0.12);">
+                <v-icon size="18">mdi-tag-multiple-outline</v-icon>
+              </div>
+              <div>
+                <h3 class="text-subtitle-1 font-weight-bold mb-0">Static Attributes</h3>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  Time-invariant descriptors that do not change during the forecast window.
+                </div>
+              </div>
             </div>
             <div class="d-flex flex-wrap" style="gap: 8px;">
               <v-chip
@@ -343,18 +354,18 @@
             </div>
           </div>
 
-          <v-divider class="mb-6" />
-
-          <!-- SECTION 4: Dataset Snapshot (reactive to ontology) -->
-          <div class="mb-6">
+          <!-- SECTION 4: Dataset Snapshot -->
+          <div class="section-card mb-6">
             <div class="d-flex align-center mb-4">
-              <div>
-                <h3 class="text-subtitle-1 font-weight-bold d-flex align-center ma-0">
-                  <v-icon color="primary" start>mdi-table-large</v-icon>
-                  Dataset Snapshot
-                </h3>
-                <div class="text-caption text-medium-emphasis mt-1">
-                  Preview based on the current ontology configuration. First {{ sampleRows.length }} rows.
+              <div class="section-header">
+                <div class="section-header__icon section-header__icon--primary">
+                  <v-icon color="white" size="18">mdi-table-large</v-icon>
+                </div>
+                <div>
+                  <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Snapshot</h3>
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    Preview based on the current ontology. First {{ sampleRows.length }} rows.
+                  </div>
                 </div>
               </div>
               <v-spacer />
@@ -363,7 +374,7 @@
               </v-chip>
             </div>
 
-            <v-card class="d-flex flex-column text-body-2 border layout-card bg-surface" style="border-radius: 8px; overflow-x: auto;" variant="flat">
+            <v-card class="d-flex flex-column text-body-2 border layout-card bg-surface" style="border-radius: 12px; overflow-x: auto;" variant="flat">
               <v-table v-if="sampleRows.length > 0 && activeColumnNames.length > 0" density="comfortable" hover style="background: transparent;">
                 <thead class="bg-surface-light">
                   <tr>
@@ -404,9 +415,7 @@
             </v-card>
           </div>
 
-          <v-divider class="mb-6" />
-
-          <!-- SECTION 5: Advanced Data Inspection (expandable, metadata only) -->
+          <!-- SECTION 5: Advanced Data Inspection -->
           <div class="mb-4">
             <DataXRay v-if="store.ontology" :ontology="store.ontology" />
           </div>
@@ -668,6 +677,72 @@
   }
 }
 
+/* ─── Stat Pills ─── */
+.stat-pills {
+  background: rgba(var(--v-theme-primary), 0.04);
+  border: 1px solid rgba(var(--v-theme-primary), 0.08);
+  padding: 8px 16px;
+  border-radius: 12px;
+}
+
+.stat-pill {
+  text-align: center;
+  padding: 0 8px;
+}
+
+.stat-pill__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-weight: 500;
+}
+
+.stat-pill__value {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+
+/* ─── Section Cards ─── */
+.section-card {
+  background: rgba(var(--v-theme-primary), 0.02);
+  border: 1px solid rgba(var(--v-theme-primary), 0.06);
+  border-radius: 16px;
+  padding: 20px 24px;
+  transition: border-color 0.3s ease;
+}
+
+.section-card:hover {
+  border-color: rgba(var(--v-theme-primary), 0.12);
+}
+
+/* ─── Section Headers ─── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-header__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.section-header__icon--primary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-primary)), rgba(var(--v-theme-primary), 0.7));
+}
+
+.section-header__icon--secondary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
+}
+
+/* ─── Column cards ─── */
 .column-card {
   background: rgba(var(--v-theme-surface-light), 0.6);
   border: 1px solid transparent;

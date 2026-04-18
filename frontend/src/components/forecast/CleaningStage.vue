@@ -13,15 +13,15 @@
       </div>
       <v-spacer />
 
-      <div class="hidden-sm-and-down d-flex align-center bg-surface-light px-4 py-2 rounded-lg border">
-        <div class="text-center mx-2">
-          <div class="text-caption text-medium-emphasis text-uppercase" style="font-size: 10px;">Original Shape</div>
-          <div class="font-weight-bold font-mono">{{ store.cleaningReport?.initial_shape.join(' x ') || '?' }}</div>
+      <div class="hidden-sm-and-down d-flex align-center stat-pills">
+        <div class="stat-pill">
+          <div class="stat-pill__label">Original</div>
+          <div class="stat-pill__value">{{ store.cleaningReport?.initial_shape.join(' × ') || '?' }}</div>
         </div>
-        <v-icon class="mx-2 text-medium-emphasis" size="small">mdi-arrow-right</v-icon>
-        <div class="text-center mx-2">
-          <div class="text-caption text-medium-emphasis text-uppercase" style="font-size: 10px;">Final Shape</div>
-          <div class="font-weight-bold font-mono text-primary">{{ store.cleaningReport?.final_shape.join(' x ') || '?' }}</div>
+        <v-icon class="mx-2 text-medium-emphasis" size="16">mdi-arrow-right</v-icon>
+        <div class="stat-pill">
+          <div class="stat-pill__label">Final</div>
+          <div class="stat-pill__value text-primary">{{ store.cleaningReport?.final_shape.join(' × ') || '?' }}</div>
         </div>
       </div>
 
@@ -37,18 +37,25 @@
       </v-btn>
     </div>
 
-    <v-row class="flex-grow-1 ma-0 w-100 bg-background overflow-hidden">
+    <v-row class="flex-grow-1 ma-0 w-100 bg-background panel-row">
       <!-- Left Panel: Corrections Timeline -->
-      <v-col class="h-100 overflow-y-auto border-r bg-surface" cols="12" md="4" style="border-right-width: 1px !important;">
+      <v-col class="panel-col overflow-y-auto border-r bg-surface" cols="12" md="4" style="border-right-width: 1px !important;">
         <div class="pa-4">
-          <h3 class="text-subtitle-1 font-weight-bold mb-4 d-flex align-center">
-            <v-icon color="secondary" start>mdi-auto-fix</v-icon>
-            Applied Transformations
-          </h3>
+          <div class="section-header mb-5">
+            <div class="section-header__icon section-header__icon--secondary">
+              <v-icon color="white" size="18">mdi-auto-fix</v-icon>
+            </div>
+            <div>
+              <h3 class="text-subtitle-1 font-weight-bold mb-0">Applied Transformations</h3>
+              <div class="text-caption text-medium-emphasis">
+                Automated data corrections applied to your dataset.
+              </div>
+            </div>
+          </div>
 
           <v-alert
             v-if="store.cleaningReport?.summary"
-            class="mb-6 text-body-2"
+            class="mb-6 text-body-2 summary-alert"
             color="primary"
             icon="mdi-information-outline"
             variant="tonal"
@@ -56,47 +63,52 @@
             {{ store.cleaningReport.summary }}
           </v-alert>
 
-          <div v-if="store.cleaningReport?.actions.length" class="ml-6 border-s-sm pl-8 relative">
+          <div v-if="store.cleaningReport?.actions.length" class="transform-timeline">
             <div
               v-for="(action, index) in store.cleaningReport?.actions"
               :key="index"
-              class="mb-6 position-relative group hover-lift rounded-lg px-2 py-1 mx-n2"
+              class="transform-item"
             >
-              <div class="position-absolute bg-background rounded-circle border d-flex align-center justify-center" style="left: -49px; top: 0px; width: 34px; height: 34px;">
-                <v-avatar :color="getActionColor(action.action)" size="30" variant="tonal">
+              <div class="transform-item__dot">
+                <v-avatar :color="getActionColor(action.action)" size="32" variant="tonal">
                   <v-icon :icon="getActionIcon(action.action)" size="16" />
                 </v-avatar>
               </div>
-
-              <div class="font-weight-bold text-subtitle-2 d-flex align-center">
-                {{ action.column }}
-                <v-chip class="ml-2 text-uppercase" :color="getActionColor(action.action)" size="x-small" variant="flat">
-                  {{ formatActionName(action.action) }}
-                </v-chip>
-              </div>
-              <div class="text-caption text-medium-emphasis mt-1">
-                {{ action.description }}
+              <div class="transform-item__content">
+                <div class="d-flex align-center mb-1">
+                  <span class="font-weight-bold text-subtitle-2">{{ action.column }}</span>
+                  <v-chip class="ml-2 text-uppercase" :color="getActionColor(action.action)" size="x-small" variant="flat">
+                    {{ formatActionName(action.action) }}
+                  </v-chip>
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ action.description }}
+                </div>
               </div>
             </div>
           </div>
-          <div v-else class="text-center py-8 text-medium-emphasis">
-            <v-icon class="mb-4" color="success" size="48">mdi-check-circle-outline</v-icon>
-            <p>Dataset arrived in optimal condition.</p>
-            <p class="text-caption">No transformations required.</p>
+          <div v-else class="clean-state text-center py-10">
+            <div class="clean-state__icon mb-4">
+              <v-icon color="success" size="40">mdi-check-circle-outline</v-icon>
+            </div>
+            <p class="font-weight-bold mb-1">Pristine Dataset</p>
+            <p class="text-caption text-medium-emphasis">No transformations required.</p>
           </div>
         </div>
       </v-col>
 
       <!-- Right Panel: Data Preview -->
-      <v-col class="h-100 overflow-y-auto d-flex flex-column" cols="12" md="8">
-        <div class="pa-4 h-100 d-flex flex-column">
+      <v-col class="panel-col overflow-y-auto d-flex flex-column" cols="12" md="8">
+        <div class="pa-4 pa-md-6 h-100 d-flex flex-column">
           <div class="d-flex align-center mb-4">
-            <div>
-              <h3 class="text-subtitle-1 font-weight-bold d-flex align-center ma-0">
-                <v-icon color="primary" start>mdi-table-large</v-icon>
-                Dataset Snapshot
-              </h3>
-              <div class="text-caption text-medium-emphasis mt-1">This is the first 10 items</div>
+            <div class="section-header">
+              <div class="section-header__icon section-header__icon--primary">
+                <v-icon color="white" size="18">mdi-table-large</v-icon>
+              </div>
+              <div>
+                <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Snapshot</h3>
+                <div class="text-caption text-medium-emphasis mt-1">First 10 rows of your dataset</div>
+              </div>
             </div>
             <v-spacer />
             <v-btn-toggle
@@ -112,8 +124,8 @@
             </v-btn-toggle>
           </div>
 
-          <v-card class="d-flex flex-column text-body-2 border layout-card bg-surface" style="border-radius: 8px; overflow-x: auto;" variant="flat">
-            <v-table v-if="currentData.headers.length > 0" density="comfortable" hover style="background: transparent;">
+          <v-card class="d-flex flex-column text-body-2 border layout-card bg-surface flex-grow-1" style="border-radius: 12px; overflow-x: auto; max-height: 400px;" variant="flat">
+            <v-table v-if="currentData.headers.length > 0" density="compact" fixed-header hover style="background: transparent;">
               <thead class="bg-surface-light">
                 <tr>
                   <th
@@ -303,6 +315,149 @@
 </script>
 
 <style scoped>
+/* ─── Panel Layout ─── */
+.panel-row {
+  overflow: hidden;
+}
+
+@media (min-width: 960px) {
+  .panel-row {
+    height: 0;
+    flex: 1 1 auto;
+  }
+  .panel-col {
+    height: 100%;
+  }
+}
+
+@media (max-width: 959px) {
+  .panel-row {
+    overflow-y: auto;
+    flex: 1 1 auto;
+  }
+  .panel-col {
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+  }
+}
+
+/* ─── Stat Pills ─── */
+.stat-pills {
+  background: rgba(var(--v-theme-primary), 0.04);
+  border: 1px solid rgba(var(--v-theme-primary), 0.08);
+  padding: 8px 16px;
+  border-radius: 12px;
+}
+
+.stat-pill {
+  text-align: center;
+  padding: 0 8px;
+}
+
+.stat-pill__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  font-weight: 500;
+}
+
+.stat-pill__value {
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.875rem;
+}
+
+/* ─── Section Headers ─── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-header__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.section-header__icon--primary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-primary)), rgba(var(--v-theme-primary), 0.7));
+}
+
+.section-header__icon--secondary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
+}
+
+/* ─── Summary Alert ─── */
+.summary-alert {
+  border-radius: 12px !important;
+}
+
+/* ─── Transform Timeline ─── */
+.transform-timeline {
+  position: relative;
+  margin-top: 8px;
+}
+
+.transform-timeline::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--v-theme-primary), 0.3),
+    rgba(var(--v-theme-secondary), 0.15)
+  );
+  border-radius: 2px;
+}
+
+.transform-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 12px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  transition: all 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  position: relative;
+}
+
+.transform-item:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+
+.transform-item__dot {
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.transform-item__content {
+  flex-grow: 1;
+  min-width: 0;
+  padding-top: 4px;
+}
+
+/* ─── Clean State ─── */
+.clean-state__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-success), 0.08);
+}
+
+/* ─── Table ─── */
 .layout-card {
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02) !important;
 }
