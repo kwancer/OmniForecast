@@ -155,6 +155,25 @@ export interface ForecastResponse {
   backtest_data?: BacktestPoint[]
 }
 
+export interface ExplainabilityEvidence {
+  source: string
+  detail: string
+}
+
+export interface ExplainabilityMessage {
+  role: 'assistant' | 'user'
+  content: string
+  evidence?: ExplainabilityEvidence[]
+  suggestions?: string[]
+}
+
+export interface ExplainabilityResponse {
+  answer: string
+  evidence: ExplainabilityEvidence[]
+  suggestions: string[]
+  tool_trace?: Array<Record<string, any>>
+}
+
 // --- APP UTILS ---
 
 export type NotificationType = 'success' | 'error' | 'info' | 'warning'

@@ -43,6 +43,29 @@ class ForecastResponse(BaseModel):
     backtest_data: Optional[List[Dict[str, Any]]] = None
 
 
+class ExplainabilityMessage(BaseModel):
+    role: str  # 'user' or 'assistant'
+    content: str
+
+
+class ExplainabilityRequest(BaseModel):
+    session_id: str
+    question: str
+    history: Optional[List[ExplainabilityMessage]] = None
+
+
+class ExplainabilityEvidence(BaseModel):
+    source: str
+    detail: str
+
+
+class ExplainabilityResponse(BaseModel):
+    answer: str
+    evidence: List[ExplainabilityEvidence] = []
+    suggestions: List[str] = []
+    tool_trace: Optional[List[Dict[str, Any]]] = None
+
+
 class ErrorResponse(BaseModel):
     detail: str
     message: Optional[str] = None

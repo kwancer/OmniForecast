@@ -127,15 +127,63 @@
                 </v-row>
               </div>
 
-              <!-- Executive Summary -->
+              <!-- AI Explainability Layer -->
               <div class="insight-card insight-card--secondary mb-5">
                 <div class="insight-card__header">
                   <div class="panel-icon panel-icon--secondary mr-3">
-                    <v-icon color="white" size="16">mdi-shield-check-outline</v-icon>
+                    <v-icon color="white" size="16">mdi-robot-excited-outline</v-icon>
                   </div>
-                  <span class="font-weight-bold">Executive Summary</span>
+                  <span class="font-weight-bold">AI Explainability Layer</span>
                 </div>
-                <p class="text-body-2 mt-3 mb-0" style="white-space: pre-line; line-height: 1.6;">{{ formattedExplanation }}</p>
+
+                <div ref="chatThreadRef" class="chat-thread mt-3">
+                  <div
+                    v-for="(msg, i) in store.explainabilityMessages"
+                    :key="i"
+                    :class="['chat-msg', msg.role === 'assistant' ? 'chat-msg--assistant' : 'chat-msg--user']"
+                  >
+                    <div class="text-caption font-weight-bold mb-1">
+                      {{ msg.role === 'assistant' ? 'AI Analyst' : 'You' }}
+                    </div>
+                    <div class="text-body-2" style="white-space: pre-line; line-height: 1.5;">{{ msg.content }}</div>
+                  </div>
+                </div>
+
+                <div v-if="topSuggestions.length" class="mt-3">
+                  <v-chip
+                    v-for="(suggestion, i) in topSuggestions"
+                    :key="`s-${i}`"
+                    class="mr-1 mb-1"
+                    size="small"
+                    variant="outlined"
+                    @click="submitQuestion(suggestion)"
+                  >
+                    {{ suggestion }}
+                  </v-chip>
+                </div>
+
+                <div class="chat-input-row mt-3">
+                  <v-text-field
+                    v-model="question"
+                    class="chat-input"
+                    density="compact"
+                    hide-details
+                    placeholder="Ask in plain language: planning risk, confidence, assumptions..."
+                    variant="outlined"
+                    @keydown.enter.prevent="submitQuestion()"
+                  />
+                  <v-btn
+                    class="chat-send-btn"
+                    :disabled="!question.trim() || store.askingExplainability"
+                    :loading="store.askingExplainability"
+                    color="secondary"
+                    icon
+                    variant="flat"
+                    @click="submitQuestion()"
+                  >
+                    <v-icon>mdi-send</v-icon>
+                  </v-btn>
+                </div>
               </div>
 
               <!-- Selected Model -->
@@ -170,7 +218,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, nextTick, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import BacktestChart from './BacktestChart.vue'
   import DataHealthCard from './DataHealthCard.vue'
@@ -178,25 +226,37 @@
   import ModelTournament from './ModelTournament.vue'
 
   const store = useForecastStore()
+  const question = ref('')
+  const chatThreadRef = ref<HTMLElement | null>(null)
+  const topSuggestions = computed(() => store.suggestedQuestions.slice(0, 3))
 
-  // Format numbers in the explanation string
-  const formattedExplanation = computed(() => {
-    if (!store.explanation) return ''
-    // Regex to find floats or integers (including those with decimals)
-    // Avoid small indices like "10 periods" by checking length or context if needed,
-    // but typically toLocaleString is fine for all numbers > 999.
-    return store.explanation.replace(/\b\d+(\.\d+)?\b/g, match => {
-      const num = Number.parseFloat(match)
-      // Only format large numbers or those with many digits to avoid mangling small integers like "10"
-      if (!Number.isNaN(num) && (num >= 1000 || match.includes('.'))) {
-        return num.toLocaleString(undefined, {
-          minimumFractionDigits: match.includes('.') ? 2 : 0,
-          maximumFractionDigits: 2,
-        })
-      }
-      return match
-    })
+  async function scrollChatToBottom () {
+    await nextTick()
+    if (!chatThreadRef.value) return
+    chatThreadRef.value.scrollTop = chatThreadRef.value.scrollHeight
+  }
+
+  async function submitQuestion (prefilled?: string) {
+    const q = (prefilled ?? question.value).trim()
+    if (!q) return
+    question.value = ''
+    await store.askExplainability(q, true)
+    await scrollChatToBottom()
+  }
+
+  onMounted(async () => {
+    if (store.forecastResults.length > 0 && store.explainabilityMessages.length === 0) {
+      await store.initializeExplainability()
+    }
+    await scrollChatToBottom()
   })
+
+  watch(
+    () => store.explainabilityMessages.map(m => m.content.length).join(','),
+    async () => {
+      await scrollChatToBottom()
+    },
+  )
 
   function formatDate (val: any) {
     if (val === undefined || val === null) return 'N/A'
@@ -371,5 +431,61 @@
   color: rgba(var(--v-theme-on-surface), 0.5);
   margin-top: 4px;
   font-weight: 500;
+}
+
+.chat-thread {
+  min-height: 320px;
+  max-height: 460px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 6px 8px 2px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(var(--v-theme-secondary), 0.08), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(var(--v-theme-primary), 0.08), transparent 45%),
+    rgba(var(--v-theme-surface), 0.65);
+  border: 1px solid rgba(var(--v-theme-secondary), 0.1);
+}
+
+.chat-msg {
+  border-radius: 14px;
+  padding: 12px;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.09);
+  box-shadow: 0 8px 24px rgba(16, 24, 40, 0.04);
+}
+
+.chat-msg--assistant {
+  background: linear-gradient(145deg, rgba(var(--v-theme-secondary), 0.12), rgba(var(--v-theme-secondary), 0.04));
+}
+
+.chat-msg--user {
+  background: linear-gradient(145deg, rgba(var(--v-theme-primary), 0.12), rgba(var(--v-theme-primary), 0.05));
+}
+
+.chat-thread::-webkit-scrollbar {
+  width: 8px;
+}
+
+.chat-thread::-webkit-scrollbar-thumb {
+  background: rgba(var(--v-theme-primary), 0.25);
+  border-radius: 999px;
+}
+
+.chat-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chat-input {
+  flex: 1;
+}
+
+.chat-send-btn {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
 }
 </style>

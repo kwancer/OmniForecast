@@ -1,4 +1,4 @@
-import type { BacktestPoint, CleaningReport, DataHealthReport, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata, TournamentResult } from '@/types'
+import type { BacktestPoint, CleaningReport, DataHealthReport, ExplainabilityMessage, ExplainabilityResponse, ForecastMetric, ForecastOntology, ForecastResponse, ForecastResult, ModelMetadata, TournamentResult } from '@/types'
 import { defineStore } from 'pinia'
 import { useAppStore } from './app'
 
@@ -24,6 +24,10 @@ export const useForecastStore = defineStore('forecast', {
     progressTotal: 0,
     progressCurrentModel: '',
     progressCompleted: false,
+    // Explainability chat
+    explainabilityMessages: [] as ExplainabilityMessage[],
+    askingExplainability: false,
+    suggestedQuestions: [] as string[],
   }),
 
   getters: {
@@ -137,6 +141,8 @@ export const useForecastStore = defineStore('forecast', {
         this.tournamentResults = data.tournament_results ?? []
         this.backtestData = data.backtest_data ?? []
 
+        await this.initializeExplainability()
+
         // Hide progress and move to cleaning step
         this.showProgress = false
         this.step = 'cleaning'
@@ -147,6 +153,138 @@ export const useForecastStore = defineStore('forecast', {
       } finally {
         this.loading = false
       }
+    },
+
+    async initializeExplainability () {
+      if (!this.ontology?.session_id) {
+        return
+      }
+
+      const appStore = useAppStore()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+
+      try {
+        const response = await fetch(`${apiUrl}/forecast/explain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.ontology.session_id,
+            question: '',
+            history: [],
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Failed to load explainability briefing')
+        }
+
+        const data: ExplainabilityResponse = await response.json()
+        this.explainabilityMessages = [{
+          role: 'assistant',
+          content: data.answer,
+          evidence: data.evidence,
+          suggestions: data.suggestions,
+        }]
+        this.suggestedQuestions = data.suggestions ?? []
+      } catch (error: any) {
+        appStore.notify(error.message || 'Failed to load explainability briefing', 'warning')
+        this.explainabilityMessages = [{
+          role: 'assistant',
+          content: this.explanation || 'Forecast completed. Ask a question about reliability, ontology, or model choice.',
+        }]
+      }
+    },
+
+    async askExplainability (question: string, useStreaming = true) {
+      if (!this.ontology?.session_id || !question.trim() || this.askingExplainability) {
+        return
+      }
+
+      const appStore = useAppStore()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+      this.askingExplainability = true
+
+      const history = this.explainabilityMessages.map(m => ({ role: m.role, content: m.content }))
+      this.explainabilityMessages.push({ role: 'user', content: question })
+
+      try {
+        if (useStreaming) {
+          await this.askExplainabilityStream(question)
+          return
+        }
+
+        const response = await fetch(`${apiUrl}/forecast/explain`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: this.ontology.session_id,
+            question,
+            history,
+          }),
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          throw new Error(error.detail || 'Failed to get explainability response')
+        }
+
+        const data: ExplainabilityResponse = await response.json()
+        this.explainabilityMessages.push({
+          role: 'assistant',
+          content: data.answer,
+          evidence: data.evidence,
+          suggestions: data.suggestions,
+        })
+        this.suggestedQuestions = data.suggestions ?? this.suggestedQuestions
+      } catch (error: any) {
+        appStore.notify(error.message || 'Explainability request failed', 'error')
+      } finally {
+        this.askingExplainability = false
+      }
+    },
+
+    async askExplainabilityStream (question: string) {
+      if (!this.ontology?.session_id) {
+        return
+      }
+
+      const appStore = useAppStore()
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+      const assistantMsg: ExplainabilityMessage = { role: 'assistant', content: '' }
+      this.explainabilityMessages.push(assistantMsg)
+      const assistantIndex = this.explainabilityMessages.length - 1
+
+      await new Promise<void>((resolve, reject) => {
+        const url = `${apiUrl}/forecast/explain/stream/${this.ontology?.session_id}?question=${encodeURIComponent(question)}`
+        const eventSource = new EventSource(url)
+
+        eventSource.addEventListener('message', event => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (payload.type === 'chunk') {
+              this.explainabilityMessages[assistantIndex].content += payload.text
+            } else if (payload.type === 'meta') {
+              this.explainabilityMessages[assistantIndex].evidence = payload.evidence ?? []
+              this.explainabilityMessages[assistantIndex].suggestions = payload.suggestions ?? []
+              this.suggestedQuestions = payload.suggestions ?? this.suggestedQuestions
+            } else if (payload.type === 'done') {
+              eventSource.close()
+              resolve()
+            }
+          } catch {
+            eventSource.close()
+            reject(new Error('Failed to parse streaming explainability response'))
+          }
+        })
+
+        eventSource.addEventListener('error', () => {
+          eventSource.close()
+          reject(new Error('Explainability stream interrupted'))
+        })
+      }).catch((error: any) => {
+        appStore.notify(error.message || 'Explainability stream failed', 'warning')
+      })
     },
 
     connectProgressStream (sessionId: string) {
@@ -230,6 +368,9 @@ export const useForecastStore = defineStore('forecast', {
       this.progressTotal = 0
       this.progressCurrentModel = ''
       this.progressCompleted = false
+      this.explainabilityMessages = []
+      this.askingExplainability = false
+      this.suggestedQuestions = []
     },
   },
 })
