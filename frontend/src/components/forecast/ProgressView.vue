@@ -88,7 +88,7 @@
   const messages = [
     'Our forecasting pipeline is fully reproducible, unlike famous LLMs which can give different forecasts from the same data.',
     'We run a frugal tournament across multiple models, selecting the winner based on both accuracy and simplicity using Occam\'s Razor.',
-    'All forecasts include confidence intervals calibrated to your data, helping you understand the uncertainty in predictions.',
+    'All forecasts include prediction intervals calibrated to your data, helping you understand the uncertainty in predictions.',
   ]
 
   const currentMessageIndex = ref(0)

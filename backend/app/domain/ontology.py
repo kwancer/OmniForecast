@@ -111,6 +111,6 @@ class ForecastOntology(BaseModel):
     interval_width: float = Field(
         default=0.80,
         description=(
-            "Width of the confidence interval (0.80 = P10/P90, 0.95 = P2.5/P97.5)"
+            "Width of the prediction interval (0.80 = P10/P90, 0.95 = P2.5/P97.5)"
         ),
     )

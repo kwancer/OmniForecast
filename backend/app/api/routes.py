@@ -195,15 +195,14 @@ async def explain_forecast(
         )
 
     if not payload.question.strip():
+        briefing = explainability_service.generate_initial_briefing(db_session)
+        # Build context for dynamic suggestions
+        ctx = explainability_service._build_context(db_session)
+        suggestions = explainability_service._generate_dynamic_suggestions(ctx)
         return ExplainabilityResponse(
-            answer=explainability_service.generate_initial_briefing(db_session),
+            answer=briefing,
             evidence=[],
-            suggestions=[
-                "Why was this model selected?",
-                "How reliable is this forecast?",
-                "How did ontology mapping affect the result?",
-                "What assumptions were made for covariates?",
-            ],
+            suggestions=suggestions,
         )
 
     result = explainability_service.answer_question(
@@ -227,27 +226,18 @@ async def stream_explainability_answer(
             status_code=400, detail="Forecast is not available for this session yet"
         )
 
-    result = explainability_service.answer_question(
-        question=question, session=db_session, history=[]
-    )
-    answer = result.get("answer", "")
-    evidence = [e.model_dump() for e in result.get("evidence", [])]
-    suggestions = result.get("suggestions", [])
-
     async def event_generator():
-        words = answer.split(" ")
-        chunk = []
-        for word in words:
-            chunk.append(word)
-            if len(chunk) >= 8:
-                yield f"data: {json.dumps({'type': 'chunk', 'text': ' '.join(chunk) + ' '})}\n\n"
-                chunk = []
-                await asyncio.sleep(0.04)
+        try:
+            for msg_type, payload in explainability_service.synthesize_stream(
+                question=question, session=db_session, history=[]
+            ):
+                if msg_type == "chunk":
+                    yield f"data: {json.dumps({'type': 'chunk', 'text': payload})}\n\n"
+                elif msg_type == "meta":
+                    yield f"data: {json.dumps({'type': 'meta', **payload})}\n\n"
+        except Exception as exc:
+            yield f"data: {json.dumps({'type': 'chunk', 'text': f'Analysis error: {exc}'})}\n\n"
 
-        if chunk:
-            yield f"data: {json.dumps({'type': 'chunk', 'text': ' '.join(chunk)})}\n\n"
-
-        yield f"data: {json.dumps({'type': 'meta', 'evidence': evidence, 'suggestions': suggestions})}\n\n"
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
     return StreamingResponse(
@@ -368,8 +358,16 @@ async def generate_forecast(
                     db_session.metrics = [m.model_dump() for m in response.metrics]  # type: ignore[assignment]
                     db_session.explanation = response.explanation  # type: ignore[assignment]
 
-                    # UPDATE ONTOLOGY with selected model
-                    db_session.ontology = ontology.model_dump()  # type: ignore[assignment]
+                    # UPDATE ONTOLOGY with selected model + explainability artifacts
+                    ontology_payload = ontology.model_dump()
+                    ontology_payload["_artifacts"] = {
+                        "data_health_report": response.data_health_report,
+                        "tournament_results": [
+                            tr.model_dump() for tr in response.tournament_results or []
+                        ],
+                        "backtest_data": response.backtest_data,
+                    }
+                    db_session.ontology = ontology_payload  # type: ignore[assignment]
 
                     print("DEBUG: Committing to DB...")
                     db.commit()

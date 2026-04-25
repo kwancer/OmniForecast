@@ -1,7 +1,7 @@
 import json
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Generator, List, Optional, Tuple
 
 from google import genai
 import pandas as pd
@@ -112,14 +112,18 @@ class ForecastExplainabilityService:
             return 0.0
         return sum(values) / len(values)
 
-    def _extract_forecast_series(self, forecast_results: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def _extract_forecast_series(
+        self, forecast_results: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         points: List[Dict[str, Any]] = []
         y_values: List[float] = []
         lowers: List[float] = []
         uppers: List[float] = []
 
         for idx, row in enumerate(forecast_results):
-            y = self._safe_float(row.get("mean") or row.get("median_forecast") or row.get("value"))
+            y = self._safe_float(
+                row.get("mean") or row.get("median_forecast") or row.get("value")
+            )
             low = self._safe_float(row.get("conf_80_lower") or row.get("lower"))
             up = self._safe_float(row.get("conf_80_upper") or row.get("upper"))
 
@@ -157,7 +161,9 @@ class ForecastExplainabilityService:
         span = (max(y_values) - min(y_values)) if y_values else 0.0
         baseline = max(abs(self._series_mean(y_values)), 1e-9)
         span_pct = (span / baseline) * 100
-        endpoint_pct = ((end - start) / max(abs(start), 1e-9)) * 100 if y_values else 0.0
+        endpoint_pct = (
+            ((end - start) / max(abs(start), 1e-9)) * 100 if y_values else 0.0
+        )
 
         avg_width = None
         if lowers and uppers and len(lowers) == len(uppers):
@@ -167,6 +173,8 @@ class ForecastExplainabilityService:
         return {
             "points": points,
             "values": y_values,
+            "lowers": lowers,
+            "uppers": uppers,
             "start": start,
             "end": end,
             "span": span,
@@ -195,7 +203,9 @@ class ForecastExplainabilityService:
             return "downward-leaning"
         return "range-bound"
 
-    def _metric_lookup(self, metrics: List[Dict[str, Any]], metric_name: str) -> Optional[float]:
+    def _metric_lookup(
+        self, metrics: List[Dict[str, Any]], metric_name: str
+    ) -> Optional[float]:
         target = metric_name.lower()
         for metric in metrics:
             name = str(metric.get("name", "")).lower()
@@ -218,7 +228,9 @@ class ForecastExplainabilityService:
         forecast_results = session.forecast_results or []
         cleaning_report = session.cleaning_report or {}
         model_metadata = ontology.get("model_metadata") or {}
-        persisted_artifacts = ontology.get("_artifacts", {}) if isinstance(ontology, dict) else {}
+        persisted_artifacts = (
+            ontology.get("_artifacts", {}) if isinstance(ontology, dict) else {}
+        )
         data_health_report = persisted_artifacts.get("data_health_report") or {}
 
         series = self._extract_forecast_series(forecast_results)
@@ -226,14 +238,20 @@ class ForecastExplainabilityService:
         target_name = "target"
         for col in ontology.get("columns", []):
             if col.get("role") == "target":
-                target_name = col.get("display_name") or col.get("column_name") or "target"
+                target_name = (
+                    col.get("display_name") or col.get("column_name") or "target"
+                )
                 break
 
         mae = self._metric_lookup(metrics, "MAE")
         mape = self._metric_lookup(metrics, "MAPE")
 
-        granularity = (((ontology.get("problem") or {}).get("granularity") or {}).get("unit"))
-        horizon = ((((ontology.get("requirements") or {}).get("horizon_requirement") or {}).get("steps")))
+        granularity = ((ontology.get("problem") or {}).get("granularity") or {}).get(
+            "unit"
+        )
+        horizon = (
+            (ontology.get("requirements") or {}).get("horizon_requirement") or {}
+        ).get("steps")
 
         return {
             "session_id": session.session_id,
@@ -248,9 +266,15 @@ class ForecastExplainabilityService:
             "horizon": horizon,
             "mae": mae,
             "mape": mape,
+            "rmse": self._metric_lookup(metrics, "RMSE"),
+            "r2": self._metric_lookup(metrics, "R²"),
             "data_health_report": data_health_report,
-            "forecast_skill_score": self._compute_forecast_skill_score({"data_health_report": data_health_report}),
+            "forecast_skill_score": self._compute_forecast_skill_score(
+                {"data_health_report": data_health_report}
+            ),
             "stored_explanation": session.explanation or "",
+            "tournament_results": persisted_artifacts.get("tournament_results") or [],
+            "backtest_data": persisted_artifacts.get("backtest_data") or [],
         }
 
     def _tool_list(self) -> Dict[str, str]:
@@ -265,9 +289,12 @@ class ForecastExplainabilityService:
             "get_cleaning_summary": "Returns cleaning summary and action count.",
             "get_model_metadata": "Returns selected model metadata.",
             "get_forecast_skill_score": "Returns forecast skill score if baseline and winner MSE are available.",
+            "get_tournament_results": "Returns all models tested in the tournament with their MAE, status (winner/runner_up/rejected), and complexity.",
         }
 
-    def _tool_call(self, tool_name: str, args: Dict[str, Any], ctx: Dict[str, Any]) -> Any:
+    def _tool_call(
+        self, tool_name: str, args: Dict[str, Any], ctx: Dict[str, Any]
+    ) -> Any:
         if tool_name == "get_session_overview":
             return {
                 "target": ctx.get("target_name"),
@@ -302,7 +329,9 @@ class ForecastExplainabilityService:
             role_filter = str(args.get("role", "")).strip().lower()
             cols = ctx.get("ontology", {}).get("columns", [])
             if role_filter:
-                cols = [c for c in cols if str(c.get("role", "")).lower() == role_filter]
+                cols = [
+                    c for c in cols if str(c.get("role", "")).lower() == role_filter
+                ]
             return cols
 
         if tool_name == "get_forecast_diagnostics":
@@ -328,7 +357,11 @@ class ForecastExplainabilityService:
             report = ctx.get("cleaning_report", {})
             actions = report.get("actions", []) if isinstance(report, dict) else []
             summary = report.get("summary") if isinstance(report, dict) else None
-            return {"summary": summary, "action_count": len(actions), "actions": actions[:6]}
+            return {
+                "summary": summary,
+                "action_count": len(actions),
+                "actions": actions[:6],
+            }
 
         if tool_name == "get_model_metadata":
             return ctx.get("model_metadata", {})
@@ -336,21 +369,266 @@ class ForecastExplainabilityService:
         if tool_name == "get_forecast_skill_score":
             score = ctx.get("forecast_skill_score")
             if score is None:
-                return {"value": None, "status": "unavailable", "reason": "Baseline and winner MSE were not available in session artifacts."}
+                return {
+                    "value": None,
+                    "status": "unavailable",
+                    "reason": "Baseline and winner MSE were not available in session artifacts.",
+                }
             return {"value": score, "status": "ok"}
+
+        if tool_name == "get_tournament_results":
+            return ctx.get("tournament_results", [])
 
         return {"error": f"unknown tool: {tool_name}"}
 
-    def _tool_trace_to_evidence(self, tool_trace: List[Dict[str, Any]]) -> List[ExplainabilityEvidence]:
+    _TOOL_LABELS = {
+        "get_session_overview": "Session Overview",
+        "get_metric": "Performance Metric",
+        "list_metrics": "All Metrics",
+        "get_ontology_path": "Ontology Config",
+        "list_columns": "Column Roles",
+        "get_forecast_diagnostics": "Forecast Diagnostics",
+        "get_forecast_points": "Forecast Data Points",
+        "get_cleaning_summary": "Data Cleaning",
+        "get_model_metadata": "Model Selection",
+        "get_forecast_skill_score": "Skill Score",
+        "get_tournament_results": "Model Tournament",
+    }
+
+    def _tool_trace_to_evidence(
+        self, tool_trace: List[Dict[str, Any]]
+    ) -> List[ExplainabilityEvidence]:
         evidence: List[ExplainabilityEvidence] = []
         for call in tool_trace:
             tool_name = call.get("tool", "unknown_tool")
+            label = self._TOOL_LABELS.get(tool_name, tool_name)
             output = call.get("output")
-            detail = str(output)
-            if len(detail) > 220:
-                detail = detail[:220] + "..."
-            evidence.append(ExplainabilityEvidence(source=f"tool:{tool_name}", detail=detail))
+            if isinstance(output, dict) and output.get("error"):
+                continue
+            detail = (
+                json.dumps(output, default=str)
+                if not isinstance(output, str)
+                else output
+            )
+            if len(detail) > 300:
+                detail = detail[:300] + "…"
+            evidence.append(ExplainabilityEvidence(source=label, detail=detail))
         return evidence
+
+    def _build_fact_sheet(
+        self, ctx: Dict[str, Any], tool_trace: List[Dict[str, Any]]
+    ) -> str:
+        """Convert tool outputs + context into a structured, human-readable fact sheet."""
+        lines: List[str] = ["FORECAST FACT SHEET", "─" * 40]
+
+        lines.append(f"Target Variable: {ctx.get('target_name', 'unknown')}")
+        if ctx.get("horizon"):
+            lines.append(
+                f"Forecast Horizon: {ctx['horizon']} {ctx.get('granularity', 'periods')}"
+            )
+
+        model = ctx.get("model_metadata", {})
+        if model:
+            lines.append(
+                f"Active Model: {model.get('name', 'Unknown')} — {model.get('rationale', 'selected by tournament')}"
+            )
+            if model.get("description"):
+                lines.append(f"Model Type: {model['description']}")
+
+        # ── Forecast shape & direction ──
+        series = ctx.get("series", {})
+        values = series.get("values", [])
+        if series.get("count", 0) > 1:
+            shape = self._describe_shape(series)
+            ep = series.get("endpoint_pct", 0)
+            direction = "upward" if ep > 1 else ("downward" if ep < -1 else "stable")
+            lines.append(f"Overall Direction: {direction} ({ep:+.1f}% endpoint change)")
+            lines.append(f"Pattern Shape: {shape}")
+            lines.append(
+                f"Forecast Range: {series.get('start', 0):.2f} → {series.get('end', 0):.2f}"
+            )
+            if values:
+                lines.append(f"Forecast Min Value: {min(values):.2f}")
+                lines.append(f"Forecast Max Value: {max(values):.2f}")
+                lines.append(f"Forecast Mean Value: {self._series_mean(values):.2f}")
+
+        # ── Prediction intervals ──
+        lowers = series.get("lowers", [])
+        uppers = series.get("uppers", [])
+        if series.get("avg_interval_width") is not None:
+            lines.append(
+                f"Avg Prediction Band Width: ±{series['avg_interval_width']:.2f}"
+            )
+        if lowers and uppers:
+            lines.append(
+                f"Tightest Interval: ±{min(max(0, uppers[i] - lowers[i]) for i in range(min(len(lowers), len(uppers)))):.2f}"
+            )
+            lines.append(
+                f"Widest Interval: ±{max(max(0, uppers[i] - lowers[i]) for i in range(min(len(lowers), len(uppers)))):.2f}"
+            )
+
+        # ── Reliability metrics ──
+        skill = ctx.get("forecast_skill_score")
+        mape = ctx.get("mape")
+        mae = ctx.get("mae")
+        rmse = ctx.get("rmse")
+        r2 = ctx.get("r2")
+        reliability = self._reliability_label(skill=skill, mape=mape)
+        lines.append(f"Reliability Rating: {reliability}")
+        if skill is not None:
+            lines.append(
+                f"Skill Score: {skill:.2f} (1.0 = perfect, 0.0 = no better than naive)"
+            )
+        if mape is not None:
+            lines.append(f"MAPE: {mape:.1f}% (average percentage error)")
+        if mae is not None:
+            lines.append(f"MAE: {mae:.2f} (average absolute error in target units)")
+        if rmse is not None:
+            lines.append(f"RMSE: {rmse:.2f} (root mean squared error)")
+        if r2 is not None:
+            lines.append(
+                f"R²: {r2:.3f} (coefficient of determination, 1.0 = perfect fit)"
+            )
+
+        # ── Data health ──
+        health = ctx.get("data_health_report", {})
+        if isinstance(health, dict) and health:
+            score = self._safe_float(health.get("score"))
+            if score is not None:
+                lines.append(
+                    f"Data Health Score: {score:.0f}/100 ({health.get('rating', 'unknown')})"
+                )
+            if health.get("explanation"):
+                lines.append(f"Data Health Note: {health['explanation']}")
+
+        # ── Tournament results ──
+        tournament = ctx.get("tournament_results", [])
+        if tournament:
+            lines.append(f"Model Tournament: {len(tournament)} model(s) evaluated")
+            for tr in tournament:
+                if isinstance(tr, dict):
+                    status = tr.get("status", "unknown").upper()
+                    name = tr.get("model_name", "?")
+                    tr_mae = self._safe_float(tr.get("mae"))
+                    complexity = self._safe_float(tr.get("complexity"))
+                    entry = (
+                        f"  {'🏆' if status == 'WINNER' else '  '} {name} — MAE: {tr_mae:.2f}"
+                        if tr_mae is not None
+                        else f"  {name}"
+                    )
+                    if complexity is not None:
+                        entry += f", complexity: {complexity:.1f}"
+                    entry += f" [{status}]"
+                    lines.append(entry)
+
+        # ── Cleaning ──
+        cleaning = ctx.get("cleaning_report", {})
+        if isinstance(cleaning, dict):
+            actions = cleaning.get("actions", [])
+            if actions:
+                lines.append(f"Data Cleaning: {len(actions)} action(s)")
+                for a in actions[:4]:
+                    if isinstance(a, dict):
+                        lines.append(
+                            f"  • {a.get('column', '?')}: {a.get('description', a.get('action', ''))}"
+                        )
+
+        # ── Forecast point samples from tool trace ──
+        for call in tool_trace:
+            tool = call.get("tool", "")
+            output = call.get("output")
+            if tool == "get_forecast_points" and isinstance(output, list) and output:
+                lines.append(f"Sample Forecast Points (first {min(len(output), 5)}):")
+                for pt in output[:5]:
+                    if isinstance(pt, dict):
+                        date = pt.get("date", f"t+{pt.get('index', '?')}")
+                        y = pt.get("y")
+                        lo, hi = pt.get("lower"), pt.get("upper")
+                        s = f"  {date}: {y:.2f}" if y is not None else f"  {date}: N/A"
+                        if lo is not None and hi is not None:
+                            s += f" [{lo:.2f} – {hi:.2f}]"
+                        lines.append(s)
+
+        return "\n".join(lines)
+
+    _SYNTHESIS_SYSTEM = (
+        "You are a helpful forecast analyst embedded in a forecasting dashboard. "
+        "The user can already see the chart, metrics, model name, and data health score on screen "
+        "— DO NOT repeat those numbers back to them. Instead, help them INTERPRET what they see.\n\n"
+        "Your job is to:\n"
+        "- Explain what the forecast means in practical, real-world terms\n"
+        "- Flag anything surprising, risky, or worth paying attention to\n"
+        "- Help them decide whether to trust the forecast and how to act on it\n"
+        "- Translate technical concepts into everyday language (no jargon without explanation)\n\n"
+        "CRITICAL — metric skepticism:\n"
+        "- MAPE can be MISLEADINGLY low for targets with large absolute values (e.g. GDP, revenue). "
+        "A 0.1% MAPE on a billion-dollar figure still means the error is hundreds of millions. "
+        "ALWAYS contextualise MAPE by mentioning what the MAE means in real-world units. "
+        "If MAPE looks suspiciously perfect (< 1%), flag that it may be deceptive and explain why.\n"
+        "- The **Forecast Skill Score** is the most honest reliability indicator — it measures how much "
+        "better the model is versus a naive baseline (just repeating the last value). "
+        "A score of 0.0 means the model is no better than guessing. A score of 0.7+ is genuinely strong. "
+        "Always mention the skill score when discussing reliability or trust.\n"
+        "- If the winning model is a Naive Baseline, be upfront that the data may lack predictable patterns.\n\n"
+        "Writing rules:\n"
+        "- Never open with greetings (no 'Good morning', 'Hello', 'Hi there')\n"
+        "- Never just list facts the user can see on screen — add insight they can't get from the chart alone\n"
+        "- Write like you're talking to a smart colleague who isn't a data scientist\n"
+        "- Use **bold** sparingly for genuinely key insights\n"
+        "- Keep it short: 2-4 sentences for simple questions, up to a short paragraph for complex ones\n"
+        "- Be honest about limitations — if the model struggled, say so plainly\n"
+        "- Use the fact sheet for grounding but focus on the 'so what?' not the raw numbers"
+    )
+
+    def _generate_dynamic_suggestions(
+        self, ctx: Dict[str, Any], history: Optional[List[Dict[str, str]]] = None
+    ) -> List[str]:
+        asked = set()
+        if history:
+            for t in history:
+                if t.get("role") == "user":
+                    asked.add(t.get("content", "").strip().lower())
+
+        pool: List[str] = []
+        series = ctx.get("series", {})
+        skill = ctx.get("forecast_skill_score")
+        mape = ctx.get("mape")
+        cleaning = ctx.get("cleaning_report", {})
+        ep = series.get("endpoint_pct", 0)
+
+        if series.get("sign_changes", 0) >= 2:
+            pool.append("Why does the forecast oscillate?")
+        if abs(ep) > 10:
+            d = "upward" if ep > 0 else "downward"
+            pool.append(f"What's driving the {d} trend?")
+        if skill is not None and skill < 0.3:
+            pool.append("Why is model performance limited?")
+        if mape is not None and mape > 15:
+            pool.append("What's causing the high error rate?")
+        if isinstance(cleaning, dict) and cleaning.get("actions"):
+            pool.append("What data cleaning was applied?")
+        if series.get("avg_interval_width") is not None:
+            pool.append("How wide are the prediction intervals?")
+
+        pool.extend(
+            [
+                "Why was this model selected?",
+                "How reliable is this forecast for planning?",
+                "What assumptions could change this outcome?",
+                "What are the key risks in this forecast?",
+            ]
+        )
+
+        seen: set = set()
+        result: List[str] = []
+        for s in pool:
+            key = s.strip().lower()
+            if key not in asked and key not in seen:
+                seen.add(key)
+                result.append(s)
+            if len(result) >= 3:
+                break
+        return result or pool[:3]
 
     def _run_rule_based_tool_plan(self, question: str) -> List[Dict[str, Any]]:
         q = question.lower()
@@ -360,14 +638,31 @@ class ForecastExplainabilityService:
             calls.append({"tool": "list_metrics", "args": {}})
             calls.append({"tool": "get_forecast_skill_score", "args": {}})
 
-        if any(k in q for k in ["forecast", "trend", "shape", "flat", "up", "down", "interval"]):
+        if any(
+            k in q
+            for k in ["forecast", "trend", "shape", "flat", "up", "down", "interval"]
+        ):
             calls.append({"tool": "get_forecast_diagnostics", "args": {}})
             calls.append({"tool": "get_forecast_points", "args": {"n": 8}})
 
-        if any(k in q for k in ["ontology", "column", "role", "covariate", "granularity", "horizon"]):
+        if any(
+            k in q
+            for k in [
+                "ontology",
+                "column",
+                "role",
+                "covariate",
+                "granularity",
+                "horizon",
+            ]
+        ):
             calls.append({"tool": "list_columns", "args": {}})
-            calls.append({"tool": "get_ontology_path", "args": {"path": "problem.granularity"}})
-            calls.append({"tool": "get_ontology_path", "args": {"path": "requirements"}})
+            calls.append(
+                {"tool": "get_ontology_path", "args": {"path": "problem.granularity"}}
+            )
+            calls.append(
+                {"tool": "get_ontology_path", "args": {"path": "requirements"}}
+            )
 
         if any(k in q for k in ["model", "why"]):
             calls.append({"tool": "get_model_metadata", "args": {}})
@@ -392,12 +687,15 @@ class ForecastExplainabilityService:
             if history:
                 turns = history[-8:]
                 history_block = "\n".join(
-                    [f"{turn.get('role', 'user')}: {turn.get('content', '')}" for turn in turns]
+                    [
+                        f"{turn.get('role', 'user')}: {turn.get('content', '')}"
+                        for turn in turns
+                    ]
                 )
 
             prompt = (
                 "You are planning tool calls for a forecasting explainability assistant. "
-                "Return JSON only with schema: {\"tool_calls\":[{\"tool\":\"name\",\"args\":{}}]}. "
+                'Return JSON only with schema: {"tool_calls":[{"tool":"name","args":{}}]}. '
                 "Choose only from the provided tools and keep to max 6 calls.\n\n"
                 f"Available Tools:\n{json.dumps(available_tools, indent=2)}\n\n"
                 f"Recent Chat:\n{history_block}\n\n"
@@ -424,59 +722,200 @@ class ForecastExplainabilityService:
                     cleaned_calls.append({"tool": name, "args": args})
 
             return cleaned_calls or None
-        except (RuntimeError, ValueError, TypeError, OSError, TimeoutError, ConnectionError, json.JSONDecodeError):
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            OSError,
+            TimeoutError,
+            ConnectionError,
+            json.JSONDecodeError,
+        ):
             return None
+
+    def _build_synthesis_prompt(
+        self,
+        question: str,
+        fact_sheet: str,
+        history: Optional[List[Dict[str, str]]],
+    ) -> str:
+        history_block = ""
+        if history:
+            turns = history[-8:]
+            history_block = (
+                "Conversation so far:\n"
+                + "\n".join(
+                    [f"{t.get('role', 'user')}: {t.get('content', '')}" for t in turns]
+                )
+                + "\n\n"
+            )
+
+        return (
+            f"{self._SYNTHESIS_SYSTEM}\n\n"
+            f"{history_block}"
+            f"Fact Sheet:\n{fact_sheet}\n\n"
+            f"User Question: {question}"
+        )
 
     def _synthesize_with_llm(
         self,
         question: str,
         history: Optional[List[Dict[str, str]]],
         tool_trace: List[Dict[str, Any]],
-    ) -> Optional[str]:
+        ctx: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
         if not self._has_llm():
             return None
 
         try:
             client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-            history_block = ""
-            if history:
-                turns = history[-8:]
-                history_block = "\n".join(
-                    [f"{turn.get('role', 'user')}: {turn.get('content', '')}" for turn in turns]
-                )
+            fact_sheet = self._build_fact_sheet(ctx, tool_trace)
+            prompt = self._build_synthesis_prompt(question, fact_sheet, history)
 
-            prompt = (
-                "You are an explainability copilot for forecasting. "
-                "Answer ONLY from tool outputs below. If something is missing, explicitly say it is unavailable. "
-                "Use plain language for non-technical project managers. "
-                "Do not use markdown formatting and never use double asterisks. "
-                "Do not mention tool names, tool calls, JSON, MAE, RMSE, MAPE, or internal diagnostics terms directly. "
-                "Translate technical signals into simple confidence statements. "
-                "Keep response concise and practical.\n\n"
-                f"Recent Chat:\n{history_block}\n\n"
-                f"User Question:\n{question}\n\n"
-                f"Tool Outputs:\n{json.dumps(tool_trace, indent=2)}"
+            response = client.models.generate_content(
+                model=self._model_name(), contents=prompt
             )
-            response = client.models.generate_content(model=self._model_name(), contents=prompt)
             answer = (response.text or "").strip()
             if not answer:
                 return None
-            return self._sanitize_user_text(answer)
-        except (RuntimeError, ValueError, TypeError, OSError, TimeoutError, ConnectionError):
+
+            return {
+                "answer": answer,
+                "suggestions": self._generate_dynamic_suggestions(ctx, history),
+            }
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            OSError,
+            TimeoutError,
+            ConnectionError,
+        ):
             return None
 
-    def _deterministic_answer_from_tools(self, question: str, tool_trace: List[Dict[str, Any]]) -> str:
+    def synthesize_stream(
+        self,
+        question: str,
+        session: Any,
+        history: Optional[List[Dict[str, str]]] = None,
+    ) -> Generator[Tuple[str, Any], None, None]:
+        """Stream synthesis tokens. Yields (type, payload) tuples."""
+        ctx = self._build_context(session)
+        tools = self._tool_list()
+
+        llm_plan = self._llm_generate_tool_plan(
+            question=question, history=history, available_tools=tools
+        )
+        planned_calls = llm_plan or self._run_rule_based_tool_plan(question=question)
+
+        tool_trace: List[Dict[str, Any]] = []
+        for call in planned_calls:
+            output = self._tool_call(call.get("tool", ""), call.get("args", {}), ctx)
+            tool_trace.append(
+                {
+                    "tool": call.get("tool", ""),
+                    "args": call.get("args", {}),
+                    "output": output,
+                }
+            )
+
+        if not self._has_llm():
+            fallback = self._deterministic_answer_from_tools(question, tool_trace)
+            yield ("chunk", fallback)
+            yield (
+                "meta",
+                {
+                    "evidence": [
+                        e.model_dump() for e in self._tool_trace_to_evidence(tool_trace)
+                    ],
+                    "suggestions": self._generate_dynamic_suggestions(ctx, history),
+                },
+            )
+            return
+
+        try:
+            client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+            fact_sheet = self._build_fact_sheet(ctx, tool_trace)
+            prompt = self._build_synthesis_prompt(question, fact_sheet, history)
+
+            for chunk in client.models.generate_content_stream(
+                model=self._model_name(), contents=prompt
+            ):
+                token = chunk.text or ""
+                if token:
+                    yield ("chunk", token)
+
+            yield (
+                "meta",
+                {
+                    "evidence": [
+                        e.model_dump() for e in self._tool_trace_to_evidence(tool_trace)
+                    ],
+                    "suggestions": self._generate_dynamic_suggestions(ctx, history),
+                },
+            )
+        except (
+            RuntimeError,
+            ValueError,
+            TypeError,
+            OSError,
+            TimeoutError,
+            ConnectionError,
+        ) as exc:
+            yield ("chunk", f"Analysis unavailable: {exc}")
+            yield (
+                "meta",
+                {
+                    "evidence": [],
+                    "suggestions": self._generate_dynamic_suggestions(ctx, history),
+                },
+            )
+
+    def _deterministic_answer_from_tools(
+        self, question: str, tool_trace: List[Dict[str, Any]]
+    ) -> str:
         if not tool_trace:
             return "I do not have enough grounded session artifacts to answer this question yet."
 
         q = question.lower()
-        overview = next((t.get("output") for t in tool_trace if t.get("tool") == "get_session_overview"), {})
+        overview = next(
+            (
+                t.get("output")
+                for t in tool_trace
+                if t.get("tool") == "get_session_overview"
+            ),
+            {},
+        )
         if not isinstance(overview, dict):
             overview = {}
-        diagnostics = next((t.get("output") for t in tool_trace if t.get("tool") == "get_forecast_diagnostics"), None)
-        metrics = next((t.get("output") for t in tool_trace if t.get("tool") == "list_metrics"), None)
-        skill = next((t.get("output") for t in tool_trace if t.get("tool") == "get_forecast_skill_score"), None)
-        model = next((t.get("output") for t in tool_trace if t.get("tool") == "get_model_metadata"), None)
+        diagnostics = next(
+            (
+                t.get("output")
+                for t in tool_trace
+                if t.get("tool") == "get_forecast_diagnostics"
+            ),
+            None,
+        )
+        metrics = next(
+            (t.get("output") for t in tool_trace if t.get("tool") == "list_metrics"),
+            None,
+        )
+        skill = next(
+            (
+                t.get("output")
+                for t in tool_trace
+                if t.get("tool") == "get_forecast_skill_score"
+            ),
+            None,
+        )
+        model = next(
+            (
+                t.get("output")
+                for t in tool_trace
+                if t.get("tool") == "get_model_metadata"
+            ),
+            None,
+        )
 
         if "model" in q or "why" in q:
             if isinstance(model, dict) and model:
@@ -490,9 +929,18 @@ class ForecastExplainabilityService:
             reliability = "unknown"
             if isinstance(skill, dict):
                 if skill.get("status") == "ok":
-                    reliability = self._reliability_label(skill=skill.get("value"), mape=None)
+                    reliability = self._reliability_label(
+                        skill=skill.get("value"), mape=None
+                    )
             elif isinstance(metrics, list):
-                mape_val = next((self._safe_float(m.get("value")) for m in metrics if str(m.get("name", "")).upper() == "MAPE"), None)
+                mape_val = next(
+                    (
+                        self._safe_float(m.get("value"))
+                        for m in metrics
+                        if str(m.get("name", "")).upper() == "MAPE"
+                    ),
+                    None,
+                )
                 reliability = self._reliability_label(skill=None, mape=mape_val)
 
             if reliability == "unknown":
@@ -500,7 +948,7 @@ class ForecastExplainabilityService:
             return (
                 f"Confidence level is {reliability}. "
                 "In simple terms, this means the forecast is "
-                f"{ 'more dependable for planning' if reliability == 'strong' else ('usable with some caution' if reliability == 'moderate' else 'best treated as directional guidance rather than a firm commitment') }."
+                f"{'more dependable for planning' if reliability == 'strong' else ('usable with some caution' if reliability == 'moderate' else 'best treated as directional guidance rather than a firm commitment')}."
             )
 
         if diagnostics:
@@ -524,24 +972,76 @@ class ForecastExplainabilityService:
 
     def generate_initial_briefing(self, session: Any) -> str:
         ctx = self._build_context(session)
+
+        # Try LLM-generated briefing first
+        if self._has_llm():
+            try:
+                client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+                # Build a lightweight fact sheet for the briefing
+                overview_trace = [
+                    {
+                        "tool": "get_session_overview",
+                        "args": {},
+                        "output": {
+                            "target": ctx.get("target_name"),
+                            "horizon": ctx.get("horizon"),
+                            "granularity": ctx.get("granularity"),
+                            "model": ctx.get("model_metadata", {}),
+                        },
+                    }
+                ]
+                fact_sheet = self._build_fact_sheet(ctx, overview_trace)
+
+                prompt = (
+                    "You are a helpful forecast analyst embedded in a forecasting dashboard. "
+                    "Write a short opening message (2-4 sentences) for someone viewing their forecast results.\n\n"
+                    "CRITICAL RULES:\n"
+                    "- NEVER open with greetings ('Good morning', 'Hello', etc.)\n"
+                    "- The user can ALREADY SEE the chart, metrics (MAE, MAPE), model name, and data health on screen. "
+                    "DO NOT just repeat those numbers back. Instead, interpret them.\n"
+                    "- Focus on the ONE thing that matters most: should they trust this forecast? "
+                    "To determine trust, ALWAYS look at the **Forecast Skill Score** first. If it's low or 0.0, warn the user "
+                    "that the forecast is basically guessing or a random walk. If it's high (0.6+), tell them it found strong patterns.\n"
+                    "Is there something surprising? What should they watch out for?\n"
+                    "- Write for someone who is NOT a data scientist — no unexplained jargon\n"
+                    "- Be genuinely helpful, not performatively technical\n"
+                    "- End with a brief, natural invitation to ask questions (not formal)\n\n"
+                    "Good example: 'This forecast looks solid for planning purposes — the model found a clear "
+                    "weekly pattern in your sales data and is projecting it forward with fairly tight prediction bands. "
+                    "The main thing to watch is whether next week's promotional activity changes the pattern. "
+                    "Ask me anything about the assumptions or risks.'\n\n"
+                    "Bad example: 'The MAPE is 6.3% and the MAE is 12.4. The model is AutoETS. "
+                    "The forecast shows an upward trend of +2.1%.'\n\n"
+                    f"Fact Sheet (for your reference, not to repeat):\n{fact_sheet}"
+                )
+                response = client.models.generate_content(
+                    model=self._model_name(), contents=prompt
+                )
+                answer = (response.text or "").strip()
+                if answer:
+                    return answer
+            except (
+                RuntimeError,
+                ValueError,
+                TypeError,
+                OSError,
+                TimeoutError,
+                ConnectionError,
+            ):
+                pass
+
+        # Template fallback
         model_name = ctx["model_metadata"].get("name", "Selected model")
-        rationale = ctx["model_metadata"].get("rationale", "chosen from tournament performance")
+        rationale = ctx["model_metadata"].get(
+            "rationale", "chosen from tournament performance"
+        )
         horizon = ctx.get("horizon") or len(ctx.get("forecast_results") or [])
         granularity = ctx.get("granularity") or "periods"
         series = ctx.get("series", {})
         shape = self._describe_shape(series)
         endpoint_pct = series.get("endpoint_pct", 0.0)
-        avg_interval_width = series.get("avg_interval_width")
-
-        mape = ctx.get("mape")
-        skill = ctx.get("forecast_skill_score")
-
-        reliability = self._reliability_label(skill=skill, mape=mape)
-
-        uncertainty_text = (
-            "Uncertainty appears contained for most of the horizon."
-            if avg_interval_width is not None
-            else "Uncertainty details are limited in this run, so use extra caution."
+        reliability = self._reliability_label(
+            skill=ctx.get("forecast_skill_score"), mape=ctx.get("mape")
         )
 
         briefing = (
@@ -549,7 +1049,6 @@ class ForecastExplainabilityService:
             f"Overall direction looks {('upward' if endpoint_pct > 1 else 'downward' if endpoint_pct < -1 else 'mostly stable')}, "
             f"with a pattern that appears {shape}. "
             f"Confidence level is {reliability}. "
-            f"{uncertainty_text} "
             f"Active model: {model_name} ({rationale}).\n\n"
             "You can ask me plain-language questions about what this means for planning, risk, assumptions, and next steps."
         )
@@ -563,13 +1062,10 @@ class ForecastExplainabilityService:
     ) -> Dict[str, Any]:
         ctx = self._build_context(session)
         tools = self._tool_list()
-        suggestions = [
-            "Why was this model selected?",
-            "How much should I trust this forecast for planning?",
-            "What assumptions could change this outcome?",
-        ]
 
-        llm_plan = self._llm_generate_tool_plan(question=question, history=history, available_tools=tools)
+        llm_plan = self._llm_generate_tool_plan(
+            question=question, history=history, available_tools=tools
+        )
         planned_calls = llm_plan or self._run_rule_based_tool_plan(question=question)
 
         tool_trace: List[Dict[str, Any]] = []
@@ -579,20 +1075,28 @@ class ForecastExplainabilityService:
             output = self._tool_call(tool_name=tool_name, args=args, ctx=ctx)
             tool_trace.append({"tool": tool_name, "args": args, "output": output})
 
-        llm_answer = self._synthesize_with_llm(
+        evidence = [e.model_dump() for e in self._tool_trace_to_evidence(tool_trace)]
+        suggestions = self._generate_dynamic_suggestions(ctx, history)
+
+        llm_result = self._synthesize_with_llm(
             question=question,
             history=history,
             tool_trace=tool_trace,
+            ctx=ctx,
         )
-        if llm_answer:
+        if llm_result:
             return {
-                "answer": self._sanitize_user_text(llm_answer),
-                "evidence": [],
-                "suggestions": suggestions,
+                "answer": llm_result["answer"],
+                "evidence": evidence,
+                "suggestions": llm_result.get("suggestions", suggestions),
             }
 
         return {
-            "answer": self._sanitize_user_text(self._deterministic_answer_from_tools(question=question, tool_trace=tool_trace)),
-            "evidence": [],
+            "answer": self._sanitize_user_text(
+                self._deterministic_answer_from_tools(
+                    question=question, tool_trace=tool_trace
+                )
+            ),
+            "evidence": evidence,
             "suggestions": suggestions,
         }

@@ -34,7 +34,7 @@ def calculate_metrics(y_true: pd.Series, y_pred: pd.Series) -> List[ForecastMetr
         ),
         ForecastMetric(
             name="MAPE",
-            value=safe_float(mean_absolute_percentage_error(y_true, y_pred)),
+            value=safe_float(mean_absolute_percentage_error(y_true, y_pred) * 100),
         ),
     ]
     return metrics
@@ -66,7 +66,7 @@ class InternalForecaster(ABC):
         interval_width: float = 0.80,
     ) -> pd.DataFrame:
         """
-        Generate forecasts with multi-layer confidence intervals.
+        Generate forecasts with multi-layer prediction intervals.
 
         Returns DataFrame with columns:
         ['date', 'median_forecast', 'conf_30_lower', 'conf_30_upper',
@@ -84,7 +84,7 @@ class InternalForecaster(ABC):
         residuals_std: float,
     ) -> Dict[str, np.ndarray]:
         """
-        Calculate multiple levels of confidence intervals using standard normal distribution.
+        Calculate multiple levels of prediction intervals using standard normal distribution.
         """
         # We need layers for 30%, 60%, and 80%
         widths = [0.30, 0.60, 0.80]

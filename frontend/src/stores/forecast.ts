@@ -141,8 +141,6 @@ export const useForecastStore = defineStore('forecast', {
         this.tournamentResults = data.tournament_results ?? []
         this.backtestData = data.backtest_data ?? []
 
-        await this.initializeExplainability()
-
         // Hide progress and move to cleaning step
         this.showProgress = false
         this.step = 'cleaning'
@@ -284,6 +282,8 @@ export const useForecastStore = defineStore('forecast', {
         })
       }).catch((error: any) => {
         appStore.notify(error.message || 'Explainability stream failed', 'warning')
+      }).finally(() => {
+        this.askingExplainability = false
       })
     },
 

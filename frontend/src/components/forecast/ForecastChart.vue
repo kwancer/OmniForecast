@@ -70,7 +70,7 @@
             style="opacity: 0.1"
             width="12"
           />
-          <span>Confidence Range</span>
+          <span>Prediction Range</span>
         </div>
       </template>
 
@@ -84,7 +84,7 @@
             style="opacity: 0.6"
             width="12"
           />
-          <span>80% Confidence (Outer)</span>
+          <span>80% Prediction (Outer)</span>
         </div>
         <div class="d-flex align-center">
           <v-sheet
@@ -94,7 +94,7 @@
             style="opacity: 0.6"
             width="12"
           />
-          <span>60% Confidence (Middle)</span>
+          <span>60% Prediction (Middle)</span>
         </div>
         <div class="d-flex align-center">
           <v-sheet
@@ -104,7 +104,7 @@
             style="opacity: 0.8"
             width="12"
           />
-          <span>30% Confidence (Inner)</span>
+          <span>30% Prediction (Inner)</span>
         </div>
       </template>
     </div>
@@ -289,7 +289,7 @@
             tension: 0.3,
           },
           {
-            label: '80% Confidence',
+            label: '80% Prediction',
             data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p10, upper: p.p90 }))],
             borderColor: 'transparent',
             backgroundColor: 'rgba(187, 222, 251, 0.2)', // Light Blue
@@ -307,7 +307,7 @@
             tension: 0.3,
           },
           {
-            label: '60% Confidence',
+            label: '60% Prediction',
             data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p20, upper: p.p80 }))],
             borderColor: 'transparent',
             backgroundColor: 'rgba(100, 181, 246, 0.4)', // Medium Blue
@@ -325,7 +325,7 @@
             tension: 0.3,
           },
           {
-            label: '30% Confidence',
+            label: '30% Prediction',
             data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p35, upper: p.p65 }))],
             borderColor: 'transparent',
             backgroundColor: 'rgba(25, 118, 210, 0.6)', // Dark Blue
@@ -378,7 +378,7 @@
             tension: 0.3,
           },
           {
-            label: 'Confidence Range',
+            label: 'Prediction Range',
             borderColor: 'transparent',
             backgroundColor: 'rgba(24, 103, 192, 0.1)',
             fill: '-1',
