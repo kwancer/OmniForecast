@@ -7,6 +7,7 @@ import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from app.core.pipeline import get_pipeline
@@ -18,7 +19,7 @@ from app.domain.data import (
 from app.domain.ontology import ForecastOntology
 from app.layers.explainability import ForecastExplainabilityService
 from app.services.progress_tracker import get_progress_tracker
-from app.services.storage.database import ForecastSession, get_db
+from app.services.storage.database import ForecastSession, SessionLocal, get_db
 
 router = APIRouter()
 explainability_service = ForecastExplainabilityService()
@@ -62,7 +63,8 @@ def _persist_forecast_results(
             db_session.metrics = [m.model_dump() for m in response.metrics]  # type: ignore[assignment]
             db_session.explanation = response.explanation  # type: ignore[assignment]
             ontology_payload = ontology.model_dump()
-            # Persist explainability artifacts under ontology to avoid DB schema migration.
+            # Persist explainability artifacts under ontology
+            # to avoid DB schema migration.
             ontology_payload["_artifacts"] = {
                 "data_health_report": response.data_health_report,
                 "tournament_results": [
@@ -89,7 +91,8 @@ def _persist_forecast_results(
                 continue
 
             print(
-                f"DEBUG: Database error during commit (non-retryable or exhausted): {db_err}"
+                "DEBUG: Database error during commit "
+                f"(non-retryable or exhausted): {db_err}"
             )
             return False
 
@@ -236,7 +239,7 @@ async def stream_explainability_answer(
                 elif msg_type == "meta":
                     yield f"data: {json.dumps({'type': 'meta', **payload})}\n\n"
         except Exception as exc:
-            yield f"data: {json.dumps({'type': 'chunk', 'text': f'Analysis error: {exc}'})}\n\n"
+            yield f"data: {json.dumps({'type': 'chunk', 'text': f'error: {exc}'})}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
@@ -275,7 +278,8 @@ async def create_plan(
         ontology.session_id = session_id
 
         # Determine Model Metadata (pipeline's forecaster can provide this)
-        # OPTIMIZATION: User requested to skip model selection at Plan stage for Frugality.
+        # OPTIMIZATION: User requested to skip model selection at Plan stage
+        # for Frugality.
         # we only need to only choose it during our frugal tournament (in forecast).
         # pipeline.forecaster.select_model(df, ontology)
         # ontology.model_metadata = pipeline.forecaster.get_metadata()
@@ -340,7 +344,8 @@ async def generate_forecast(
         print("DEBUG: Pipeline finished.")
 
         # CAPTURE SELECTED MODEL METADATA
-        # The pipeline has now selected a model. We must capture it to show on the final page.
+        # The pipeline has now selected a model. We must capture it to show
+        # on the final page.
         ontology.model_metadata = pipeline.forecaster.get_metadata()
 
         # Update Persisted Session
