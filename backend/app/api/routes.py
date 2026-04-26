@@ -2,6 +2,7 @@ import asyncio
 import io
 import json
 import uuid
+from typing import Optional
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -256,7 +257,10 @@ async def stream_explainability_answer(
 
 @router.post("/plan", response_model=ForecastOntology)
 async def create_plan(
-    file: UploadFile = File(...), prompt: str = Form(...), db: Session = Depends(get_db)
+    file: UploadFile = File(...),
+    prompt: str = Form(...),
+    history: Optional[str] = Form(None),
+    db: Session = Depends(get_db),
 ) -> ForecastOntology:
     """
     Analyzes the uploaded file and user prompt to generate a Forecast Ontology (Plan).
@@ -264,14 +268,22 @@ async def create_plan(
     """
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=400, detail="Only CSV files are supported.")
-
+ 
     try:
         content = await file.read()
         df = pd.read_csv(io.BytesIO(content))
-
+ 
+        # Parse History if present
+        parsed_history = None
+        if history:
+            try:
+                parsed_history = json.loads(history)
+            except json.JSONDecodeError:
+                print(f"Warning: Could not parse history JSON: {history}")
+ 
         # Use Pipeline
         pipeline = get_pipeline()
-        ontology = pipeline.analyze_intent(df, prompt)
+        ontology = pipeline.analyze_intent(df, prompt, history=parsed_history)
 
         # Generate Session ID
         session_id = str(uuid.uuid4())

@@ -28,6 +28,8 @@ export const useForecastStore = defineStore('forecast', {
     explainabilityMessages: [] as ExplainabilityMessage[],
     askingExplainability: false,
     suggestedQuestions: [] as string[],
+    // Multi-turn clarification
+    clarificationHistory: [] as { role: 'assistant' | 'user', content: string }[],
   }),
 
   getters: {
@@ -60,17 +62,25 @@ export const useForecastStore = defineStore('forecast', {
       this.step = step
     },
 
-    async analyzeIntent () {
+    async analyzeIntent (answer?: string) {
       if (!this.file || !this.intent) {
         return
       }
 
       const appStore = useAppStore()
       this.loading = true
+
+      if (answer) {
+        this.clarificationHistory.push({ role: 'user', content: answer })
+      }
+
       try {
         const formData = new FormData()
         formData.append('file', this.file)
         formData.append('prompt', this.intent)
+        if (this.clarificationHistory.length > 0) {
+          formData.append('history', JSON.stringify(this.clarificationHistory))
+        }
 
         const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8002'}/plan`, {
           method: 'POST',
@@ -84,6 +94,17 @@ export const useForecastStore = defineStore('forecast', {
 
         this.ontology = await response.json()
         console.log('Analysed Data Ontology:', this.ontology)
+
+        // Push all new clarification questions to history as assistant messages
+        const questions = this.ontology?.meta.clarification_questions ?? []
+        if (questions.length > 0) {
+          const combined = questions.join('\n\n')
+          this.clarificationHistory.push({
+            role: 'assistant',
+            content: combined,
+          })
+        }
+
         this.step = 'plan'
         appStore.notify('Signal analysis complete.', 'success')
       } catch (error: any) {
@@ -382,6 +403,7 @@ export const useForecastStore = defineStore('forecast', {
       this.explainabilityMessages = []
       this.askingExplainability = false
       this.suggestedQuestions = []
+      this.clarificationHistory = []
     },
   },
 })

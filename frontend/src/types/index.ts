@@ -13,6 +13,8 @@ export interface MetaContext {
   user_intent_summary: string
   domain_inference: string // e.g., 'Financial', 'Retail'
   completeness_check: CompletenessStatus
+  confidence_score?: number
+  clarification_questions?: string[]
 }
 
 export interface Granularity {
@@ -23,6 +25,8 @@ export interface Granularity {
 export interface ProblemDefinition {
   task_type: string
   granularity: Granularity
+  confidence_score?: number
+  confidence_rationale?: string
 }
 
 export interface FutureAvailability {
@@ -47,11 +51,15 @@ export interface ColumnOntology {
   constraints?: Constraints
   resampling_method?: 'mean' | 'sum' | 'last' | 'max' | 'none'
   date_format?: string | null // Python strftime format for parsing dates
+  confidence_score?: number
+  confidence_rationale?: string
 }
 
 export interface HorizonRequirement {
   steps: number
   flexibility: 'strict' | 'approximate'
+  confidence_score?: number
+  confidence_rationale?: string
 }
 
 export interface UserRequirements {

@@ -1,3 +1,5 @@
+from typing import Optional
+
 import pandas as pd
 
 from app.domain.data import ForecastResponse
@@ -26,8 +28,13 @@ class ForecastPipeline:
         self.forecaster = forecaster
         self.explainer = explainer
 
-    def analyze_intent(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
-        return self.intent.analyze(df, user_prompt)
+    def analyze_intent(
+        self,
+        df: pd.DataFrame,
+        user_prompt: str,
+        history: Optional[list[dict[str, str]]] = None,
+    ) -> ForecastOntology:
+        return self.intent.analyze(df, user_prompt, history=history)
 
     def run_forecast(
         self, df: pd.DataFrame, ontology: ForecastOntology

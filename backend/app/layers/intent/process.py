@@ -49,7 +49,43 @@ class GeminiIntentAnalyzer:
           * 'Jan 15, 2024' -> '%b %d, %Y'
           If the format is non-standard or unclear, set date_format to null.
 
-        - For every column identified as a 'covariate', you MUST classify its
+        - CONFIDENCE SCORING (CRITICAL):
+          You MUST provide granular confidence scores at THREE levels:
+          
+          A) 'meta.confidence_score': Overall ontology confidence (0.0-1.0).
+             - 1.0: User prompt is unambiguous, columns map cleanly.
+             - 0.7-0.9: Minor ambiguity (e.g. horizon unclear, one column could
+               be target or covariate).
+             - <0.7: Major ambiguity (vague prompt, multiple target candidates,
+               unclear domain).
+
+          B) 'problem.confidence_score': Confidence in the task_type and 
+             granularity inference.
+             Provide 'confidence_rationale' if < 0.9.
+
+          C) Per-column 'confidence_score' and 'confidence_rationale':
+             Assess each column's role assignment. Lower the score if:
+             - Multiple numeric columns could be the target.
+             - A covariate_type classification is uncertain.
+             - The column name is ambiguous (e.g. 'value', 'amount').
+
+          D) 'requirements.horizon_requirement.confidence_score':
+             Confidence in the inferred forecast horizon.
+             - 1.0: User explicitly stated "next 7 days" or "12 months".
+             - 0.5-0.8: User said something vague like "forecast the future"
+               and you guessed a horizon from the data granularity.
+             - <0.5: No horizon info at all, you defaulted to a guess.
+             Provide 'confidence_rationale' if < 0.9.
+
+          E) 'meta.clarification_questions': If ANY score < 0.85, generate
+             1-3 focused questions that, if answered, would resolve the
+             lowest-confidence decisions.
+             Bad question: "Can you tell me more about your data?"
+             Good question: "Should 'Store_ID' be treated as a group key to
+             produce per-store forecasts, or ignored?"
+
+        - COVARIATE CLASSIFICATION:
+          For every column identified as a 'covariate', you MUST classify its
           'covariate_type' AND 'covariate_strategy':
           
           1. 'covariate_type':
@@ -173,7 +209,13 @@ class GeminiIntentAnalyzer:
                 "meta": {
                     "user_intent_summary": "Inferred from heuristics (LLM Failed)",
                     "domain_inference": "General",
-                    "completeness_check": "complete",
+                    "completeness_check": "partial",
+                    "confidence_score": 0.3,
+                    "clarification_questions": [
+                        "The AI could not confidently parse your request. "
+                        "Which column is the target you want to forecast, "
+                        "and which column contains dates?"
+                    ],
                 },
                 "problem": {
                     "task_type": "time_series_regression",
@@ -208,12 +250,25 @@ class GeminiIntentAnalyzer:
             }
         )
 
-    def analyze(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
+    def analyze(
+        self,
+        df: pd.DataFrame,
+        user_prompt: str,
+        history: Optional[list[dict[str, str]]] = None,
+    ) -> ForecastOntology:
         """
         Analyzes the user intent and dataset to produce a ForecastOntology.
         Tries Gemini first -> Enriches with Python Stats -> Falls back to heuristics.
         """
         print(f"DEBUG: analyze_intent called with prompt: {user_prompt}")
+        if history:
+            print(f"DEBUG: History provided with {len(history)} messages.")
+            # Append history to the prompt context
+            history_str = "\n".join(
+                [f"{m['role'].upper()}: {m['content']}" for m in history]
+            )
+            user_prompt = f"Original Request: {user_prompt}\n\nClarification History:\n{history_str}"
+
         api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
 
         if not api_key or "PLACEHOLDER" in api_key:

@@ -29,6 +29,18 @@
       <span class="text-medium-emphasis"> for the next </span>
       <span class="text-primary font-weight-bold">{{ modelValue.horizon }}</span>
       <span class="text-primary font-weight-bold"> {{ formatUnit(modelValue.frequency) }}s</span>
+      <v-tooltip v-if="horizonConfidence < 0.9" location="top">
+        <template #activator="{ props }">
+          <v-icon
+            v-bind="props"
+            class="ml-1"
+            color="warning"
+            size="16"
+            style="vertical-align: middle;"
+          >mdi-alert-circle-outline</v-icon>
+        </template>
+        <span>Horizon confidence: {{ Math.round(horizonConfidence * 100) }}% — {{ horizonRationale || 'The system guessed this horizon from context.' }}</span>
+      </v-tooltip>
       <span class="text-medium-emphasis">, using </span>
       <v-chip
         class="font-weight-bold mx-1"
@@ -215,7 +227,7 @@
 
 <script setup lang="ts">
   import type { RiskPreference } from '@/types'
-  import { ref, watch } from 'vue'
+  import { computed, ref, watch } from 'vue'
 
   export interface SentenceState {
     target_col: string
@@ -229,12 +241,17 @@
   const sentenceProps = defineProps<{
     modelValue: SentenceState
     allColumns: string[]
+    horizonConfidenceScore?: number
+    horizonConfidenceRationale?: string
   }>()
 
   const emit = defineEmits(['update:modelValue'])
 
   const isEditing = ref(false)
   const localHorizon = ref(sentenceProps.modelValue.horizon)
+
+  const horizonConfidence = computed(() => sentenceProps.horizonConfidenceScore ?? 1)
+  const horizonRationale = computed(() => sentenceProps.horizonConfidenceRationale ?? '')
 
   watch(() => sentenceProps.modelValue.horizon, val => localHorizon.value = val)
 

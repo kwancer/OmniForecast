@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Protocol, Tuple
+from typing import Any, Callable, List, Optional, Protocol, Tuple
 
 import pandas as pd
 
@@ -10,7 +10,12 @@ from app.domain.ontology import ForecastOntology
 
 
 class IntentAnalyzer(Protocol):
-    def analyze(self, df: pd.DataFrame, user_prompt: str) -> ForecastOntology:
+    def analyze(
+        self,
+        df: pd.DataFrame,
+        user_prompt: str,
+        history: Optional[list[dict[str, str]]] = None,
+    ) -> ForecastOntology:
         """
         Analyzes the dataset and user prompt to generate a Forecast Ontology.
         """

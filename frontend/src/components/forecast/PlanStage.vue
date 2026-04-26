@@ -86,7 +86,15 @@
                 @click="toggleColumnEdit(timeColumn.column_name)"
               >
                 <div class="d-flex align-center justify-space-between mb-1">
-                  <span class="font-weight-bold text-subtitle-2">{{ timeColumn.display_name || timeColumn.column_name }}</span>
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2">{{ timeColumn.display_name || timeColumn.column_name }}</span>
+                    <v-tooltip v-if="(timeColumn.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(timeColumn.confidence_score! * 100) }}%): {{ timeColumn.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
                   <v-chip color="secondary" size="x-small" variant="flat">TIMELINE</v-chip>
                 </div>
                 <div class="text-caption text-medium-emphasis">
@@ -126,7 +134,15 @@
                 @click="toggleColumnEdit(targetColumn.column_name)"
               >
                 <div class="d-flex align-center justify-space-between mb-1">
-                  <span class="font-weight-bold text-subtitle-2 text-primary">{{ targetColumn.display_name || targetColumn.column_name }}</span>
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2 text-primary">{{ targetColumn.display_name || targetColumn.column_name }}</span>
+                    <v-tooltip v-if="(targetColumn.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(targetColumn.confidence_score! * 100) }}%): {{ targetColumn.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
                   <v-chip color="primary" size="x-small" variant="flat">TARGET</v-chip>
                 </div>
                 <div class="text-caption text-medium-emphasis">
@@ -190,9 +206,17 @@
                 @click="toggleColumnEdit(feat.column_name)"
               >
                 <div class="d-flex align-center justify-space-between mb-1">
-                  <span class="font-weight-bold text-subtitle-2" :class="{ 'text-disabled text-decoration-line-through': isColumnIgnored(feat.column_name) }">
-                    {{ feat.display_name || feat.column_name }}
-                  </span>
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2" :class="{ 'text-disabled text-decoration-line-through': isColumnIgnored(feat.column_name) }">
+                      {{ feat.display_name || feat.column_name }}
+                    </span>
+                    <v-tooltip v-if="(feat.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(feat.confidence_score! * 100) }}%): {{ feat.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
                   <v-chip
                     :color="getCovariateColor(feat.covariate_type)"
                     size="x-small"
@@ -274,6 +298,87 @@
               v-if="sentenceState"
               v-model="sentenceState"
               :all-columns="allColumns"
+              :horizon-confidence-rationale="store.ontology?.requirements.horizon_requirement.confidence_rationale"
+              :horizon-confidence-score="store.ontology?.requirements.horizon_requirement.confidence_score"
+            />
+          </div>
+
+          <!-- SECTION 1.5: Clarification Hub (Multi-turn) -->
+          <div v-if="needsClarification" class="section-card section-card--highlight mb-6">
+            <div class="section-header mb-4">
+              <div class="section-header__icon section-header__icon--warning">
+                <v-icon color="white" size="18">mdi-chat-question-outline</v-icon>
+              </div>
+              <div>
+                <h3 class="text-subtitle-1 font-weight-bold ma-0">Clarification Hub</h3>
+                <div class="text-caption text-medium-emphasis mt-1">
+                  Confidence: {{ Math.round((store.ontology?.meta.confidence_score || 0) * 100) }}%
+                  <template v-if="lowConfidenceColumns.length > 0">
+                    · {{ lowConfidenceColumns.length }} column{{ lowConfidenceColumns.length > 1 ? 's' : '' }} need{{ lowConfidenceColumns.length === 1 ? 's' : '' }} review
+                  </template>
+                  <template v-if="(store.ontology?.requirements.horizon_requirement.confidence_score ?? 1) < 0.85">
+                    · Horizon needs review
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <div class="clarification-content pa-4 rounded-lg bg-surface border mb-4">
+              <div v-for="(msg, idx) in store.clarificationHistory" :key="idx" class="mb-3">
+                <div v-if="msg.role === 'assistant'" class="d-flex align-start">
+                  <v-avatar class="mr-2" color="primary" size="24">
+                    <v-icon color="white" size="14">mdi-robot-outline</v-icon>
+                  </v-avatar>
+                  <div class="msg-bubble assistant-bubble pa-2 rounded-lg text-body-2">
+                    {{ msg.content }}
+                  </div>
+                </div>
+                <div v-else class="d-flex align-start justify-end">
+                  <div class="msg-bubble user-bubble pa-2 rounded-lg text-body-2 bg-primary text-white">
+                    {{ msg.content }}
+                  </div>
+                  <v-avatar class="ml-2" color="secondary" size="24">
+                    <v-icon color="white" size="14">mdi-account</v-icon>
+                  </v-avatar>
+                </div>
+              </div>
+
+              <div v-if="store.loading" class="d-flex align-center justify-center py-4">
+                <v-progress-circular color="primary" indeterminate size="24" width="2" />
+                <span class="ml-3 text-caption text-medium-emphasis">Re-analyzing intent...</span>
+              </div>
+            </div>
+
+            <!-- Suggested Questions -->
+            <div v-if="!store.loading" class="d-flex flex-wrap mb-4" style="gap: 8px;">
+              <v-btn
+                v-for="q in store.ontology?.meta.clarification_questions"
+                :key="q"
+                class="text-none"
+                color="primary"
+                density="comfortable"
+                rounded="pill"
+                size="small"
+                variant="tonal"
+                @click="submitClarification(q)"
+              >
+                {{ q }}
+              </v-btn>
+            </div>
+
+            <v-text-field
+              v-model="clarificationInput"
+              append-inner-icon="mdi-send"
+              bg-color="surface"
+              class="rounded-xl"
+              density="comfortable"
+              flat
+              hide-details
+              label="Type your answer..."
+              placeholder="e.g., Use 'Sales' as target and 'Price' as controllable."
+              variant="solo"
+              @click:append-inner="submitClarification()"
+              @keyup.enter="submitClarification()"
             />
           </div>
 
@@ -440,6 +545,25 @@
   const sentenceState = ref<SentenceState | null>(null)
   const covariateStates = ref<Record<string, CovariateState>>({})
   const editingColumn = ref<string | null>(null)
+  const clarificationInput = ref('')
+
+  // ─── Clarification Logic ───
+  const lowConfidenceColumns = computed(() => {
+    if (!store.ontology) return []
+    return store.ontology.columns.filter(c => (c.confidence_score ?? 1) < 0.85)
+  })
+
+  const minColumnConfidence = computed(() => {
+    if (!store.ontology?.columns.length) return 1
+    return Math.min(...store.ontology.columns.map(c => c.confidence_score ?? 1))
+  })
+
+  const needsClarification = computed(() => {
+    const globalScore = store.ontology?.meta.confidence_score ?? 1
+    const horizonScore = store.ontology?.requirements.horizon_requirement.confidence_score ?? 1
+    const hasQuestions = (store.ontology?.meta.clarification_questions?.length ?? 0) > 0
+    return globalScore < 0.85 || minColumnConfidence.value < 0.85 || horizonScore < 0.85 || hasQuestions
+  })
 
   // ─── Column Categorisation ───
   const timeColumn = computed(() => store.ontology?.columns.find(c => c.role === 'time_index') || null)
@@ -590,7 +714,7 @@
     }
   }, { immediate: true })
 
-  onMounted(() => {
+  function initSentenceState () {
     if (!store.ontology) return
     const targCol = store.ontology.columns.find(c => c.role === 'target')
     const timeCol = store.ontology.columns.find(c => c.role === 'time_index')
@@ -604,6 +728,15 @@
       is_positive: isPositive,
       risk_preference: store.ontology.risk_preference || 'balanced',
     }
+  }
+
+  // Re-initialize sentenceState whenever ontology changes (initial load + re-analysis)
+  watch(() => store.ontology, () => {
+    initSentenceState()
+  }, { immediate: true })
+
+  onMounted(() => {
+    initSentenceState()
   })
 
   function confirmAndProceed () {
@@ -644,6 +777,14 @@
     store.ontology.ignored_columns = ignores
 
     store.executeForecast()
+  }
+
+  async function submitClarification (val?: string) {
+    const text = val || clarificationInput.value
+    if (!text.trim() || store.loading) return
+
+    await store.analyzeIntent(text)
+    clarificationInput.value = ''
   }
 </script>
 
@@ -740,6 +881,29 @@
 
 .section-header__icon--secondary {
   background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
+}
+
+.section-header__icon--warning {
+  background: linear-gradient(135deg, #fb8c00, #ffb74d);
+}
+
+.section-card--highlight {
+  background: rgba(var(--v-theme-primary), 0.05);
+  border: 1px solid rgba(var(--v-theme-primary), 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.msg-bubble {
+  max-width: 80%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.assistant-bubble {
+  background: rgba(var(--v-theme-on-surface), 0.05);
+}
+
+.user-bubble {
+  background: rgb(var(--v-theme-primary));
 }
 
 /* ─── Column cards ─── */

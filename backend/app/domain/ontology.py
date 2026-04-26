@@ -18,6 +18,14 @@ class MetaContext(BaseModel):
         description="e.g., 'Financial', 'Scientific', 'Logistics', 'IoT'"
     )
     completeness_check: Literal["complete", "partial"]
+    confidence_score: float = Field(
+        default=1.0,
+        description="LLM's confidence in the generated ontology (0.0 to 1.0).",
+    )
+    clarification_questions: List[str] = Field(
+        default_factory=list,
+        description="Questions to ask the user if confidence is low.",
+    )
 
 
 class Granularity(BaseModel):
@@ -30,6 +38,8 @@ class ProblemDefinition(BaseModel):
         "time_series_regression", "time_series_classification", "anomaly_detection"
     ]
     granularity: Granularity
+    confidence_score: float = 1.0
+    confidence_rationale: Optional[str] = None
 
 
 class FutureAvailability(BaseModel):
@@ -66,11 +76,15 @@ class ColumnRoleDefinition(BaseModel):
             "'%d/%m/%Y' for '15/01/2024'. Only needed for time_index columns."
         ),
     )
+    confidence_score: float = 1.0
+    confidence_rationale: Optional[str] = None
 
 
 class HorizonRequirement(BaseModel):
     steps: int
     flexibility: Literal["strict", "approximate"]
+    confidence_score: float = 1.0
+    confidence_rationale: Optional[str] = None
 
 
 class UserRequirements(BaseModel):
