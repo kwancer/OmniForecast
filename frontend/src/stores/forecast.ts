@@ -14,7 +14,7 @@ export const useForecastStore = defineStore('forecast', {
     loading: false,
     historyResults: [] as ForecastResult[], // <--- New State
     dataHealthReport: null as DataHealthReport | null,
-    step: 'upload' as 'upload' | 'plan' | 'cleaning' | 'results',
+    step: 'upload' as 'upload' | 'plan' | 'results',
     modelMetadata: null as ModelMetadata | null,
     tournamentResults: [] as TournamentResult[],
     backtestData: [] as BacktestPoint[],
@@ -56,7 +56,7 @@ export const useForecastStore = defineStore('forecast', {
       this.intent = intent
     },
 
-    setStep (step: 'upload' | 'plan' | 'cleaning' | 'results') {
+    setStep (step: 'upload' | 'plan' | 'results') {
       this.step = step
     },
 
@@ -141,9 +141,9 @@ export const useForecastStore = defineStore('forecast', {
         this.tournamentResults = data.tournament_results ?? []
         this.backtestData = data.backtest_data ?? []
 
-        // Hide progress and move to cleaning step
+        // Hide progress and move directly to results
         this.showProgress = false
-        this.step = 'cleaning'
+        this.step = 'results'
         appStore.notify('Modelling sequence complete.', 'success')
       } catch (error: any) {
         this.showProgress = false

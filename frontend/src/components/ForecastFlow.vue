@@ -5,7 +5,7 @@
         <div class="fill-height d-flex flex-column">
           <!-- Custom Stepper Header for Mobile/Desktop Stability -->
           <div class="d-flex align-center flex-shrink-0 bg-surface border-b px-4 py-2 overflow-x-auto" style="min-height: 64px; gap: 8px">
-            <template v-for="(step, i) in ['Data Upload', 'Mission Plan', 'Data Cleaning', 'Analytic Output']" :key="i">
+            <template v-for="(step, i) in ['Data Upload', 'Mission Plan', 'Analytic Output']" :key="i">
               <div
                 class="d-flex align-center cursor-pointer hover-lift rounded-pill px-2 py-1"
                 :class="{
@@ -27,7 +27,7 @@
                 <span class="text-caption hidden-xs" :class="{'font-weight-bold': Number(currentStepIndex) === i + 1, 'font-weight-medium': Number(currentStepIndex) !== i + 1}">{{ step }}</span>
                 <span v-if="Number(currentStepIndex) === i + 1" class="text-caption font-weight-bold d-sm-none">{{ step }}</span>
               </div>
-              <v-divider v-if="i < 3" class="mx-2" style="height: 24px; opacity: 0.3;" vertical />
+              <v-divider v-if="i < 2" class="mx-2" style="height: 24px; opacity: 0.3;" vertical />
             </template>
           </div>
 
@@ -60,11 +60,7 @@
             </v-window-item>
 
             <v-window-item class="fill-height" value="3">
-              <CleaningStage v-if="currentStepIndex === '3'" />
-            </v-window-item>
-
-            <v-window-item class="fill-height" value="4">
-              <ResultStage v-if="currentStepIndex === '4'" />
+              <ResultStage v-if="currentStepIndex === '3'" />
             </v-window-item>
           </v-window>
         </div>
@@ -77,7 +73,6 @@
   import { computed } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
 
-  import CleaningStage from './forecast/CleaningStage.vue'
   import PlanStage from './forecast/PlanStage.vue'
   import ProgressView from './forecast/ProgressView.vue'
   import ResultStage from './forecast/ResultStage.vue'
@@ -86,7 +81,7 @@
 
   const store = useForecastStore()
 
-  const steps = ['upload', 'plan', 'cleaning', 'results'] as const
+  const steps = ['upload', 'plan', 'results'] as const
 
   const currentStepIndex = computed({
     get: () => {
@@ -98,7 +93,6 @@
       if (steps[index]) {
         const targetStep = steps[index]
         if (targetStep === 'plan' && !store.ontology) return
-        if (targetStep === 'cleaning' && !store.cleaningReport) return
         if (targetStep === 'results' && store.forecastResults.length === 0) return
 
         store.setStep(targetStep)

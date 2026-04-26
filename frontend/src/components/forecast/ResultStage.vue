@@ -65,6 +65,128 @@
                   </v-expansion-panel-text>
                 </v-expansion-panel>
 
+                <!-- Data Cleaning Report -->
+                <v-expansion-panel v-if="store.cleaningReport" rounded="lg">
+                  <v-expansion-panel-title class="font-weight-bold">
+                    <div class="d-flex align-center">
+                      <div class="panel-icon panel-icon--secondary mr-3">
+                        <v-icon color="white" size="16">mdi-auto-fix</v-icon>
+                      </div>
+                      Data Preparation Report
+                    </div>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <v-row>
+                      <!-- Applied Transformations -->
+                      <v-col cols="12" md="5">
+                        <div class="section-header mb-4">
+                          <div class="section-header__icon section-header__icon--secondary">
+                            <v-icon color="white" size="18">mdi-auto-fix</v-icon>
+                          </div>
+                          <h3 class="text-subtitle-1 font-weight-bold mb-0">Applied Transformations</h3>
+                        </div>
+
+                        <v-alert
+                          v-if="store.cleaningReport?.summary"
+                          class="mb-4 text-body-2 summary-alert"
+                          color="primary"
+                          icon="mdi-information-outline"
+                          variant="tonal"
+                        >
+                          {{ store.cleaningReport.summary }}
+                        </v-alert>
+
+                        <div v-if="store.cleaningReport?.actions.length" class="transform-timeline">
+                          <div
+                            v-for="(action, index) in store.cleaningReport?.actions"
+                            :key="index"
+                            class="transform-item"
+                          >
+                            <div class="transform-item__dot">
+                              <v-avatar :color="getActionColor(action.action)" size="32" variant="tonal">
+                                <v-icon :icon="getActionIcon(action.action)" size="16" />
+                              </v-avatar>
+                            </div>
+                            <div class="transform-item__content">
+                              <div class="d-flex align-center mb-1">
+                                <span class="font-weight-bold text-subtitle-2">{{ action.column }}</span>
+                                <v-chip class="ml-2 text-uppercase" :color="getActionColor(action.action)" size="x-small" variant="flat">
+                                  {{ formatActionName(action.action) }}
+                                </v-chip>
+                              </div>
+                              <div class="text-caption text-medium-emphasis">
+                                {{ action.description }}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </v-col>
+
+                      <!-- Dataset Snapshot -->
+                      <v-col cols="12" md="7">
+                        <div class="d-flex align-center mb-4">
+                          <div class="section-header">
+                            <div class="section-header__icon section-header__icon--primary">
+                              <v-icon color="white" size="18">mdi-table-large</v-icon>
+                            </div>
+                            <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Snapshot</h3>
+                          </div>
+                          <v-spacer />
+                          <v-btn-toggle
+                            v-model="viewMode"
+                            color="primary"
+                            density="compact"
+                            mandatory
+                            rounded="lg"
+                            variant="outlined"
+                          >
+                            <v-btn class="text-caption font-weight-bold" size="small" value="raw">Raw</v-btn>
+                            <v-btn class="text-caption font-weight-bold" :disabled="!store.cleaningReport?.cleaned_sample" size="small" value="cleaned">Cleaned</v-btn>
+                          </v-btn-toggle>
+                        </div>
+
+                        <v-card class="border layout-card bg-surface" style="border-radius: 12px; overflow-x: auto;" variant="flat">
+                          <v-table v-if="currentData.headers.length > 0" density="compact" fixed-header hover style="background: transparent;">
+                            <thead class="bg-surface-light">
+                              <tr>
+                                <th
+                                  v-for="h in currentData.headers"
+                                  :key="h"
+                                  class="font-weight-bold font-mono text-caption"
+                                  :class="[
+                                    affectedColumns.has(h) ? 'text-secondary' : 'text-medium-emphasis',
+                                    ignoredColumns.has(h.trim()) && viewMode === 'raw' ? 'opacity-40 text-decoration-line-through' : ''
+                                  ]"
+                                  style="white-space: nowrap; background: var(--v-theme-surface-light) !important;"
+                                >
+                                  <v-icon v-if="affectedColumns.has(h)" class="mr-1" size="small">mdi-auto-fix</v-icon>
+                                  {{ h }}
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr v-for="(row, idx) in currentData.rows" :key="idx">
+                                <td
+                                  v-for="(col, i) in row"
+                                  :key="i"
+                                  class="text-caption"
+                                  :class="[
+                                    currentData.headers[i] && affectedColumns.has(currentData.headers[i]) ? 'text-secondary font-weight-medium bg-secondary-lighten-5' : 'text-medium-emphasis',
+                                    currentData.headers[i] && ignoredColumns.has(currentData.headers[i].trim()) && viewMode === 'raw' ? 'opacity-40 bg-surface text-decoration-line-through text-disabled' : ''
+                                  ]"
+                                  style="white-space: nowrap;"
+                                >
+                                  {{ col }}
+                                </td>
+                              </tr>
+                            </tbody>
+                          </v-table>
+                        </v-card>
+                      </v-col>
+                    </v-row>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+
                 <!-- Raw Data -->
                 <v-expansion-panel rounded="lg">
                   <v-expansion-panel-title class="font-weight-bold">
@@ -274,6 +396,87 @@
   const expandedEvidence = reactive(new Set<number>())
   const topSuggestions = computed(() => store.suggestedQuestions.slice(0, 3))
 
+  // Data Cleaning Logic
+  const viewMode = ref<'raw' | 'cleaned'>('raw')
+  const parsedData = ref<{ headers: string[], rows: string[][] }>({ headers: [], rows: [] })
+
+  const cleanedParsedData = computed(() => {
+    if (!store.cleaningReport?.cleaned_sample || store.cleaningReport.cleaned_sample.length === 0) {
+      return { headers: [], rows: [] }
+    }
+    const sample = store.cleaningReport.cleaned_sample
+    const firstRow = sample[0]
+    if (!firstRow) return { headers: [], rows: [] }
+    const headers = Object.keys(firstRow)
+    const rows = sample.map(row => headers.map(h => {
+      const val = row[h]
+      // Try to round excessively long floats for neatness, but handle strings nicely.
+      if (typeof val === 'number') {
+        return Number.isInteger(val) ? String(val) : val.toFixed(4)
+      }
+      return String(val ?? '')
+    }))
+    return { headers, rows }
+  })
+
+  const currentData = computed(() => {
+    return viewMode.value === 'raw' ? parsedData.value : cleanedParsedData.value
+  })
+
+  const affectedColumns = computed(() => {
+    if (!store.cleaningReport?.actions) return new Set<string>()
+    return new Set(store.cleaningReport.actions.map(a => a.column))
+  })
+
+  const ignoredColumns = computed(() => {
+    const ignored = new Set<string>()
+    if (store.ontology?.ignored_columns) {
+      for (const c of store.ontology.ignored_columns) ignored.add(c.trim())
+    }
+    if (store.ontology?.columns) {
+      for (const c of store.ontology.columns) {
+        if (c.role === 'ignore') ignored.add(c.column_name.trim())
+      }
+    }
+    return ignored
+  })
+
+  const targetColumn = computed(() => {
+    if (store.ontology?.columns) {
+      const target = store.ontology.columns.find(c => c.role === 'target')
+      if (target) return target.column_name.trim()
+    }
+    return null
+  })
+
+  function getActionIcon (action: string) {
+    switch (action) {
+      case 'normalization': return 'mdi-format-letter-case'
+      case 'type_conversion': return 'mdi-variable'
+      case 'aggregation': return 'mdi-layers-triple'
+      case 'resampling': return 'mdi-calendar-clock'
+      case 'gap_filling': return 'mdi-plus-box'
+      case 'imputation': return 'mdi-eyedropper'
+      case 'column_dropping': return 'mdi-table-column-remove'
+      default: return 'mdi-wrench'
+    }
+  }
+
+  function getActionColor (action: string) {
+    switch (action) {
+      case 'imputation': return 'warning'
+      case 'resampling': return 'info'
+      case 'gap_filling': return 'secondary'
+      case 'type_conversion': return 'primary'
+      case 'column_dropping': return 'grey-darken-1'
+      default: return 'primary'
+    }
+  }
+
+  function formatActionName (name: string) {
+    return name.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+  }
+
   const askedQuestions = computed(() => {
     const asked = new Set<string>()
     for (const msg of store.explainabilityMessages) {
@@ -324,6 +527,40 @@
       await store.initializeExplainability()
     }
     await scrollChatToBottom()
+
+    // CSV Parsing for Cleaning Report
+    if (store.file && (store.file.type.includes('csv') || store.file.name.endsWith('.csv'))) {
+      try {
+        const text = await store.file.slice(0, 10_000).text()
+        const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
+        if (lines.length > 0) {
+          const parseLine = (line: string) => {
+            const row = []
+            let inQuotes = false
+            let val = ''
+            for (const char of line) {
+              if (char === '"') inQuotes = !inQuotes
+              else if (char === ',' && !inQuotes) {
+                row.push(val.trim())
+                val = ''
+              } else {
+                val += char
+              }
+            }
+            row.push(val.trim())
+            return row
+          }
+          const firstLine = lines[0]
+          if (firstLine) {
+            const headers = parseLine(firstLine)
+            const rows = lines.slice(1, 11).map(l => parseLine(l))
+            parsedData.value = { headers, rows }
+          }
+        }
+      } catch (error) {
+        console.warn('Failed to parse dataset preview', error)
+      }
+    }
   })
 
   watch(
@@ -664,5 +901,82 @@
 .suggestion-asked {
   opacity: 0.35;
   text-decoration: line-through;
+}
+
+/* ─── Cleaning Report Styles ─── */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-header__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.section-header__icon--primary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-primary)), rgba(var(--v-theme-primary), 0.7));
+}
+
+.section-header__icon--secondary {
+  background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
+}
+
+.summary-alert {
+  border-radius: 12px !important;
+}
+
+.transform-timeline {
+  position: relative;
+}
+
+.transform-timeline::before {
+  content: '';
+  position: absolute;
+  left: 27px;
+  top: 24px;
+  bottom: 24px;
+  width: 2px;
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--v-theme-primary), 0.3),
+    rgba(var(--v-theme-secondary), 0.15)
+  );
+  border-radius: 2px;
+}
+
+.transform-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.transform-item:hover {
+  background: rgba(var(--v-theme-primary), 0.04);
+}
+
+.transform-item__dot {
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.transform-item__content {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.layout-card {
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02) !important;
 }
 </style>
