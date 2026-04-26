@@ -1,5 +1,5 @@
 <template>
-  <v-card class="ontology-sentence-card pa-6 pa-md-8 bg-surface text-center position-relative" variant="outlined">
+  <v-card class="ontology-sentence-card pa-6 pa-md-8 bg-surface position-relative" :class="{ 'text-center': uiMode === 'madlibs' }" variant="outlined">
 
     <!-- Edit toggle chip (top right) -->
     <v-chip
@@ -13,214 +13,252 @@
       {{ isEditing ? 'Done' : 'Edit' }}
     </v-chip>
 
-    <!-- ═══ READING MODE ═══ -->
-    <div v-if="!isEditing" class="text-h5 font-weight-light" style="line-height: 1.8;">
-      <span class="text-medium-emphasis">Based on the data, I will forecast </span>
-      <v-chip
-        class="font-weight-bold mx-1"
-        color="primary"
-        size="large"
-        style="vertical-align: baseline;"
-        variant="tonal"
-      >
-        <v-icon size="16" start>mdi-target</v-icon>
-        {{ modelValue.target_col }}
-      </v-chip>
-      <span class="text-medium-emphasis"> for the next </span>
-      <span class="text-primary font-weight-bold">{{ modelValue.horizon }}</span>
-      <span class="text-primary font-weight-bold"> {{ formatUnit(modelValue.frequency) }}s</span>
-      <v-tooltip v-if="horizonConfidence < 0.9" location="top">
-        <template #activator="{ props }">
-          <v-icon
-            v-bind="props"
-            class="ml-1"
-            color="warning"
-            size="16"
-            style="vertical-align: middle;"
-          >mdi-alert-circle-outline</v-icon>
-        </template>
-        <span>Horizon confidence: {{ Math.round(horizonConfidence * 100) }}% — {{ horizonRationale || 'The system guessed this horizon from context.' }}</span>
-      </v-tooltip>
-      <span class="text-medium-emphasis">, using </span>
-      <v-chip
-        class="font-weight-bold mx-1"
-        color="secondary"
-        size="small"
-        style="vertical-align: baseline;"
-        variant="outlined"
-      >
-        <v-icon size="14" start>mdi-clock-outline</v-icon>
-        {{ modelValue.time_col }}
-      </v-chip>
-      <span class="text-medium-emphasis"> as the timeline.</span>
+    <!-- ═══ MADLIBS MODE (Option 1) ═══ -->
+    <template v-if="uiMode === 'madlibs'">
+      <!-- READING MODE -->
+      <div v-if="!isEditing" class="text-h5 font-weight-light" style="line-height: 1.8;">
+        <span class="text-medium-emphasis">Based on the data, I will forecast </span>
+        <span class="font-weight-medium text-primary variable-text px-1">{{ modelValue.target_col }}</span>
+        <span class="text-medium-emphasis"> for the next </span>
+        <span class="text-primary font-weight-medium px-1">{{ modelValue.horizon }} {{ formatUnit(modelValue.frequency) }}s</span>
+        <v-tooltip v-if="horizonConfidence < 0.9" location="top">
+          <template #activator="{ props }">
+            <v-icon
+              v-bind="props"
+              class="ml-1"
+              color="warning"
+              size="16"
+              style="vertical-align: middle; margin-top: -4px;"
+            >mdi-alert-circle-outline</v-icon>
+          </template>
+          <span>Horizon confidence: {{ Math.round(horizonConfidence * 100) }}% — {{ horizonRationale || 'The system guessed this horizon from context.' }}</span>
+        </v-tooltip>
+        <span class="text-medium-emphasis">, using </span>
+        <span class="font-weight-medium text-secondary variable-text px-1">{{ modelValue.time_col }}</span>
+        <span class="text-medium-emphasis"> as the timeline.</span>
 
-      <span class="d-block mt-4" />
+        <span class="d-block mt-4" />
 
-      <span class="text-medium-emphasis">I expect these projections to be </span>
-      <v-chip
-        class="font-weight-bold"
-        :color="modelValue.is_positive ? 'success' : 'warning'"
-        size="small"
-        style="vertical-align: middle; margin-top: -4px;"
-        variant="tonal"
-      >
-        <v-icon size="14" start>{{ modelValue.is_positive ? 'mdi-trending-up' : 'mdi-swap-vertical' }}</v-icon>
-        {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }}
-      </v-chip>
-      <span class="text-medium-emphasis">, and my main objective is to </span>
-      <v-chip
-        class="font-weight-bold"
-        :color="getRiskColor(modelValue.risk_preference)"
-        size="small"
-        style="vertical-align: middle; margin-top: -4px;"
-        variant="tonal"
-      >
-        <v-icon size="14" start>{{ getRiskIcon(modelValue.risk_preference) }}</v-icon>
-        {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }}
-      </v-chip>
-      <span class="text-medium-emphasis">.</span>
-    </div>
-
-    <!-- ═══ EDITING MODE ═══ -->
-    <div v-else class="text-h5 font-weight-light d-flex flex-wrap align-center justify-center gap-2" style="gap: 8px; line-height: 2.5;">
-      <span class="text-medium-emphasis">I will forecast </span>
-
-      <v-menu>
-        <template #activator="{ props }">
-          <v-chip
-            v-bind="props"
-            class="font-weight-bold editable-chip"
-            color="primary"
-            size="large"
-            variant="flat"
-          >
-            <v-icon size="16" start>mdi-target</v-icon>
-            {{ modelValue.target_col }} <v-icon end icon="mdi-chevron-down" size="16" />
-          </v-chip>
-        </template>
-        <v-list density="compact" max-height="300">
-          <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.target_col" @click="updateTarget(col)">
-            <v-list-item-title>{{ col }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
-      <span class="text-medium-emphasis"> for the next </span>
-
-      <div style="width: 80px; display: inline-block;">
-        <v-text-field
-          v-model.number="localHorizon"
-          class="centered-input text-h6 font-weight-bold text-primary"
-          density="compact"
-          hide-details
-          single-line
-          type="number"
-          variant="underlined"
-          @update:model-value="updateHorizon"
-        />
+        <span class="text-medium-emphasis">I expect these projections to be </span>
+        <span class="font-weight-medium px-1" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
+          {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }}
+        </span>
+        <span class="text-medium-emphasis">, and my main objective is to </span>
+        <span class="font-weight-medium px-1" :class="'text-' + getRiskColor(modelValue.risk_preference)">
+          {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }}
+        </span>
+        <span class="text-medium-emphasis">.</span>
       </div>
 
-      <v-menu>
-        <template #activator="{ props }">
-          <v-chip
-            v-bind="props"
-            class="editable-chip"
-            color="secondary"
-            size="large"
-            variant="tonal"
-          >
-            {{ formatUnit(modelValue.frequency) }}s <v-icon end icon="mdi-chevron-down" size="16" />
-          </v-chip>
-        </template>
-        <v-list density="compact">
-          <v-list-item v-for="unit in ['day', 'week', 'month', 'quarter', 'year']" :key="unit" @click="updateFrequency(unit)">
-            <v-list-item-title>{{ formatUnit(unit) }}s</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
+      <!-- EDITING MODE -->
+      <div v-else class="text-h5 font-weight-light d-flex flex-wrap align-center justify-center gap-2" style="gap: 8px; line-height: 2.5;">
+        <span class="text-medium-emphasis">I will forecast </span>
 
-      <span class="text-medium-emphasis"> using </span>
+        <v-menu>
+          <template #activator="{ props }">
+            <span v-bind="props" class="font-weight-medium text-primary variable-text px-1 editable-item">
+              {{ modelValue.target_col }} <v-icon size="16">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact" max-height="300">
+            <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.target_col" @click="updateTarget(col)">
+              <v-list-item-title>{{ col }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
 
-      <v-menu>
-        <template #activator="{ props }">
-          <v-chip
-            v-bind="props"
-            class="editable-chip"
-            color="grey-darken-1"
-            size="large"
+        <span class="text-medium-emphasis"> for the next </span>
+
+        <div style="width: 60px; display: inline-block;">
+          <v-text-field
+            v-model.number="localHorizon"
+            class="centered-input text-h6 font-weight-bold text-primary"
+            density="compact"
+            hide-details
+            single-line
+            type="number"
+            variant="underlined"
+            @update:model-value="updateHorizon"
+          />
+        </div>
+
+        <v-menu>
+          <template #activator="{ props }">
+            <span v-bind="props" class="font-weight-medium text-primary variable-text px-1 editable-item">
+              {{ formatUnit(modelValue.frequency) }}s <v-icon size="16">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact">
+            <v-list-item v-for="unit in ['day', 'week', 'month', 'quarter', 'year']" :key="unit" @click="updateFrequency(unit)">
+              <v-list-item-title>{{ formatUnit(unit) }}s</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <span class="text-medium-emphasis"> using </span>
+
+        <v-menu>
+          <template #activator="{ props }">
+            <span v-bind="props" class="font-weight-medium text-secondary variable-text px-1 editable-item">
+              {{ modelValue.time_col }} <v-icon size="16">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact" max-height="300">
+            <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.time_col" @click="updateTime(col)">
+              <v-list-item-title>{{ col }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+
+        <span class="text-medium-emphasis"> as the timeline.</span>
+
+        <span class="text-medium-emphasis" style="width: 100%; display: block; margin-top: 8px;" />
+
+        <span class="text-medium-emphasis">I expect these projections to be </span>
+
+        <v-menu>
+          <template #activator="{ props }">
+            <span v-bind="props" class="font-weight-medium variable-text px-1 editable-item" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
+              {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }} <v-icon size="16">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact">
+            <v-list-item subtitle="e.g. Sales" title="Strictly positive (+)" @click="updateConstraint(true)" />
+            <v-list-item subtitle="e.g. Profit" title="Positive or negative (±)" @click="updateConstraint(false)" />
+          </v-list>
+        </v-menu>
+
+        <span class="text-medium-emphasis">, and my main objective is to </span>
+
+        <v-menu>
+          <template #activator="{ props }">
+            <span v-bind="props" class="font-weight-medium variable-text px-1 editable-item" :class="'text-' + getRiskColor(modelValue.risk_preference)">
+              {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }} <v-icon size="16">mdi-chevron-down</v-icon>
+            </span>
+          </template>
+          <v-list density="compact">
+            <v-list-item
+              subtitle="Average prediction"
+              title="Achieve a balanced forecast"
+              @click="updateRiskPreference('balanced')"
+            />
+            <v-list-item
+              subtitle="Upper bound (Safety Stock)"
+              title="Minimize the risk of stockouts"
+              @click="updateRiskPreference('under_penalty')"
+            />
+            <v-list-item
+              subtitle="Lower bound (Conservative)"
+              title="Minimize the risk of waste"
+              @click="updateRiskPreference('over_penalty')"
+            />
+          </v-list>
+        </v-menu>
+        <span class="text-medium-emphasis">.</span>
+      </div>
+    </template>
+
+    <!-- ═══ GRID MODE (Option 2) ═══ -->
+    <template v-else-if="uiMode === 'grid'">
+      <v-row class="ma-0 align-center">
+        <!-- Target -->
+        <v-col class="py-2" cols="12" md="4" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Target Metric</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-primary">{{ modelValue.target_col }}</div>
+          <v-select
+            v-else
+            v-model="localModelValue.target_col"
+            density="compact"
+            hide-details
+            :items="allColumns"
             variant="outlined"
-          >
-            <v-icon size="14" start>mdi-clock-outline</v-icon>
-            {{ modelValue.time_col }} <v-icon end icon="mdi-chevron-down" size="16" />
-          </v-chip>
-        </template>
-        <v-list density="compact" max-height="300">
-          <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.time_col" @click="updateTime(col)">
-            <v-list-item-title>{{ col }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-
-      <span class="text-medium-emphasis"> as the timeline.</span>
-
-      <span class="text-medium-emphasis" style="width: 100%; display: block; margin-top: 8px;" />
-
-      <span class="text-medium-emphasis">I expect these projections to be </span>
-
-      <v-menu>
-        <template #activator="{ props }">
-          <v-chip
-            v-bind="props"
-            class="editable-chip"
-            :color="modelValue.is_positive ? 'success' : 'warning'"
-            size="large"
-            variant="tonal"
-          >
-            <v-icon size="14" start>{{ modelValue.is_positive ? 'mdi-trending-up' : 'mdi-swap-vertical' }}</v-icon>
-            {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }} <v-icon end icon="mdi-chevron-down" size="16" />
-          </v-chip>
-        </template>
-        <v-list density="compact">
-          <v-list-item subtitle="e.g. Sales" title="Strictly positive (+)" @click="updateConstraint(true)" />
-          <v-list-item subtitle="e.g. Profit" title="Positive or negative (±)" @click="updateConstraint(false)" />
-        </v-list>
-      </v-menu>
-
-      <span class="text-medium-emphasis">, and my main objective is to </span>
-
-      <v-menu>
-        <template #activator="{ props }">
-          <v-chip
-            v-bind="props"
-            class="editable-chip"
-            :color="getRiskColor(modelValue.risk_preference)"
-            size="large"
-            variant="tonal"
-          >
-            <v-icon size="14" start>{{ getRiskIcon(modelValue.risk_preference) }}</v-icon>
-            {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }} <v-icon end icon="mdi-chevron-down" size="16" />
-          </v-chip>
-        </template>
-        <v-list density="compact">
-          <v-list-item
-            subtitle="Average prediction"
-            title="Achieve a balanced forecast"
-            @click="updateRiskPreference('balanced')"
+            @update:model-value="(v) => updateTarget(v)"
           />
-          <v-list-item
-            subtitle="Upper bound (Safety Stock)"
-            title="Minimize the risk of stockouts"
-            @click="updateRiskPreference('under_penalty')"
+        </v-col>
+
+        <!-- Horizon & Frequency -->
+        <v-col class="py-2" cols="12" md="4" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Time Horizon</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold">
+            {{ modelValue.horizon }} {{ formatUnit(modelValue.frequency) }}s
+          </div>
+          <div v-else class="d-flex align-center gap-2" style="gap: 8px;">
+            <v-text-field
+              v-model.number="localHorizon"
+              density="compact"
+              hide-details
+              style="width: 80px;"
+              type="number"
+              variant="outlined"
+              @update:model-value="updateHorizon"
+            />
+            <v-select
+              v-model="localModelValue.frequency"
+              density="compact"
+              hide-details
+              :item-title="(item) => formatUnit(item) + 's'"
+              :items="['day', 'week', 'month', 'quarter', 'year']"
+              style="flex-grow: 1;"
+              variant="outlined"
+              @update:model-value="(v) => updateFrequency(v)"
+            />
+          </div>
+        </v-col>
+
+        <!-- Timeline -->
+        <v-col class="py-2" cols="12" md="4" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Timeline Index</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-secondary">{{ modelValue.time_col }}</div>
+          <v-select
+            v-else
+            v-model="localModelValue.time_col"
+            density="compact"
+            hide-details
+            :items="allColumns"
+            variant="outlined"
+            @update:model-value="(v) => updateTime(v)"
           />
-          <v-list-item
-            subtitle="Lower bound (Conservative)"
-            title="Minimize the risk of waste"
-            @click="updateRiskPreference('over_penalty')"
+        </v-col>
+
+        <!-- Constraints -->
+        <v-col class="py-2 mt-sm-2" cols="12" md="4" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Value Constraint</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
+            {{ modelValue.is_positive ? 'Strictly positive (+)' : 'Positive or negative (±)' }}
+          </div>
+          <v-select
+            v-else
+            v-model="localModelValue.is_positive"
+            density="compact"
+            hide-details
+            :items="[{ title: 'Strictly positive (+)', value: true }, { title: 'Positive or negative (±)', value: false }]"
+            variant="outlined"
+            @update:model-value="(v) => updateConstraint(v)"
           />
-        </v-list>
-      </v-menu>
-      <span class="text-medium-emphasis">.</span>
-    </div>
+        </v-col>
+
+        <!-- Objective -->
+        <v-col class="py-2 mt-sm-2" cols="12" md="8" sm="6">
+          <div class="text-caption text-medium-emphasis mb-1">Main Objective</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold" :class="'text-' + getRiskColor(modelValue.risk_preference)">
+            {{ getRiskLabel(modelValue.risk_preference) }}
+          </div>
+          <v-select
+            v-else
+            v-model="localModelValue.risk_preference"
+            density="compact"
+            hide-details
+            :items="[
+              { title: 'Balanced Plan (Average prediction)', value: 'balanced' },
+              { title: 'Minimize Stockouts (Safety Stock)', value: 'under_penalty' },
+              { title: 'Minimize Waste (Conservative)', value: 'over_penalty' }
+            ]"
+            variant="outlined"
+            @update:model-value="(v) => updateRiskPreference(v)"
+          />
+        </v-col>
+      </v-row>
+    </template>
 
   </v-card>
 </template>
@@ -228,6 +266,8 @@
 <script setup lang="ts">
   import type { RiskPreference } from '@/types'
   import { computed, ref, watch } from 'vue'
+
+  const uiMode = import.meta.env.VITE_INTENT_UI_MODE || 'madlibs'
 
   export interface SentenceState {
     target_col: string
@@ -249,11 +289,15 @@
 
   const isEditing = ref(false)
   const localHorizon = ref(sentenceProps.modelValue.horizon)
+  const localModelValue = ref({ ...sentenceProps.modelValue })
 
   const horizonConfidence = computed(() => sentenceProps.horizonConfidenceScore ?? 1)
   const horizonRationale = computed(() => sentenceProps.horizonConfidenceRationale ?? '')
 
   watch(() => sentenceProps.modelValue.horizon, val => localHorizon.value = val)
+  watch(() => sentenceProps.modelValue, val => {
+    localModelValue.value = { ...val }
+  }, { deep: true })
 
   const updateTarget = (col: string) => emit('update:modelValue', { ...sentenceProps.modelValue, target_col: col })
   const updateTime = (col: string) => emit('update:modelValue', { ...sentenceProps.modelValue, time_col: col })
@@ -338,6 +382,22 @@
 .editable-chip:hover {
   transform: translateY(-1px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.variable-text {
+  border-bottom: 2px dashed rgba(var(--v-theme-primary), 0.3);
+  transition: all 0.2s ease;
+}
+
+.editable-item {
+  cursor: pointer;
+}
+
+.editable-item:hover {
+  border-bottom-style: solid;
+  border-bottom-color: rgba(var(--v-theme-primary), 0.8);
+  background-color: rgba(var(--v-theme-primary), 0.05);
+  border-radius: 4px;
 }
 
 .centered-input :deep(input) {
