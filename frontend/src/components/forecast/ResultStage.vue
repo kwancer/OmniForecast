@@ -288,6 +288,7 @@
     const msgs = store.explainabilityMessages
     if (msgs.length === 0) return true
     const last = msgs[msgs.length - 1]
+    if (!last) return true
     return last.role === 'assistant' && !last.content
   })
 

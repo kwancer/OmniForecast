@@ -260,15 +260,26 @@ export const useForecastStore = defineStore('forecast', {
         eventSource.addEventListener('message', event => {
           try {
             const payload = JSON.parse(event.data)
-            if (payload.type === 'chunk') {
-              this.explainabilityMessages[assistantIndex].content += payload.text
-            } else if (payload.type === 'meta') {
-              this.explainabilityMessages[assistantIndex].evidence = payload.evidence ?? []
-              this.explainabilityMessages[assistantIndex].suggestions = payload.suggestions ?? []
-              this.suggestedQuestions = payload.suggestions ?? this.suggestedQuestions
-            } else if (payload.type === 'done') {
-              eventSource.close()
-              resolve()
+            const assistantMessage = this.explainabilityMessages[assistantIndex]
+            if (!assistantMessage) {
+              return
+            }
+            switch (payload.type) {
+              case 'chunk': {
+                assistantMessage.content += payload.text
+                break
+              }
+              case 'meta': {
+                assistantMessage.evidence = payload.evidence ?? []
+                assistantMessage.suggestions = payload.suggestions ?? []
+                this.suggestedQuestions = payload.suggestions ?? this.suggestedQuestions
+                break
+              }
+              case 'done': {
+                eventSource.close()
+                resolve()
+                break
+              }
             }
           } catch {
             eventSource.close()
