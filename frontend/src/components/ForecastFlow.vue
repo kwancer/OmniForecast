@@ -27,7 +27,7 @@
                 <span class="text-caption hidden-xs" :class="{'font-weight-bold': Number(currentStepIndex) === i + 1, 'font-weight-medium': Number(currentStepIndex) !== i + 1}">{{ step }}</span>
                 <span v-if="Number(currentStepIndex) === i + 1" class="text-caption font-weight-bold d-sm-none">{{ step }}</span>
               </div>
-              <v-divider v-if="i < 2" class="mx-2" style="height: 24px; opacity: 0.3;" vertical />
+              <v-divider v-if="i < 2" class="mx-2" style="height: 40px; opacity: 0.3;" vertical />
             </template>
           </div>
 
