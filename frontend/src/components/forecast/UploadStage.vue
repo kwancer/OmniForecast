@@ -31,7 +31,7 @@
         elevation="0"
         :loading="store.loading"
         variant="flat"
-        @click="store.analyzeIntent"
+        @click="store.analyzeIntent()"
       >
         Continue
         <v-icon end>mdi-chevron-right</v-icon>

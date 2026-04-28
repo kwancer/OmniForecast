@@ -369,22 +369,7 @@
               </div>
             </div>
 
-            <!-- Suggested Questions -->
-            <div v-if="!store.loading" class="d-flex flex-wrap mb-4" style="gap: 8px;">
-              <v-btn
-                v-for="q in store.ontology?.meta.clarification_questions"
-                :key="q"
-                class="text-none"
-                color="primary"
-                density="comfortable"
-                rounded="pill"
-                size="small"
-                variant="tonal"
-                @click="submitClarification(q)"
-              >
-                {{ q }}
-              </v-btn>
-            </div>
+
 
             <v-text-field
               v-model="clarificationInput"
@@ -799,8 +784,9 @@
     store.executeForecast()
   }
 
-  async function submitClarification (val?: string) {
-    const text = val || clarificationInput.value
+  async function submitClarification (val?: string | any) {
+    // Defensive check: if val is an event or not a string, use the input value
+    const text = (typeof val === 'string' ? val : clarificationInput.value) || ''
     if (!text.trim() || store.loading) return
 
     await store.analyzeIntent(text)

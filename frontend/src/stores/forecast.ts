@@ -70,7 +70,7 @@ export const useForecastStore = defineStore('forecast', {
       const appStore = useAppStore()
       this.loading = true
 
-      if (answer) {
+      if (answer && typeof answer === 'string') {
         this.clarificationHistory.push({ role: 'user', content: answer })
       }
 
