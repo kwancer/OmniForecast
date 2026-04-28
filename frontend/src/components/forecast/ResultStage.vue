@@ -38,7 +38,7 @@
             <v-col class="d-flex flex-column" cols="12" md="8" style="gap: 20px;">
 
               <!-- Data Health Card -->
-              <DataHealthCard :data-health-report="store.dataHealthReport" />
+              <DataHealthCard v-if="!isAlternativeUi" :data-health-report="store.dataHealthReport" />
 
               <!-- Forecast Chart -->
               <div class="chart-container" style="height: 450px; width: 100%;">
@@ -391,6 +391,8 @@
   marked.setOptions({ breaks: true, gfm: true })
 
   const store = useForecastStore()
+  const isAlternativeUi = import.meta.env.VITE_ALTERNATIVE_UI === 'true'
+
   const question = ref('')
   const chatThreadRef = ref<HTMLElement | null>(null)
   const expandedEvidence = reactive(new Set<number>())
@@ -594,8 +596,13 @@
     return val
   }
 
-  // Filter out RMSE and R² from display
+  // Determine metrics to display based on UI mode
   const displayMetrics = computed(() => {
+    if (isAlternativeUi) {
+      // Alternative UI: Show traditional metrics (RMSE, MAE, MAPE)
+      return store.metrics.filter(m => m.name === 'RMSE' || m.name === 'MAE' || m.name === 'MAPE')
+    }
+    // Default UI: Filter out RMSE and R² (not used anyway as card is hidden)
     return store.metrics.filter(m => m.name !== 'RMSE' && m.name !== 'R²')
   })
 

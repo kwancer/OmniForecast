@@ -267,7 +267,8 @@
   import type { RiskPreference } from '@/types'
   import { computed, ref, watch } from 'vue'
 
-  const uiMode = import.meta.env.VITE_INTENT_UI_MODE || 'madlibs'
+  const isAlternativeUi = import.meta.env.VITE_ALTERNATIVE_UI === 'true'
+  const uiMode = isAlternativeUi ? 'grid' : 'madlibs'
 
   export interface SentenceState {
     target_col: string
