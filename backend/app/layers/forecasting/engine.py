@@ -310,6 +310,19 @@ class SmartForecastEngine:
                 if c.column_name not in ontology.ignored_columns
             ]
 
+        # Pre-Process: Multi-Series Routing
+        group_cols = [c.column_name for c in ontology.columns if c.role == "group_id"]
+        if group_cols:
+            group_col = group_cols[0]
+            time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
+            if hasattr(ontology, "target_series_id") and ontology.target_series_id:
+                df = df[df[group_col].astype(str) == str(ontology.target_series_id)]
+            elif hasattr(ontology, "aggregate_series") and ontology.aggregate_series:
+                df = df.groupby(time_col).sum(numeric_only=True).reset_index()
+            else:
+                # Fallback: Default to aggregate to prevent crash
+                df = df.groupby(time_col).sum(numeric_only=True).reset_index()
+
         # Always run the tournament for each forecast
         metrics = self.select_model(df, ontology)
 

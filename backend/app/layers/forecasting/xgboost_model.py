@@ -33,24 +33,30 @@ class XGBoostForecaster(InternalForecaster):
         self.history_X: Optional[pd.DataFrame] = None
 
     def _add_features(
-        self, df: pd.DataFrame, target: Optional[str] = None
+        self, df: pd.DataFrame, target: Optional[str] = None, ontology: Optional[ForecastOntology] = None
     ) -> Tuple[pd.DataFrame, Optional[pd.Series]]:
         index = pd.DatetimeIndex(df.index)
         X = pd.DataFrame(index=index)
         X["month"] = index.month
         X["week"] = index.isocalendar().week.astype(int)
 
+        group_cols = [c.column_name for c in ontology.columns if c.role == "group_id"] if ontology else []
+
         for col in df.columns:
             if (
                 col != target
                 and col != self.time_col
+                and col not in group_cols
                 and pd.api.types.is_numeric_dtype(df[col])
             ):
                 X[col] = df[col]
 
         if target and target in df.columns:
             y = df[target]
-            X["lag_1"] = df[target].shift(1).fillna(0)
+            if group_cols and group_cols[0] in df.columns:
+                X["lag_1"] = df.groupby(group_cols[0])[target].shift(1).fillna(0)
+            else:
+                X["lag_1"] = df[target].shift(1).fillna(0)
             return X, y
         else:
             X["lag_1"] = 0
@@ -68,7 +74,7 @@ class XGBoostForecaster(InternalForecaster):
         self.last_date = pd.Timestamp(df.index.max())
         self.freq = pd.infer_freq(pd.DatetimeIndex(df.index)) or "D"
 
-        X, y = self._add_features(df, self.target_col)
+        X, y = self._add_features(df, self.target_col, ontology)
         if y is None:
             raise ValueError("Target column missing for XGBoost forecaster.")
         self.last_actual_value = y.iloc[-1]

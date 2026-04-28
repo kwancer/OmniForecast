@@ -284,6 +284,26 @@
               </div>
               <v-spacer />
               <v-chip
+                v-if="store.ontology?.aggregate_series"
+                class="mr-2"
+                color="info"
+                size="small"
+                variant="tonal"
+              >
+                <v-icon size="14" start>mdi-set-all</v-icon>
+                Aggregate Group
+              </v-chip>
+              <v-chip
+                v-else-if="store.ontology?.target_series_id"
+                class="mr-2"
+                color="info"
+                size="small"
+                variant="tonal"
+              >
+                <v-icon size="14" start>mdi-filter-variant</v-icon>
+                ID: {{ store.ontology.target_series_id }}
+              </v-chip>
+              <v-chip
                 v-if="store.ontology?.meta.completeness_check"
                 :color="store.ontology.meta.completeness_check === 'complete' ? 'success' : 'warning'"
                 size="small"

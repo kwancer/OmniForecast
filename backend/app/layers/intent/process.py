@@ -84,6 +84,13 @@ class GeminiIntentAnalyzer:
              Good question: "Should 'Store_ID' be treated as a group key to
              produce per-store forecasts, or ignored?"
 
+          F) MULTI-SERIES ROUTING (CRITICAL):
+             - Aggressively flag columns like 'Store_ID', 'Region', 'Item_ID', or 'Category' as 'group_id' if they indicate multiple time series exist in the same dataset.
+             - If a 'group_id' is found, you MUST ask a clarification question asking the user if they want to forecast an aggregate of all series, or a specific entity. Set meta.confidence_score to < 0.85 to force clarification.
+             - IF the user has already answered this in their prompt/history:
+               * Set 'aggregate_series' to true if they want an aggregate sum.
+               * Set 'target_series_id' to the specific entity name if they chose one (e.g. "104" or "Store_A").
+
         - COVARIATE CLASSIFICATION:
           For every column identified as a 'covariate', you MUST classify its
           'covariate_type' AND 'covariate_strategy':

@@ -120,6 +120,15 @@ class ForecastOntology(BaseModel):
     sample_data: Optional[List[Dict[str, Any]]] = None
     scenario_overrides: Optional[Dict[str, Union[float, List[float], None]]] = None
     ignored_columns: Optional[List[str]] = None
+    # Multi-Series Routing
+    target_series_id: Optional[str] = Field(
+        default=None,
+        description="If multiple series exist, the specific ID (e.g. Store 104) the user wants to forecast.",
+    )
+    aggregate_series: bool = Field(
+        default=False,
+        description="If True, aggregate all time series across the group_id before forecasting.",
+    )
     # Risk Preference & Confidence Intervals
     risk_preference: Literal["balanced", "under_penalty", "over_penalty"] = "balanced"
     interval_width: float = Field(
