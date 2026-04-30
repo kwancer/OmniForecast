@@ -10,7 +10,7 @@ from app.domain.ontology import (
     ProblemDefinition,
     UserRequirements,
 )
-from app.layers.forecasting.engine import RandomForestForecaster, SmartForecastEngine
+from app.layers.forecasting.engine import SkforecastForecaster, SmartForecastEngine
 
 
 @pytest.fixture
@@ -62,19 +62,19 @@ def mock_ontology():
 
 @pytest.fixture
 def mock_df():
-    dates = pd.date_range(start="2023-01-01", periods=10, freq="D")
+    dates = pd.date_range(start="2023-01-01", periods=50, freq="D")
     return pd.DataFrame(
         {
             "Date": dates,
-            "Sales": [10, 12, 11, 13, 15, 14, 16, 18, 20, 22],
-            "Price": [1.0] * 10,
-            "Promo": [0] * 10,
+            "Sales": [10 + i * 0.5 for i in range(50)],
+            "Price": [1.0] * 50,
+            "Promo": [0] * 50,
         }
     )
 
 
 def test_rf_recursion_and_overrides(mock_ontology, mock_df):
-    rf = RandomForestForecaster()
+    rf = SkforecastForecaster("rf")
 
     # Fit
     rf.fit(mock_df, mock_ontology)
@@ -96,7 +96,7 @@ def test_rf_recursion_and_overrides(mock_ontology, mock_df):
 
 
 def test_rf_custom_plan(mock_ontology, mock_df):
-    rf = RandomForestForecaster()
+    rf = SkforecastForecaster("rf")
     rf.fit(mock_df, mock_ontology)
 
     mock_ontology.scenario_overrides = {

@@ -15,10 +15,17 @@ class SkforecastForecaster(InternalForecaster):
     def __init__(self, regressor_type='lightgbm'):
         self.regressor_type = regressor_type
         if regressor_type == 'lightgbm':
-            self.regressor = LGBMRegressor(random_state=42, n_estimators=100, verbose=-1)
-        else:
+            self.regressor = LGBMRegressor(random_state=42, n_estimators=100, verbose=-1, n_jobs=1)
+            self.complexity_score = 7
+        elif regressor_type == 'xgboost':
+            from xgboost import XGBRegressor
+            # n_jobs=1 is critical on Windows to prevent Access Violations in multiprocess workers
+            self.regressor = XGBRegressor(random_state=42, n_estimators=100, verbosity=0, n_jobs=1)
+            self.complexity_score = 6
+        else: # rf
             from sklearn.ensemble import RandomForestRegressor
-            self.regressor = RandomForestRegressor(random_state=42, n_estimators=100)
+            self.regressor = RandomForestRegressor(random_state=42, n_estimators=100, n_jobs=1)
+            self.complexity_score = 5
             
         self.forecaster = None
         self.time_col = None
@@ -92,7 +99,8 @@ class SkforecastForecaster(InternalForecaster):
         self.forecaster = ForecasterDirect(
             estimator=self.regressor,
             steps=horizon_steps,
-            lags=14 # Target lags
+            lags=14, # Target lags
+            n_jobs=1 # Disable joblib parallelism to prevent Windows access violations
         )
         
         # Train/Val Split (80/20)
@@ -190,9 +198,13 @@ class SkforecastForecaster(InternalForecaster):
         })
 
     def get_metadata(self) -> ModelMetadata:
+        reg_name = self.regressor_type.upper() if self.regressor_type != 'rf' else 'Random Forest'
+        if reg_name == 'LIGHTGBM': reg_name = 'LightGBM'
+        if reg_name == 'XGBOOST': reg_name = 'XGBoost'
+        
         return ModelMetadata(
-            name=f"skforecast ({self.regressor_type.title()})",
-            description="Direct multi-step forecaster with zero-leakage covariate handling.",
-            rationale="Mathematically rigorous handling of known vs unknown drivers.",
+            name=reg_name,
+            description=f"Direct multi-step forecaster using {reg_name} with zero-leakage covariate handling.",
+            rationale="Mathematically rigorous handling of known vs unknown drivers with high-capacity ML.",
             educational_video_url=""
         )

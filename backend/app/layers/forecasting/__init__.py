@@ -3,10 +3,9 @@ from app.layers.forecasting.engine import (
 	ETSForecaster,
 	InternalForecaster,
 	NaiveForecaster,
-	RandomForestForecaster,
 	SeasonalNaiveForecaster,
 	SmartForecastEngine,
-	XGBoostForecaster,
+	SkforecastForecaster,
 )
 
 __all__ = [
@@ -14,8 +13,7 @@ __all__ = [
 	"ETSForecaster",
 	"InternalForecaster",
 	"NaiveForecaster",
-	"RandomForestForecaster",
 	"SeasonalNaiveForecaster",
 	"SmartForecastEngine",
-	"XGBoostForecaster",
+	"SkforecastForecaster",
 ]

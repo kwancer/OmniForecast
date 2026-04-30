@@ -84,15 +84,24 @@ class InternalForecaster(ABC):
         residuals_std: float,
     ) -> Dict[str, np.ndarray]:
         """
-        Calculate multiple levels of prediction intervals using standard normal distribution.
+        Calculate multiple levels of prediction intervals using standard normal distribution,
+        scaling uncertainty with sqrt(h) to account for increasing error over time.
         """
         # We need layers for 30%, 60%, and 80%
         widths = [0.30, 0.60, 0.80]
         results = {}
+        
+        # Calculate scaling factor: sqrt(1, 2, 3... horizon)
+        # This is a common heuristic for random-walk like error growth
+        horizon = len(predictions)
+        steps = np.arange(1, horizon + 1)
+        scaling = np.sqrt(steps)
+        
         for width in widths:
             alpha = 1 - width
             z_score = stats.norm.ppf(1 - alpha / 2)
-            margin = z_score * residuals_std
+            # Apply scaling to the margin
+            margin = z_score * residuals_std * scaling
             label = int(width * 100)
             results[f"conf_{label}_lower"] = predictions - margin
             results[f"conf_{label}_upper"] = predictions + margin
@@ -105,11 +114,15 @@ class InternalForecaster(ABC):
         residuals_std: float,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Legacy single-layer interval calculator.
+        Legacy single-layer interval calculator with horizon scaling.
         """
+        horizon = len(predictions)
+        steps = np.arange(1, horizon + 1)
+        scaling = np.sqrt(steps)
+        
         alpha = 1 - interval_width
         z_score = stats.norm.ppf(1 - alpha / 2)
-        margin = z_score * residuals_std
+        margin = z_score * residuals_std * scaling
         lower = predictions - margin
         upper = predictions + margin
         return lower, upper

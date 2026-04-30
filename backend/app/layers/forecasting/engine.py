@@ -9,10 +9,8 @@ from app.layers.forecasting.arima import ARIMAForecaster
 from app.layers.forecasting.base import InternalForecaster
 from app.layers.forecasting.ets import ETSForecaster
 from app.layers.forecasting.naive import NaiveForecaster
-from app.layers.forecasting.random_forest import RandomForestForecaster
 from app.layers.forecasting.seasonal_naive import SeasonalNaiveForecaster
 from app.layers.forecasting.skforecast_model import SkforecastForecaster
-from app.layers.forecasting.xgboost_model import XGBoostForecaster
 
 
 class SmartForecastEngine:
@@ -77,7 +75,7 @@ class SmartForecastEngine:
                 seasonal="mul",
             ),  # Score 4
             # ARIMA Candidate
-            ARIMAForecaster(),  # Automated via pmdarima
+            # ARIMAForecaster(),  # Automated via pmdarima (Temporarily disabled)
         ]
 
         # 2. Check Triggers for Specialist (Random Forest - Score 5)
@@ -107,10 +105,10 @@ class SmartForecastEngine:
             covariates_present = True
 
         if sparsity > 0.5 or covariates_present:
-            print("LOG: ML Specialists Triggered. Adding Skforecast (LightGBM) & specialists.")
+            print("LOG: ML Specialists Triggered. Adding Skforecast variants.")
             candidates.append(SkforecastForecaster("lightgbm"))
-            candidates.append(RandomForestForecaster())
-            candidates.append(XGBoostForecaster())
+            candidates.append(SkforecastForecaster("rf"))
+            candidates.append(SkforecastForecaster("xgboost"))
 
         # 3. Run Tournament
         results = []
@@ -167,7 +165,7 @@ class SmartForecastEngine:
             self.progress_callback(total_models, total_models, "Tournament Complete")
 
         # 4. Selection Logic (The Rashomon Set)
-        valid_results = [r for r in results if np.isfinite(r["mae"]) and r["mae"] > 0.0]
+        valid_results = [r for r in results if np.isfinite(r["mae"]) and r["mae"] >= 0.0]
         if not valid_results:
             raise ValueError("All models failed to fit.")
 
@@ -416,8 +414,7 @@ __all__ = [
     "ETSForecaster",
     "InternalForecaster",
     "NaiveForecaster",
-    "RandomForestForecaster",
     "SeasonalNaiveForecaster",
     "SmartForecastEngine",
-    "XGBoostForecaster",
+    "SkforecastForecaster",
 ]
