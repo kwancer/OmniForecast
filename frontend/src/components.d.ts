@@ -14,12 +14,15 @@ declare module 'vue' {
     AppFooter: typeof import('./components/AppFooter.vue')['default']
     AppHeader: typeof import('./components/AppHeader.vue')['default']
     BacktestChart: typeof import('./components/forecast/BacktestChart.vue')['default']
+    ClarificationDialog: typeof import('./components/forecast/ClarificationDialog.vue')['default']
     CleaningStage: typeof import('./components/forecast/CleaningStage.vue')['default']
     CovariateSentence: typeof import('./components/forecast/CovariateSentence.vue')['default']
     DataHealthCard: typeof import('./components/forecast/DataHealthCard.vue')['default']
     DataXRay: typeof import('./components/forecast/DataXRay.vue')['default']
     ForecastChart: typeof import('./components/forecast/ForecastChart.vue')['default']
     ForecastFlow: typeof import('./components/ForecastFlow.vue')['default']
+    FutureDataGrid: typeof import('./components/forecast/FutureDataGrid.vue')['default']
+    GatekeeperDialog: typeof import('./components/forecast/GatekeeperDialog.vue')['default']
     IntentProgressView: typeof import('./components/forecast/IntentProgressView.vue')['default']
     ModelTournament: typeof import('./components/forecast/ModelTournament.vue')['default']
     NotificationHost: typeof import('./components/NotificationHost.vue')['default']
@@ -30,6 +33,7 @@ declare module 'vue' {
     ResultStage: typeof import('./components/forecast/ResultStage.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    ScenarioBuilder: typeof import('./components/forecast/ScenarioBuilder.vue')['default']
     UploadStage: typeof import('./components/forecast/UploadStage.vue')['default']
   }
 }

@@ -138,9 +138,9 @@ class XGBoostForecaster(InternalForecaster):
                     if covariate_strategy:
                         covariate_strategy_map[col_def.column_name] = covariate_strategy
                     # Fallback mapping if strategy not explicitly set
-                    elif col_def.covariate_type == "exogenous":
+                    elif col_def.covariate_type == "unknown_past":
                         covariate_strategy_map[col_def.column_name] = "seasonal_analog"
-                    elif col_def.covariate_type == "controllable":
+                    elif col_def.covariate_type == "known_future":
                         covariate_strategy_map[col_def.column_name] = "status_quo"
 
         forecast_values = []

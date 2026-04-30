@@ -323,69 +323,7 @@
             />
           </div>
 
-          <!-- SECTION 1.5: Clarification Hub (Multi-turn) -->
-          <div v-if="needsClarification" class="section-card section-card--highlight mb-6">
-            <div class="section-header mb-4">
-              <div class="section-header__icon section-header__icon--warning">
-                <v-icon color="white" size="18">mdi-chat-question-outline</v-icon>
-              </div>
-              <div>
-                <h3 class="text-subtitle-1 font-weight-bold ma-0">Clarification Hub</h3>
-                <div class="text-caption text-medium-emphasis mt-1">
-                  Confidence: {{ Math.round((store.ontology?.meta.confidence_score || 0) * 100) }}%
-                  <template v-if="lowConfidenceColumns.length > 0">
-                    · {{ lowConfidenceColumns.length }} column{{ lowConfidenceColumns.length > 1 ? 's' : '' }} need{{ lowConfidenceColumns.length === 1 ? 's' : '' }} review
-                  </template>
-                  <template v-if="(store.ontology?.requirements.horizon_requirement.confidence_score ?? 1) < 0.85">
-                    · Horizon needs review
-                  </template>
-                </div>
-              </div>
-            </div>
-
-            <div class="clarification-content pa-4 rounded-lg bg-surface border mb-4">
-              <div v-for="(msg, idx) in store.clarificationHistory" :key="idx" class="mb-3">
-                <div v-if="msg.role === 'assistant'" class="d-flex align-start">
-                  <v-avatar class="mr-2" color="primary" size="24">
-                    <v-icon color="white" size="14">mdi-robot-outline</v-icon>
-                  </v-avatar>
-                  <div class="msg-bubble assistant-bubble pa-2 rounded-lg text-body-2">
-                    {{ msg.content }}
-                  </div>
-                </div>
-                <div v-else class="d-flex align-start justify-end">
-                  <div class="msg-bubble user-bubble pa-2 rounded-lg text-body-2 bg-primary text-white">
-                    {{ msg.content }}
-                  </div>
-                  <v-avatar class="ml-2" color="secondary" size="24">
-                    <v-icon color="white" size="14">mdi-account</v-icon>
-                  </v-avatar>
-                </div>
-              </div>
-
-              <div v-if="store.loading" class="d-flex align-center justify-center py-4">
-                <v-progress-circular color="primary" indeterminate size="24" width="2" />
-                <span class="ml-3 text-caption text-medium-emphasis">Re-analyzing intent...</span>
-              </div>
-            </div>
-
-
-
-            <v-text-field
-              v-model="clarificationInput"
-              append-inner-icon="mdi-send"
-              bg-color="surface"
-              class="rounded-xl"
-              density="comfortable"
-              flat
-              hide-details
-              label="Type your answer..."
-              placeholder="e.g., Use 'Sales' as target and 'Price' as controllable."
-              variant="solo"
-              @click:append-inner="submitClarification()"
-              @keyup.enter="submitClarification()"
-            />
-          </div>
+          <!-- Clarification Hub is now a Dialog managed by showClarification -->
 
           <!-- SECTION 2: Scenario Overrides -->
           <div v-if="controllableCovariates.length > 0 || exogenousCovariates.length > 0" class="section-card mb-6">
@@ -414,6 +352,7 @@
                   v-model="covariateStates[col.column_name]!"
                   :column="col.column_name"
                   :type="'controllable'"
+                  @change-type="newType => changeCovariateType(col.column_name, newType)"
                 />
               </div>
             </div>
@@ -431,8 +370,23 @@
                   v-model="covariateStates[col.column_name]!"
                   :column="col.column_name"
                   :type="'exogenous'"
+                  @change-type="newType => changeCovariateType(col.column_name, newType)"
                 />
               </div>
+            </div>
+
+            <!-- Future Data Grid (Excel-like Spreadsheet) -->
+            <div v-if="controllableCovariates.length > 0" class="mt-6">
+              <div class="d-flex align-center mb-3">
+                <v-icon class="mr-2" color="primary" size="18">mdi-table-edit</v-icon>
+                <span class="text-body-2 font-weight-bold">Future Data Entry</span>
+              </div>
+              <FutureDataGrid
+                :columns="controllableCovariates"
+                :frequency="sentenceState?.frequency || 'month'"
+                :horizon="sentenceState?.horizon || 12"
+                @update:overrides="handleGridOverrides"
+              />
             </div>
           </div>
 
@@ -533,6 +487,10 @@
         </div>
       </v-col>
     </v-row>
+    <ClarificationDialog
+      v-model="showClarification"
+      @bypass="handleClarificationBypass"
+    />
   </v-container>
 </template>
 
@@ -540,8 +498,10 @@
   import type { CovariateType } from '@/types'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import ClarificationDialog from './ClarificationDialog.vue'
   import CovariateSentence, { type CovariateState } from './CovariateSentence.vue'
   import DataXRay from './DataXRay.vue'
+  import FutureDataGrid from './FutureDataGrid.vue'
   import OntologySentence, { type SentenceState } from './OntologySentence.vue'
 
   const store = useForecastStore()
@@ -551,6 +511,9 @@
   const covariateStates = ref<Record<string, CovariateState>>({})
   const editingColumn = ref<string | null>(null)
   const clarificationInput = ref('')
+  const showGatekeeper = ref(false)
+  const showClarification = ref(false)
+  const hasBypassedClarification = ref(false)
 
   // ─── Clarification Logic ───
   const lowConfidenceColumns = computed(() => {
@@ -593,11 +556,11 @@
   })
 
   const controllableCovariates = computed(() => {
-    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'controllable')
+    return covariates.value.filter(c => c.role === 'covariate' && (c.covariate_type === 'controllable' || c.covariate_type === 'known_future'))
   })
 
   const exogenousCovariates = computed(() => {
-    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'exogenous')
+    return covariates.value.filter(c => c.role === 'covariate' && (c.covariate_type === 'exogenous' || c.covariate_type === 'unknown_past'))
   })
 
   const staticCovariates = computed(() => {
@@ -668,9 +631,11 @@
 
   function getCovariateColor (type?: CovariateType): string {
     switch (type) {
-      case 'controllable': { return 'success'
+      case 'controllable':
+      case 'known_future': { return 'success'
       }
-      case 'exogenous': { return 'info'
+      case 'exogenous':
+      case 'unknown_past': { return 'info'
       }
       case 'static': { return 'grey'
       }
@@ -681,9 +646,11 @@
 
   function getCovariateIcon (type?: CovariateType): string {
     switch (type) {
-      case 'controllable': { return 'mdi-cog'
+      case 'controllable':
+      case 'known_future': { return 'mdi-cog'
       }
-      case 'exogenous': { return 'mdi-cloud'
+      case 'exogenous':
+      case 'unknown_past': { return 'mdi-cloud'
       }
       case 'static': { return 'mdi-tag'
       }
@@ -694,9 +661,11 @@
 
   function formatCovariateType (type?: CovariateType): string {
     switch (type) {
-      case 'controllable': { return 'CONTROLLABLE'
+      case 'controllable':
+      case 'known_future': { return 'PLANNED'
       }
-      case 'exogenous': { return 'EXOGENOUS'
+      case 'exogenous':
+      case 'unknown_past': { return 'OBSERVED'
       }
       case 'static': { return 'STATIC'
       }
@@ -738,6 +707,12 @@
   // Re-initialize sentenceState whenever ontology changes (initial load + re-analysis)
   watch(() => store.ontology, () => {
     initSentenceState()
+    // Show clarification popup if needed and not bypassed
+    if (needsClarification.value && !hasBypassedClarification.value) {
+      showClarification.value = true
+    } else if (!needsClarification.value) {
+      showClarification.value = false
+    }
   }, { immediate: true })
 
   onMounted(() => {
@@ -747,10 +722,15 @@
   function confirmAndProceed () {
     if (!sentenceState.value || !store.ontology) return
 
-    // Logic to update ontology remains the same as previous step
+    // Update ontology based on current state
     for (const col of store.ontology.columns) {
-      if (col.role === 'target') col.role = 'ignore'
-      if (col.role === 'time_index') col.role = 'ignore'
+      // Standard role mapping
+      if (col.role === 'target' || col.role === 'time_index') {
+        // Reset old roles to avoid duplicates
+        if (col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
+          col.role = 'ignore'
+        }
+      }
 
       if (col.column_name === sentenceState.value?.target_col) {
         col.role = 'target'
@@ -760,28 +740,49 @@
       if (col.column_name === sentenceState.value?.time_col) {
         col.role = 'time_index'
       }
+
+      // Sync ignored status from covariateStates
+      if (covariateStates.value[col.column_name]?.isIgnored) {
+        col.role = 'ignore'
+      } else if (col.role === 'ignore' && !covariateStates.value[col.column_name]?.isIgnored) {
+        // Recover role if user un-ignored it
+        // We'll default to covariate if it was ignored
+        if (col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
+          col.role = 'covariate'
+        }
+      }
     }
 
     store.ontology.requirements.horizon_requirement.steps = sentenceState.value.horizon
     store.ontology.problem.granularity.unit = sentenceState.value.frequency as any
     store.ontology.risk_preference = sentenceState.value.risk_preference
 
-    // Scenario Overrides & Ignores
-    const overrides: Record<string, number | number[] | null> = {}
-    const ignores: string[] = []
-
+    // Sync all overrides from covariateStates
+    if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = {}
     for (const [col, state] of Object.entries(covariateStates.value)) {
-      if (state.isIgnored) {
-        ignores.push(col)
-      } else {
-        overrides[col] = state.override
+      if (state.override !== null) {
+        store.ontology.scenario_overrides[col] = state.override
       }
     }
 
-    store.ontology.scenario_overrides = overrides
-    store.ontology.ignored_columns = ignores
-
     store.executeForecast()
+  }
+
+  function handleGridOverrides (overrides: Record<string, number[]>) {
+    if (!store.ontology) return
+    if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = {}
+    
+    for (const col in overrides) {
+      store.ontology.scenario_overrides[col] = overrides[col]
+    }
+  }
+
+  function changeCovariateType (colName: string, newType: CovariateType) {
+    if (!store.ontology) return
+    const col = store.ontology.columns.find(c => c.column_name === colName)
+    if (col) {
+      col.covariate_type = newType
+    }
   }
 
   async function submitClarification (val?: string | any) {
@@ -791,6 +792,11 @@
 
     await store.analyzeIntent(text)
     clarificationInput.value = ''
+  }
+
+  function handleClarificationBypass () {
+    showClarification.value = false
+    hasBypassedClarification.value = true
   }
 </script>
 

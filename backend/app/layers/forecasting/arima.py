@@ -77,8 +77,27 @@ class ARIMAForecaster(InternalForecaster):
             self.validation_predictions = pd.Series(val_preds, index=val.index)
             self.validation_actuals = val[self.target_col]
 
-            # Refit the model on the entire 100% dataframe
-            self.model = auto_arima(df_index[self.target_col], **autoarima_params)
+            # Refit the model on the entire 100% dataframe using fixed parameters from the first search
+            self.model = auto_arima(
+                df_index[self.target_col],
+                start_p=temp_model.order[0],
+                d=temp_model.order[1],
+                start_q=temp_model.order[2],
+                max_p=temp_model.order[0],
+                max_d=temp_model.order[1],
+                max_q=temp_model.order[2],
+                seasonal=temp_model.seasonal_order is not None and sum(temp_model.seasonal_order[:3]) > 0,
+                start_P=temp_model.seasonal_order[0],
+                D=temp_model.seasonal_order[1],
+                start_Q=temp_model.seasonal_order[2],
+                max_P=temp_model.seasonal_order[0],
+                max_D=temp_model.seasonal_order[1],
+                max_Q=temp_model.seasonal_order[2],
+                m=temp_model.seasonal_order[3],
+                suppress_warnings=True,
+                error_action="ignore",
+                stepwise=False, # Faster if parameters are fixed
+            )
 
             # Dynamic Complexity Scoring:
             # 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0

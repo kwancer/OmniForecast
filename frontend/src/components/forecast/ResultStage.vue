@@ -248,6 +248,17 @@
                   </v-col>
                 </v-row>
               </div>
+              
+              <!-- Scenario Builder -->
+              <div class="insight-card insight-card--secondary mb-5">
+                <div class="insight-card__header mb-4">
+                  <div class="panel-icon panel-icon--success mr-3">
+                    <v-icon color="white" size="16">mdi-tune-variant</v-icon>
+                  </div>
+                  <span class="font-weight-bold">Scenario Builder</span>
+                </div>
+                <ScenarioBuilder @recalculate="store.executeForecast()" />
+              </div>
 
               <!-- AI Explainability Layer -->
               <div class="insight-card insight-card--secondary mb-5">
@@ -386,6 +397,7 @@
   import DataHealthCard from './DataHealthCard.vue'
   import ForecastChart from './ForecastChart.vue'
   import ModelTournament from './ModelTournament.vue'
+  import ScenarioBuilder from './ScenarioBuilder.vue'
 
   // Configure marked for safe, minimal output
   marked.setOptions({ breaks: true, gfm: true })

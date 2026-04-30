@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 class CovariateType(str, Enum):
     """Classification of covariate types for frugal forecasting."""
 
-    CONTROLLABLE = "controllable"  # e.g., Price, Promotion, Staffing (User Decides)
-    EXOGENOUS = "exogenous"  # e.g., Weather, Competitor Price (External)
-    STATIC = "static"  # e.g., Store Location (Ignored for time-series)
+    KNOWN_FUTURE = "known_future"  # Planned Drivers (e.g., Price, Promo)
+    UNKNOWN_PAST = "unknown_past"  # Environmental Factors (e.g., Weather, Foot Traffic)
+    STATIC = "static"  # Time-invariant descriptors
 
 
 class MetaContext(BaseModel):

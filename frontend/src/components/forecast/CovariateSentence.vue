@@ -3,13 +3,13 @@
     class="pa-4 mb-2 bg-surface covariate-card"
     :class="{
       'on-ignore': localState.isIgnored,
-      'is-controllable': type === 'controllable',
-      'is-exogenous': type === 'exogenous'
+      'is-controllable': type === 'controllable' || type === 'known_future',
+      'is-exogenous': type === 'exogenous' || type === 'unknown_past'
     }"
     variant="outlined"
   >
     <div class="d-flex align-center flex-wrap" style="gap: 8px; line-height: 2.0;">
-      <v-tooltip v-if="type === 'exogenous'" location="top">
+      <v-tooltip v-if="type === 'exogenous' || type === 'unknown_past'" location="top">
         <template #activator="{ props: tProps }">
           <v-icon
             v-bind="tProps"
@@ -19,7 +19,7 @@
             size="small"
           />
         </template>
-        <span>⚠️ This is an external factor. The AI is making an assumption based on past history.</span>
+        <span>⚠️ This is an environmental factor. The AI is making an assumption based on past history to prevent data leakage.</span>
       </v-tooltip>
 
       <span class="text-medium-emphasis">{{ prefixText }}</span>
@@ -47,6 +47,21 @@
             :subtitle="opt.subtitle"
             :title="opt.title"
             @click="setOption(opt.value)"
+          />
+          <v-divider />
+          <v-list-item
+            v-if="type === 'exogenous' || type === 'unknown_past'"
+            prepend-icon="mdi-account-cog-outline"
+            subtitle="I control this factor"
+            title="Switch to PLANNED"
+            @click="emit('changeType', 'known_future')"
+          />
+          <v-list-item
+            v-else
+            prepend-icon="mdi-weather-partly-cloudy"
+            subtitle="This is an external factor"
+            title="Switch to OBSERVED"
+            @click="emit('changeType', 'unknown_past')"
           />
           <v-divider />
           <v-list-item
@@ -106,10 +121,10 @@
   const covariateProps = defineProps<{
     column: string
     modelValue: CovariateState
-    type: 'controllable' | 'exogenous' | 'static'
+    type: CovariateType
   }>()
 
-  const emit = defineEmits(['update:modelValue'])
+  const emit = defineEmits(['update:modelValue', 'changeType'])
 
   const option = ref<'default' | 'constant' | 'custom' | 'ignore'>('default')
   const constantValue = ref<number>(0)
@@ -119,19 +134,19 @@
   const localState = computed(() => covariateProps.modelValue)
 
   const prefixText = computed(() => {
-    return covariateProps.type === 'controllable' ? 'I plan to set' : 'Assume'
+    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'I plan to set' : 'Assume'
   })
 
   const joinText = computed(() => {
-    return covariateProps.type === 'controllable' ? 'to' : 'will be'
+    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'to' : 'will be'
   })
 
   const customPlanLabel = computed(() => {
-    return covariateProps.type === 'controllable' ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
+    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
   })
 
   const availableOptions = computed(() => {
-    if (covariateProps.type === 'controllable') {
+    if (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') {
       return [
         { value: 'default', title: 'Keep Current (Status Quo)', subtitle: 'Assume no change from today' },
         { value: 'constant', title: 'Change to...', subtitle: 'Set a specific constant value' },

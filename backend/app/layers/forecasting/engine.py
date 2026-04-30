@@ -11,6 +11,7 @@ from app.layers.forecasting.ets import ETSForecaster
 from app.layers.forecasting.naive import NaiveForecaster
 from app.layers.forecasting.random_forest import RandomForestForecaster
 from app.layers.forecasting.seasonal_naive import SeasonalNaiveForecaster
+from app.layers.forecasting.skforecast_model import SkforecastForecaster
 from app.layers.forecasting.xgboost_model import XGBoostForecaster
 
 
@@ -93,21 +94,21 @@ class SmartForecastEngine:
         )
         target_col = next(c.column_name for c in ontology.columns if c.role == "target")
 
-        if (
-            len(
-                [
-                    c
-                    for c in df.columns
-                    if c not in [time_col, target_col]
-                    and pd.api.types.is_numeric_dtype(df[c])
-                ]
-            )
-            > 0
-        ):
+        # Check for covariates in ontology roles or extra numeric columns
+        ontology_covariates = [c.column_name for c in ontology.columns if c.role == "covariate"]
+        extra_numeric_cols = [
+            c
+            for c in df.columns
+            if c not in [time_col, target_col]
+            and pd.api.types.is_numeric_dtype(df[c])
+        ]
+
+        if len(ontology_covariates) > 0 or len(extra_numeric_cols) > 0:
             covariates_present = True
 
         if sparsity > 0.5 or covariates_present:
-            print("LOG: ML Specialists Triggered. Adding Random Forest & XGBoost.")
+            print("LOG: ML Specialists Triggered. Adding Skforecast (LightGBM) & specialists.")
+            candidates.append(SkforecastForecaster("lightgbm"))
             candidates.append(RandomForestForecaster())
             candidates.append(XGBoostForecaster())
 
@@ -310,18 +311,8 @@ class SmartForecastEngine:
                 if c.column_name not in ontology.ignored_columns
             ]
 
-        # Pre-Process: Multi-Series Routing
-        group_cols = [c.column_name for c in ontology.columns if c.role == "group_id"]
-        if group_cols:
-            group_col = group_cols[0]
-            time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
-            if hasattr(ontology, "target_series_id") and ontology.target_series_id:
-                df = df[df[group_col].astype(str) == str(ontology.target_series_id)]
-            elif hasattr(ontology, "aggregate_series") and ontology.aggregate_series:
-                df = df.groupby(time_col).sum(numeric_only=True).reset_index()
-            else:
-                # Fallback: Default to aggregate to prevent crash
-                df = df.groupby(time_col).sum(numeric_only=True).reset_index()
+        # Multi-Series Routing is now handled in the AutoClean layer.
+        # This prevents redundant logic and ensures consistent data preparation.
 
         # Always run the tournament for each forecast
         metrics = self.select_model(df, ontology)

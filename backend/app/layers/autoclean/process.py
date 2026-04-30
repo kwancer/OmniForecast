@@ -178,6 +178,34 @@ class RuleBasedCleaner:
             (c.column_name for c in ontology.columns if c.role == "target"), None
         )
 
+        # 0.75 Multi-Series Routing (Early)
+        # Handle filtering or aggregating across multiple series before cleaning
+        group_cols = [c.column_name for c in ontology.columns if c.role == "group_id"]
+        if group_cols and group_cols[0] in df.columns:
+            group_col = group_cols[0]
+            if getattr(ontology, "target_series_id", None):
+                target_id = str(ontology.target_series_id)
+                count_before = len(df)
+                df = df[df[group_col].astype(str) == target_id]
+                actions.append(
+                    CleaningAction(
+                        column=group_col,
+                        action="routing",
+                        description=f"Filtered dataset for specific series '{target_id}' (kept {len(df)}/{count_before} rows).",
+                    )
+                )
+            elif getattr(ontology, "aggregate_series", False):
+                # Aggregate across groups before proceeding
+                count_before = len(df)
+                df = df.groupby(time_col).sum(numeric_only=True).reset_index()
+                actions.append(
+                    CleaningAction(
+                        column=group_col,
+                        action="aggregation",
+                        description=f"Aggregated all series across groups using 'sum' (reduced {count_before} to {len(df)} rows).",
+                    )
+                )
+
         # Verify columns exist
         if time_col not in df.columns:
             raise ValueError(
@@ -275,21 +303,24 @@ class RuleBasedCleaner:
 
         # 4. Handle Duplicates
         if df.index.duplicated().any():
-            target_def = next(
-                c for c in ontology.columns if c.column_name == target_col
-            )
-            method = target_def.resampling_method
             old_count = len(df)
-            if method == "sum":
-                df = df.groupby(level=0).sum()
-            elif method == "mean":
-                df = df.groupby(level=0).mean()
-            elif method == "last":
-                df = df.groupby(level=0).last()
-            elif method == "max":
-                df = df.groupby(level=0).max()
-            else:
-                df = df.groupby(level=0).mean()  # Default
+            
+            # Build per-column aggregation map to avoid crashing on strings
+            agg_map = {}
+            for col in df.columns:
+                col_def = next((c for c in ontology.columns if c.column_name == col), None)
+                method = col_def.resampling_method if col_def else "mean"
+                
+                # Safety check: if column is not numeric, 'mean' and 'sum' will fail
+                is_numeric = pd.api.types.is_numeric_dtype(df[col])
+                if not is_numeric and method in ["mean", "sum"]:
+                    method = "first"
+                
+                agg_map[col] = method
+            
+            # Record the primary strategy for the report
+            target_method = agg_map.get(target_col, "mean")
+            df = df.groupby(level=0).agg(agg_map)
 
             actions.append(
                 CleaningAction(
@@ -297,7 +328,8 @@ class RuleBasedCleaner:
                     action="aggregation",
                     description=(
                         f"Found duplicated timestamps. Aggregated observations "
-                        f"from {old_count} to {len(df)} using '{method}' strategy."
+                        f"from {old_count} to {len(df)} using '{target_method}' (target) "
+                        "and safe defaults for covariates."
                     ),
                 )
             )
