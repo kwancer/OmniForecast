@@ -8,6 +8,7 @@ from app.domain.ontology import (
     HorizonRequirement,
     MetaContext,
     ProblemDefinition,
+    ScenarioOverride,
     UserRequirements,
 )
 from app.layers.forecasting.engine import SkforecastForecaster, SmartForecastEngine
@@ -80,10 +81,10 @@ def test_rf_recursion_and_overrides(mock_ontology, mock_df):
     rf.fit(mock_df, mock_ontology)
 
     # 1. Test Constant Override (Change to...)
-    mock_ontology.scenario_overrides = {
-        "Price": 2.0,  # Change Price to 2.0
-        "Promo": 0,  # Keep Promo 0
-    }
+    mock_ontology.scenario_overrides = [
+        ScenarioOverride(column_name="Price", values=2.0),  # Change Price to 2.0
+        ScenarioOverride(column_name="Promo", values=0),   # Keep Promo 0
+    ]
 
     # Predict 3 steps
     future_df = rf.predict(horizon=3, ontology=mock_ontology)
@@ -99,10 +100,10 @@ def test_rf_custom_plan(mock_ontology, mock_df):
     rf = SkforecastForecaster("rf")
     rf.fit(mock_df, mock_ontology)
 
-    mock_ontology.scenario_overrides = {
-        "Price": [1.0, 1.5, 2.0],  # Custom plan
-        "Promo": 0,
-    }
+    mock_ontology.scenario_overrides = [
+        ScenarioOverride(column_name="Price", values=[1.0, 1.5, 2.0]),  # Custom plan
+        ScenarioOverride(column_name="Promo", values=0),
+    ]
 
     future_df = rf.predict(horizon=3, ontology=mock_ontology)
     assert len(future_df) == 3
