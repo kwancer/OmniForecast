@@ -1,10 +1,10 @@
 <template>
   <div class="scenario-builder">
-    <!-- Section 1: Environmental Factors (Read-Only) -->
-    <div v-if="unknownColumns.length > 0" class="mb-6">
+    <!-- Section 1: External Factors (Read-Only) -->
+    <div v-if="externalColumns.length > 0" class="mb-6">
       <div class="d-flex align-center mb-4">
         <v-icon color="info" size="20">mdi-weather-partly-cloudy</v-icon>
-        <h3 class="text-subtitle-2 font-weight-bold ml-2">Environmental Factors</h3>
+        <h3 class="text-subtitle-2 font-weight-bold ml-2">External Factors</h3>
         <v-tooltip location="top">
           <template #activator="{ props }">
             <v-icon v-bind="props" class="ml-1" color="medium-emphasis" size="14">mdi-help-circle-outline</v-icon>
@@ -14,13 +14,13 @@
       </div>
 
       <v-row dense>
-        <v-col v-for="col in unknownColumns" :key="col.column_name" cols="12" sm="6">
+        <v-col v-for="col in externalColumns" :key="col.column_name" cols="12" sm="6">
           <v-card class="pa-3 bg-surface border rounded-lg" variant="flat">
             <div class="d-flex justify-space-between align-center mb-2">
               <span class="text-caption font-weight-bold text-truncate" style="max-width: 120px;">
                 {{ col.display_name || col.column_name }}
               </span>
-              <v-chip color="info" size="x-small" variant="tonal">OBSERVED</v-chip>
+              <v-chip color="info" size="x-small" variant="tonal">EXTERNAL</v-chip>
             </div>
             <v-sparkline
               auto-draw
@@ -39,7 +39,7 @@
     <v-divider class="mb-6" />
 
     <!-- Section 2: Planned Drivers (Interactive) -->
-    <div v-if="knownColumns.length > 0">
+    <div v-if="plannedColumns.length > 0">
       <div class="d-flex align-center mb-4">
         <v-icon color="success" size="20">mdi-account-cog-outline</v-icon>
         <h3 class="text-subtitle-2 font-weight-bold ml-2">Planned Drivers</h3>
@@ -58,7 +58,7 @@
         </v-btn>
       </div>
 
-      <div v-for="col in knownColumns" :key="col.column_name" class="mb-4">
+      <div v-for="col in plannedColumns" :key="col.column_name" class="mb-4">
         <div class="d-flex align-center mb-2">
           <span class="text-caption font-weight-bold">{{ col.display_name || col.column_name }}</span>
           <v-spacer />
@@ -107,7 +107,7 @@
       </div>
     </div>
 
-    <div v-if="unknownColumns.length === 0 && knownColumns.length === 0" class="text-center pa-8 text-disabled border-dashed rounded-lg">
+    <div v-if="externalColumns.length === 0 && plannedColumns.length === 0" class="text-center pa-8 text-disabled border-dashed rounded-lg">
       <v-icon size="32">mdi-chart-off</v-icon>
       <div class="mt-2 text-caption">No covariates detected in this model.</div>
     </div>
@@ -125,12 +125,12 @@
   const sparklineColor = 'rgba(var(--v-theme-info), 0.6)'
 
   // Categorize columns
-  const knownColumns = computed(() => {
-    return store.ontology?.columns.filter(c => c.role === 'covariate' && (c.covariate_type === 'known_future' || c.covariate_type === 'controllable')) || []
+  const plannedColumns = computed(() => {
+    return store.ontology?.columns.filter(c => c.role === 'covariate' && c.covariate_type === 'known_future') || []
   })
 
-  const unknownColumns = computed(() => {
-    return store.ontology?.columns.filter(c => c.role === 'covariate' && (c.covariate_type === 'unknown_past' || c.covariate_type === 'exogenous')) || []
+  const externalColumns = computed(() => {
+    return store.ontology?.columns.filter(c => c.role === 'covariate' && c.covariate_type === 'unknown_past') || []
   })
 
   // State
@@ -145,7 +145,7 @@
     localOverrides.value = { ...overrides }
     
     // Set modes based on existing data
-    knownColumns.value.forEach(col => {
+    plannedColumns.value.forEach(col => {
       const val = overrides[col.column_name]
       if (Array.isArray(val)) {
         inputModes.value[col.column_name] = 'series'

@@ -108,18 +108,21 @@ class ModelMetadata(BaseModel):
     description: str = Field(description="A brief explanation of how it works")
     rationale: str = Field(description="Why this model was chosen for this data")
     educational_video_url: Optional[str] = None
+    supports_covariates: Optional[bool] = None
+    feature_engineering_steps: Optional[List[str]] = None
 
 
-class ForecastOntology(BaseModel):
+class ScenarioOverride(BaseModel):
+    column_name: str
+    values: Union[float, List[float]]
+
+
+class ForecastPlan(BaseModel):
     meta: MetaContext
     problem: ProblemDefinition
     columns: List[ColumnRoleDefinition]
     requirements: UserRequirements
-    model_metadata: Optional[ModelMetadata] = None
-    session_id: Optional[str] = None
-    sample_data: Optional[List[Dict[str, Any]]] = None
-    scenario_overrides: Optional[Dict[str, Union[float, List[float], None]]] = None
-    ignored_columns: Optional[List[str]] = None
+    scenario_overrides: Optional[List[ScenarioOverride]] = None
     # Multi-Series Routing
     target_series_id: Optional[str] = Field(
         default=None,
@@ -137,3 +140,19 @@ class ForecastOntology(BaseModel):
             "Width of the prediction interval (0.80 = P10/P90, 0.95 = P2.5/P97.5)"
         ),
     )
+
+
+class ForecastOntology(BaseModel):
+    meta: MetaContext
+    problem: ProblemDefinition
+    columns: List[ColumnRoleDefinition]
+    requirements: UserRequirements
+    model_metadata: Optional[ModelMetadata] = None
+    session_id: Optional[str] = None
+    sample_data: Optional[List[Any]] = None
+    scenario_overrides: Optional[List[ScenarioOverride]] = None
+    ignored_columns: Optional[List[str]] = None
+    target_series_id: Optional[str] = None
+    aggregate_series: bool = False
+    risk_preference: Literal["balanced", "under_penalty", "over_penalty"] = "balanced"
+    interval_width: float = 0.80

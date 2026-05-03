@@ -14,6 +14,7 @@
         <tr>
           <th class="text-left">Model Architecture</th>
           <th class="text-center">Complexity</th>
+          <th class="text-center">Covariates</th>
           <th class="text-center">MAE</th>
           <th class="text-center">RMSE</th>
           <th class="text-right">Status</th>
@@ -33,6 +34,19 @@
               readonly
               size="x-small"
             />
+          </td>
+          <td class="text-center">
+            <v-icon
+              :color="res.supports_covariates ? 'success' : 'grey-lighten-1'"
+              :icon="res.supports_covariates ? 'mdi-check-circle' : 'mdi-close-circle'"
+              size="18"
+            />
+            <v-tooltip
+              activator="parent"
+              location="top"
+            >
+              {{ res.supports_covariates ? 'Uses covariates' : 'Ignores covariates' }}
+            </v-tooltip>
           </td>
           <td class="text-center">
             <code>{{ res.mae.toFixed(4) }}</code>

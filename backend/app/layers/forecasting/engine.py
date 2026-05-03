@@ -104,11 +104,36 @@ class SmartForecastEngine:
         if len(ontology_covariates) > 0 or len(extra_numeric_cols) > 0:
             covariates_present = True
 
-        if sparsity > 0.5 or covariates_present:
+        enough_data_for_ml = len(df) >= 60
+        if sparsity > 0.5 or covariates_present or enough_data_for_ml:
             print("LOG: ML Specialists Triggered. Adding Skforecast variants.")
             candidates.append(SkforecastForecaster("lightgbm"))
-            candidates.append(SkforecastForecaster("rf"))
+            # candidates.append(SkforecastForecaster("rf"))  # Temporarily disabled — too slow
             candidates.append(SkforecastForecaster("xgboost"))
+
+        # If the user has configured known_future covariates, exclude models
+        # that cannot consume them — otherwise the user's planned drivers
+        # would be silently ignored.
+        # Naive is ALWAYS kept as a baseline for the Forecast Skill Score (FSS).
+        known_future_covariates = [
+            c for c in ontology.columns
+            if c.role == "covariate" and getattr(c, "covariate_type", None) == "known_future"
+        ]
+        if known_future_covariates:
+            before = len(candidates)
+            # Keep Naive for FSS baseline; exclude other non-covariate models
+            baseline = [m for m in candidates if isinstance(m, NaiveForecaster)]
+            candidates = [m for m in candidates if m.supports_covariates]
+            candidates = baseline + candidates
+            print(
+                f"LOG: Active known_future covariates detected ({len(known_future_covariates)}). "
+                f"Filtered from {before} to {len(candidates)} models (including Naive baseline)."
+            )
+            if len(candidates) <= len(baseline):
+                raise ValueError(
+                    "No covariate-capable models available. "
+                    "Please remove known_future covariate constraints or check your data."
+                )
 
         # 3. Run Tournament
         results = []
@@ -146,6 +171,7 @@ class SmartForecastEngine:
                         "mse": mse,
                         "complexity": model.complexity_score,
                         "metrics": metrics,
+                        "supports_covariates": model.supports_covariates,
                     }
                 )
                 print(
@@ -179,6 +205,17 @@ class SmartForecastEngine:
         # Pick the one with Lowest Complexity Score
         rashomon_set.sort(key=lambda x: x["complexity"])
         winner = rashomon_set[0]
+
+        # If known_future covariates exist, the Naive baseline must not win —
+        # it would silently ignore the user's planned drivers.
+        if known_future_covariates and isinstance(winner["model"], NaiveForecaster):
+            covariate_winners = [r for r in rashomon_set if r["model"].supports_covariates]
+            if covariate_winners:
+                winner = covariate_winners[0]
+                print(
+                    f"LOG: Naive was best in Rashomon set but excluded because known_future "
+                    f"covariates are active. Promoted {winner['model'].get_metadata().name} to winner."
+                )
 
         print(
             f"LOG: Winner Selected: {winner['model'].get_metadata().name} (MAE={winner['mae']:.4f}, Complexity={winner['complexity']})"
@@ -332,8 +369,12 @@ class SmartForecastEngine:
 
     def get_metadata(self) -> Any:
         if not self.active_model:
-            return NaiveForecaster().get_metadata()
-        return self.active_model.get_metadata()
+            meta = NaiveForecaster().get_metadata()
+            meta.supports_covariates = False
+            return meta
+        meta = self.active_model.get_metadata()
+        meta.supports_covariates = self.active_model.supports_covariates
+        return meta
 
     def get_backtest_data(self) -> List[Dict[str, Any]]:
         """Returns comparison data for the validation period."""
@@ -400,6 +441,7 @@ class SmartForecastEngine:
                 "complexity": model.complexity_score,
                 "status": status,
                 "metrics": [m.model_dump() for m in r["metrics"]],
+                "supports_covariates": r.get("supports_covariates", model.supports_covariates),
             }
             if rmse_val is not None and np.isfinite(rmse_val):
                 row["rmse"] = round(rmse_val, 4)

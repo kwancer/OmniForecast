@@ -3,13 +3,13 @@
     class="pa-4 mb-2 bg-surface covariate-card"
     :class="{
       'on-ignore': localState.isIgnored,
-      'is-controllable': type === 'controllable' || type === 'known_future',
-      'is-exogenous': type === 'exogenous' || type === 'unknown_past'
+      'is-planned': type === 'known_future',
+      'is-external': type === 'unknown_past'
     }"
     variant="outlined"
   >
     <div class="d-flex align-center flex-wrap" style="gap: 8px; line-height: 2.0;">
-      <v-tooltip v-if="type === 'exogenous' || type === 'unknown_past'" location="top">
+      <v-tooltip v-if="type === 'unknown_past'" location="top">
         <template #activator="{ props: tProps }">
           <v-icon
             v-bind="tProps"
@@ -50,17 +50,17 @@
           />
           <v-divider />
           <v-list-item
-            v-if="type === 'exogenous' || type === 'unknown_past'"
+            v-if="type === 'unknown_past'"
             prepend-icon="mdi-account-cog-outline"
-            subtitle="I control this factor"
-            title="Switch to PLANNED"
+            subtitle="I will set future values"
+            title="Make Planned Driver"
             @click="emit('changeType', 'known_future')"
           />
           <v-list-item
             v-else
             prepend-icon="mdi-weather-partly-cloudy"
-            subtitle="This is an external factor"
-            title="Switch to OBSERVED"
+            subtitle="Use historical patterns"
+            title="Make External Factor"
             @click="emit('changeType', 'unknown_past')"
           />
           <v-divider />
@@ -112,9 +112,10 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
+  import type { CovariateType } from '@/types'
 
   export interface CovariateState {
-    override: number | number[] | null
+    override: number | number[] | 'seasonal' | null
     isIgnored: boolean
   }
 
@@ -124,9 +125,11 @@
     type: CovariateType
   }>()
 
+  const isPlanned = computed(() => covariateProps.type === 'known_future')
+
   const emit = defineEmits(['update:modelValue', 'changeType'])
 
-  const option = ref<'default' | 'constant' | 'custom' | 'ignore'>('default')
+  const option = ref<'default' | 'constant' | 'custom' | 'seasonal' | 'ignore'>('default')
   const constantValue = ref<number>(0)
   const customPlanRaw = ref('')
   const customPlanParsed = ref<number[]>([])
@@ -134,31 +137,29 @@
   const localState = computed(() => covariateProps.modelValue)
 
   const prefixText = computed(() => {
-    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'I plan to set' : 'Assume'
+    return isPlanned.value ? 'I plan to set' : 'Assume'
   })
 
   const joinText = computed(() => {
-    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'to' : 'will be'
+    return isPlanned.value ? 'to' : 'will be'
   })
 
   const customPlanLabel = computed(() => {
-    return (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
+    return isPlanned.value ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
   })
 
   const availableOptions = computed(() => {
-    if (covariateProps.type === 'controllable' || covariateProps.type === 'known_future') {
+    if (isPlanned.value) {
       return [
-        { value: 'default', title: 'Keep Current (Status Quo)', subtitle: 'Assume no change from today' },
-        { value: 'constant', title: 'Change to...', subtitle: 'Set a specific constant value' },
-        { value: 'custom', title: 'Follow Custom Plan', subtitle: 'Provide a series of future values' },
-      ] as const
-    } else {
-      return [
-        { value: 'default', title: 'Same as Last Year (Seasonal)', subtitle: 'AI assumption based on history' },
-        { value: 'constant', title: 'Status Quo (Last Value)', subtitle: 'Assume last known value level' },
-        { value: 'custom', title: 'Custom Scenario (Upload)', subtitle: 'Provide your own growth/trend scenario' },
-      ] as const
+        { value: 'default' as const, title: 'Hold Steady', subtitle: 'Use the most recent known value' },
+        { value: 'constant' as const, title: 'Set Fixed', subtitle: 'One value for every step' },
+        { value: 'custom' as const, title: 'Custom Series', subtitle: 'Different value each step' },
+      ]
     }
+    return [
+      { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
+      { value: 'seasonal' as const, title: 'Use Seasonal Pattern', subtitle: 'Same period last year' },
+    ]
   })
 
   // Init from props
@@ -169,6 +170,8 @@
       option.value = 'custom'
       customPlanParsed.value = covariateProps.modelValue.override
       customPlanRaw.value = covariateProps.modelValue.override.join(', ')
+    } else if (covariateProps.modelValue.override === 'seasonal') {
+      option.value = 'seasonal'
     } else if (covariateProps.modelValue.override === null) {
       option.value = 'default'
     } else {
@@ -188,7 +191,7 @@
     return 'secondary'
   })
 
-  function setOption (opt: 'default' | 'constant' | 'custom' | 'ignore') {
+  function setOption (opt: 'default' | 'constant' | 'custom' | 'seasonal' | 'ignore') {
     option.value = opt
     emitChange()
   }
@@ -211,16 +214,17 @@
       }
       case 'constant': {
         newState.override = constantValue.value
-
         break
       }
       case 'custom': {
         newState.override = customPlanParsed.value
-
+        break
+      }
+      case 'seasonal': {
+        newState.override = 'seasonal'
         break
       }
       default: {
-        // default
         newState.override = null
       }
     }
@@ -240,17 +244,17 @@
 .covariate-card {
   transition: all 0.3s ease;
 }
-.is-controllable {
+.is-planned {
   border: 1px solid rgba(76, 175, 80, 0.4) !important;
 }
-.is-controllable:hover {
+.is-planned:hover {
   border-color: #4CAF50 !important;
   background-color: rgba(76, 175, 80, 0.05) !important;
 }
-.is-exogenous {
+.is-external {
   border: 1px solid rgba(33, 150, 243, 0.4) !important;
 }
-.is-exogenous:hover {
+.is-external:hover {
   border-color: #2196F3 !important;
   background-color: rgba(33, 150, 243, 0.05) !important;
 }

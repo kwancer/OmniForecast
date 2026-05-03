@@ -65,7 +65,7 @@
             flat
             hide-details
             label="Provide more context..."
-            placeholder="e.g., Use 'Sales' as target and 'Price' as controllable."
+            placeholder="e.g., Use 'Sales' as target and 'Price' as a planned driver."
             variant="solo"
             :loading="store.loading"
             @click:append-inner="submit()"

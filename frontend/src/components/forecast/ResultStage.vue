@@ -65,6 +65,104 @@
                   </v-expansion-panel-text>
                 </v-expansion-panel>
 
+                <!-- Covariate Values -->
+                <v-expansion-panel v-if="covariateDisplayData.length > 0" rounded="lg">
+                  <v-expansion-panel-title class="font-weight-bold">
+                    <div class="d-flex align-center">
+                      <div class="panel-icon panel-icon--info mr-3">
+                        <v-icon color="white" size="16">mdi-chart-timeline-variant</v-icon>
+                      </div>
+                      Covariate History & Model Inputs
+                    </div>
+                  </v-expansion-panel-title>
+                  <v-expansion-panel-text>
+                    <div class="d-flex flex-column pa-2" style="gap: 16px;">
+                      <v-alert
+                        v-if="hasActiveCovariates && !selectedModelSupportsCovariates"
+                        class="text-body-2"
+                        color="warning"
+                        icon="mdi-alert"
+                        variant="tonal"
+                      >
+                        The selected model <strong>{{ store.modelMetadata?.name }}</strong> does not support covariates.
+                        Any planned drivers or external factors below were <strong>ignored</strong> during forecasting.
+                      </v-alert>
+                      <v-alert
+                        v-else-if="hasActiveCovariates && selectedModelSupportsCovariates"
+                        class="text-body-2"
+                        color="success"
+                        icon="mdi-check-circle"
+                        variant="tonal"
+                      >
+                        The selected model <strong>{{ store.modelMetadata?.name }}</strong> supports covariates and used the values shown below.
+                      </v-alert>
+                      <v-alert
+                        v-else
+                        class="text-body-2"
+                        color="primary"
+                        icon="mdi-information-outline"
+                        variant="tonal"
+                      >
+                        No active covariates. All columns below are ignored and were not used by the model.
+                      </v-alert>
+
+                      <div class="covariate-grid">
+                        <v-card
+                          v-for="item in covariateDisplayData"
+                          :key="item.column_name"
+                          class="covariate-card"
+                          :class="{ 'covariate-card--ignored': item.isIgnored }"
+                          variant="outlined"
+                        >
+                          <v-card-item>
+                            <template #prepend>
+                              <v-icon
+                                :color="item.isIgnored ? 'grey' : (item.covariate_type === 'known_future' ? 'success' : 'warning')"
+                                size="20"
+                              >
+                                {{ item.isIgnored ? 'mdi-eye-off' : (item.covariate_type === 'known_future' ? 'mdi-pencil-circle' : 'mdi-lock') }}
+                              </v-icon>
+                            </template>
+                            <v-card-title class="text-subtitle-2 font-weight-bold">
+                              {{ item.display_name }}
+                            </v-card-title>
+                            <template #append>
+                              <v-chip
+                                :color="item.isIgnored ? 'grey' : (item.covariate_type === 'known_future' ? 'success' : 'warning')"
+                                size="x-small"
+                                variant="tonal"
+                              >
+                                {{ item.isIgnored ? 'Ignored' : (item.covariate_type === 'known_future' ? 'Planned Driver' : 'External Factor') }}
+                              </v-chip>
+                            </template>
+                          </v-card-item>
+                          <v-card-text class="pt-0">
+                            <div class="d-flex align-center mb-2">
+                              <v-chip
+                                size="x-small"
+                                variant="outlined"
+                                :color="item.isIgnored ? 'grey' : 'info'"
+                                class="mr-2"
+                              >
+                                {{ item.strategyLabel }}
+                              </v-chip>
+                            </div>
+
+                            <div class="value-row">
+                              <span class="text-caption text-medium-emphasis">Past:</span>
+                              <span class="text-caption font-weight-medium ml-1">{{ item.pastValues }}</span>
+                            </div>
+                            <div class="value-row">
+                              <span class="text-caption text-medium-emphasis">Future:</span>
+                              <span class="text-caption font-weight-medium ml-1">{{ item.futureValues }}</span>
+                            </div>
+                          </v-card-text>
+                        </v-card>
+                      </div>
+                    </div>
+                  </v-expansion-panel-text>
+                </v-expansion-panel>
+
                 <!-- Data Cleaning Report -->
                 <v-expansion-panel v-if="store.cleaningReport" rounded="lg">
                   <v-expansion-panel-title class="font-weight-bold">
@@ -184,6 +282,41 @@
                         </v-card>
                       </v-col>
                     </v-row>
+
+                    <!-- Feature Engineering Details -->
+                    <v-row
+                      v-if="store.modelMetadata?.feature_engineering_steps?.length"
+                      class="mt-4"
+                    >
+                      <v-col cols="12">
+                        <div class="section-header mb-4">
+                          <div class="section-header__icon section-header__icon--warning">
+                            <v-icon color="white" size="18">mdi-hammer-wrench</v-icon>
+                          </div>
+                          <h3 class="text-subtitle-1 font-weight-bold mb-0">Feature Engineering</h3>
+                        </div>
+                        <v-alert
+                          class="text-body-2 mb-4"
+                          color="warning"
+                          icon="mdi-information-outline"
+                          variant="tonal"
+                        >
+                          The selected model automatically generated these additional features to improve forecast accuracy.
+                        </v-alert>
+                        <div class="d-flex flex-wrap ga-2">
+                          <v-chip
+                            v-for="(step, index) in store.modelMetadata.feature_engineering_steps"
+                            :key="index"
+                            color="warning"
+                            label
+                            size="small"
+                            variant="tonal"
+                          >
+                            {{ step }}
+                          </v-chip>
+                        </div>
+                      </v-col>
+                    </v-row>
                   </v-expansion-panel-text>
                 </v-expansion-panel>
 
@@ -249,16 +382,6 @@
                 </v-row>
               </div>
               
-              <!-- Scenario Builder -->
-              <div class="insight-card insight-card--secondary mb-5">
-                <div class="insight-card__header mb-4">
-                  <div class="panel-icon panel-icon--success mr-3">
-                    <v-icon color="white" size="16">mdi-tune-variant</v-icon>
-                  </div>
-                  <span class="font-weight-bold">Scenario Builder</span>
-                </div>
-                <ScenarioBuilder @recalculate="store.executeForecast()" />
-              </div>
 
               <!-- AI Explainability Layer -->
               <div class="insight-card insight-card--secondary mb-5">
@@ -360,12 +483,42 @@
 
               <!-- Selected Model -->
               <div v-if="store.modelMetadata" class="insight-card insight-card--violet mb-5">
-                <div class="insight-card__header">
+                <div class="insight-card__header" style="flex-wrap: wrap;">
                   <div class="panel-icon panel-icon--primary mr-3">
                     <v-icon color="white" size="16">mdi-brain</v-icon>
                   </div>
                   <span class="font-weight-bold">Selected Model</span>
-                  <v-chip class="ml-2" color="primary" size="x-small" variant="flat">{{ store.modelMetadata.name }}</v-chip>
+                  <div class="d-flex flex-wrap ga-2 mt-1" style="flex-basis: 100%;">
+                    <v-chip color="primary" size="x-small" variant="flat">{{ store.modelMetadata.name }}</v-chip>
+                    <v-chip
+                      :color="store.modelMetadata.supports_covariates ? 'success' : 'grey'"
+                      size="x-small"
+                      variant="tonal"
+                    >
+                      <v-icon start size="12">{{ store.modelMetadata.supports_covariates ? 'mdi-check' : 'mdi-close' }}</v-icon>
+                      {{ store.modelMetadata.supports_covariates ? 'Uses covariates' : 'No covariate support' }}
+                    </v-chip>
+                    <v-chip
+                      v-if="store.modelMetadata?.feature_engineering_steps?.length"
+                      color="warning"
+                      size="x-small"
+                      variant="tonal"
+                    >
+                      <v-icon start size="12">mdi-hammer-wrench</v-icon>
+                      Feature Engineering
+                      <v-tooltip activator="parent" location="top">
+                        <div class="text-caption">
+                          <div
+                            v-for="(step, i) in store.modelMetadata.feature_engineering_steps"
+                            :key="i"
+                            class="mb-1"
+                          >
+                            {{ step }}
+                          </div>
+                        </div>
+                      </v-tooltip>
+                    </v-chip>
+                  </div>
                 </div>
                 <p class="text-body-2 mt-3 mb-2">{{ store.modelMetadata.description }}</p>
                 <p class="text-body-2 text-medium-emphasis font-italic mb-3">Why? {{ store.modelMetadata.rationale }}</p>
@@ -397,7 +550,6 @@
   import DataHealthCard from './DataHealthCard.vue'
   import ForecastChart from './ForecastChart.vue'
   import ModelTournament from './ModelTournament.vue'
-  import ScenarioBuilder from './ScenarioBuilder.vue'
 
   // Configure marked for safe, minimal output
   marked.setOptions({ breaks: true, gfm: true })
@@ -462,6 +614,94 @@
     }
     return null
   })
+
+  // Covariate display data for the results panel
+  const selectedModelSupportsCovariates = computed(() =>
+    store.modelMetadata?.supports_covariates === true
+  )
+
+  const covariateDisplayData = computed(() => {
+    if (!store.ontology?.columns) return []
+
+    const ignoredSet = new Set<string>(store.ontology.ignored_columns || [])
+    // Also mark columns whose role is explicitly 'ignore'
+    store.ontology.columns.forEach(c => {
+      if (c.role === 'ignore') ignoredSet.add(c.column_name)
+    })
+
+    // Show all columns that were ever identified as covariates (including ignored)
+    const allCovariates = store.ontology.columns.filter(c =>
+      c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name)
+    )
+
+    if (allCovariates.length === 0) return []
+
+    const overrides = store.ontology.scenario_overrides || {}
+    const history = store.historyResults
+
+    return allCovariates.map(col => {
+      const colName = col.column_name
+      const isIgnored = ignoredSet.has(colName)
+      const override = overrides[colName]
+
+      // Past values: last 5 historical points
+      const histValues = history
+        .slice(-5)
+        .map(r => r[colName])
+        .filter(v => v !== undefined && v !== null)
+      const pastValues = histValues.map((v: number) =>
+        typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v)
+      ).join(', ')
+
+      // Strategy label
+      let strategyLabel = 'Hold Steady'
+      if (isIgnored) {
+        strategyLabel = 'Ignored'
+      } else if (override === 'seasonal') {
+        strategyLabel = 'Use Seasonal Pattern'
+      } else if (Array.isArray(override)) {
+        strategyLabel = 'Custom Series'
+      } else if (typeof override === 'number') {
+        strategyLabel = 'Set Fixed'
+      }
+
+      // Future values preview
+      let futureValues = ''
+      const lastVal = histValues.length > 0 ? histValues[histValues.length - 1] : null
+      if (isIgnored) {
+        futureValues = 'Not used by model'
+      } else if (override === 'seasonal') {
+        futureValues = 'Following seasonal pattern'
+      } else if (Array.isArray(override)) {
+        futureValues = override.slice(0, 5).map((v: number) =>
+          typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v)
+        ).join(', ') + (override.length > 5 ? ', ...' : '')
+      } else if (typeof override === 'number') {
+        futureValues = String(Number.isInteger(override) ? override : override.toFixed(3))
+      } else if (lastVal !== null) {
+        const formatted = typeof lastVal === 'number'
+          ? (Number.isInteger(lastVal) ? String(lastVal) : lastVal.toFixed(3))
+          : String(lastVal)
+        futureValues = `${formatted} (steady)`
+      } else {
+        futureValues = '—'
+      }
+
+      return {
+        column_name: colName,
+        display_name: col.display_name || colName,
+        covariate_type: col.covariate_type || 'unknown_past',
+        isIgnored,
+        strategyLabel,
+        pastValues: pastValues || '—',
+        futureValues,
+      }
+    })
+  })
+
+  const hasActiveCovariates = computed(() =>
+    covariateDisplayData.value.some(c => !c.isIgnored)
+  )
 
   function getActionIcon (action: string) {
     switch (action) {
@@ -680,6 +920,10 @@
 
 .panel-icon--success {
   background: linear-gradient(135deg, rgb(var(--v-theme-success)), rgba(var(--v-theme-success), 0.7));
+}
+
+.panel-icon--info {
+  background: linear-gradient(135deg, rgb(var(--v-theme-info)), rgba(var(--v-theme-info), 0.7));
 }
 
 /* ─── Expansion Panels ─── */
@@ -947,6 +1191,10 @@
   background: linear-gradient(135deg, rgb(var(--v-theme-secondary)), rgba(var(--v-theme-secondary), 0.7));
 }
 
+.section-header__icon--warning {
+  background: linear-gradient(135deg, #fb8c00, #ffb74d);
+}
+
 .summary-alert {
   border-radius: 12px !important;
 }
@@ -997,5 +1245,36 @@
 
 .layout-card {
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02) !important;
+}
+
+/* ─── Covariate Grid ─── */
+.covariate-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.covariate-card {
+  border: 1px solid rgba(var(--v-theme-primary), 0.08);
+  border-radius: 12px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.covariate-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.covariate-card--ignored {
+  opacity: 0.7;
+  background: rgba(var(--v-theme-surface), 0.6);
+}
+
+.value-row {
+  display: flex;
+  align-items: baseline;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

@@ -47,6 +47,8 @@ class InternalForecaster(ABC):
     complexity_score: float = 0
     # Archetype Description (When this model wins)
     archetype: str = "Baseline"
+    # Whether this model can consume covariate columns
+    supports_covariates: bool = False
     # Residual standard deviation for interval calculation (set during fit)
     residuals_std: float = 0.0
     # Hold-out validation predictions (set during fit)

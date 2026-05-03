@@ -28,6 +28,7 @@ class TournamentResult(BaseModel):
     complexity: float
     status: str  # 'winner', 'runner_up', 'rejected'
     metrics: List[ForecastMetric]
+    supports_covariates: Optional[bool] = None
 
 
 class ForecastResponse(BaseModel):

@@ -3,6 +3,7 @@ import os
 import re
 from typing import Any, Dict, Generator, List, Optional, Tuple
 
+from pydantic import BaseModel, Field
 from google import genai
 import pandas as pd
 from dotenv import load_dotenv
@@ -11,6 +12,20 @@ from app.domain.data import ExplainabilityEvidence, ForecastMetric
 from app.domain.ontology import ForecastOntology
 
 load_dotenv()
+
+
+class ToolArg(BaseModel):
+    name: str = Field(description="Name of the parameter")
+    value: str = Field(description="Value of the parameter as a string")
+
+
+class ToolCall(BaseModel):
+    tool: str = Field(description="Name of the tool to call")
+    args: List[ToolArg] = Field(default_factory=list, description="Arguments for the tool")
+
+
+class ToolCallPlan(BaseModel):
+    tool_calls: List[ToolCall] = Field(description="List of tool calls to execute")
 
 
 class StandardExplainer:
@@ -69,7 +84,7 @@ class ForecastExplainabilityService:
     """Grounded explainability for initial briefing and user Q&A."""
 
     def _model_name(self) -> str:
-        return "gemini-2.5-flash"
+        return "gemini-3-flash-preview"
 
     def _has_llm(self) -> bool:
         api_key: Optional[str] = os.getenv("GEMINI_API_KEY")
@@ -705,7 +720,10 @@ class ForecastExplainabilityService:
             response = client.models.generate_content(
                 model=self._model_name(),
                 contents=prompt,
-                config={"response_mime_type": "application/json"},
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": ToolCallPlan,
+                },
             )
             payload = json.loads((response.text or "{}").strip())
             tool_calls = payload.get("tool_calls", [])
@@ -717,9 +735,16 @@ class ForecastExplainabilityService:
                 if not isinstance(call, dict):
                     continue
                 name = str(call.get("tool", "")).strip()
-                args = call.get("args", {})
-                if name in available_tools and isinstance(args, dict):
-                    cleaned_calls.append({"tool": name, "args": args})
+                # Convert List[ToolArg] back to Dict[str, Any]
+                args_list = call.get("args", [])
+                args_dict = {}
+                if isinstance(args_list, list):
+                    for arg in args_list:
+                        if isinstance(arg, dict) and "name" in arg:
+                            args_dict[arg["name"]] = arg.get("value")
+                
+                if name in available_tools:
+                    cleaned_calls.append({"tool": name, "args": args_dict})
 
             return cleaned_calls or None
         except (

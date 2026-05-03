@@ -50,8 +50,9 @@ class ETSForecaster(InternalForecaster):
         )
         df = df.set_index(self.time_col)
         df.index = pd.to_datetime(df.index)
-        self.last_date = pd.Timestamp(df.index.max())
         self.freq = pd.infer_freq(pd.DatetimeIndex(df.index)) or "D"
+        df.index.freq = self.freq
+        self.last_date = pd.Timestamp(df.index.max())
 
         split_idx = int(len(df) * 0.8)
         if split_idx == 0:
@@ -71,9 +72,20 @@ class ETSForecaster(InternalForecaster):
             # Determine seasonal_periods only if seasonal is specified
             seasonal_periods = None
             if self.seasonal is not None:
-                seasonal_periods = (
-                    7 if self.freq == "D" else (12 if self.freq == "M" else None)
-                )
+                if self.freq in ("D", "B"):
+                    seasonal_periods = 7
+                elif self.freq in ("M", "MS"):
+                    seasonal_periods = 12
+                elif self.freq in ("H", "h"):
+                    seasonal_periods = 24
+                elif self.freq in ("T", "min"):
+                    seasonal_periods = 60
+                elif self.freq in ("S", "s"):
+                    seasonal_periods = 60
+                elif self.freq in ("ms", "L"):
+                    seasonal_periods = 1000
+                else:
+                    seasonal_periods = 7  # Safe fallback
 
             # Train on Training Set
             model = ExponentialSmoothing(

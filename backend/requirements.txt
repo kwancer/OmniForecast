@@ -18,5 +18,5 @@ google-genai
 psycopg2-binary
 xgboost
 pmdarima
-skforecast
+skforecast==0.22.0
 lightgbm

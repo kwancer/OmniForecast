@@ -1,3 +1,4 @@
+from app.domain.ontology import ForecastPlan
 import json
 import os
 import re
@@ -93,38 +94,22 @@ class GeminiIntentAnalyzer:
 
         - COVARIATE CLASSIFICATION:
           For every column identified as a 'covariate', you MUST classify its
-          'covariate_type' AND 'covariate_strategy':
-          
-          1. 'covariate_type':
-          * 'known_future': (Planned Drivers) If the column represents an internal 
+          'covariate_type':
+          * 'known_future': (Planned Drivers) If the column represents an internal
             business decision or a known event that the user controls or plans.
             Examples: 'Price', 'Discount', 'Ad_Spend', 'Promotion', 'Stock_Level',
             'Staffing_Hours', 'Marketing_Budget', 'Holiday_Flag', 'Event_Name'.
-          * 'unknown_past': (Environmental Factors) If the column represents an 
+          * 'unknown_past': (Environmental Factors) If the column represents an
             external factor whose future values cannot be known at prediction time.
             Examples: 'Temperature', 'Rainfall', 'Humidity', 'Unemployment_Rate',
             'Competitor_Price', 'Daily_Foot_Traffic', 'Sentiment_Score'.
           * 'static': If the value never changes over time.
             Examples: 'Store_ID', 'Category', 'Region' (if constant for this series)
 
-          2. 'covariate_strategy': How should we fill this column for future dates?
-          * 'calendar_deterministic': for columns that are known facts about the date.
-            Examples: 'Month', 'DayOfWeek', 'Is_Holiday', 'Weekend_Flag'
-          * 'seasonal_analog': for exogenous variables that likely follow a seasonal pattern.
-            Examples: 'Temperature', 'Rainfall', 'Humidity', 'Foot_Traffic'
-          * 'status_quo': for known_future variables or non-seasonal unknown_past ones 
-            where "tomorrow = today" is the safest assumption.
-            Examples: 'Price', 'Tax_Rate', 'Interest_Rate', 'Ad_Spend'
-
           Use semantic understanding of the column name and context to classify
-          correctly. When in doubt between known_future and unknown_past, consider: 
-          "Does the user decide this value for next week today?" 
+          correctly. When in doubt between known_future and unknown_past, consider:
+          "Does the user decide this value for next week today?"
           If Yes -> known_future. If No -> unknown_past.
-
-          When in doubt for strategy:
-            - If it looks like weather -> 'seasonal_analog'
-            - If it looks like a calendar feature -> 'calendar_deterministic'
-            - Else -> 'status_quo'
 
         - SCENARIO OVERRIDES (CRITICAL):
           The 'scenario_overrides' field MUST only contain numeric values (float or list of floats).
@@ -238,7 +223,9 @@ class GeminiIntentAnalyzer:
                 "columns": [
                     {
                         "column_name": str(time_col) if time_col else "index",
-                        "display_name": self._clean_display_name(str(time_col)) if time_col else "Time Index",
+                        "display_name": self._clean_display_name(str(time_col))
+                        if time_col
+                        else "Time Index",
                         "role": "time_index",
                         "data_type": "datetime",
                         "future_availability": {
@@ -248,7 +235,9 @@ class GeminiIntentAnalyzer:
                     },
                     {
                         "column_name": str(target_col) if target_col else "value",
-                        "display_name": self._clean_display_name(str(target_col)) if target_col else "Target Value",
+                        "display_name": self._clean_display_name(str(target_col))
+                        if target_col
+                        else "Target Value",
                         "role": "target",
                         "data_type": "continuous",
                         "future_availability": {
@@ -303,34 +292,54 @@ class GeminiIntentAnalyzer:
 
             print("DEBUG: Calling Gemini API...")
             response = client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-3-flash-preview",
                 contents=prompt,
-                config={"response_mime_type": "application/json"}
+                config={
+                    "response_mime_type": "application/json",
+                    "response_schema": ForecastPlan,
+                },
             )
             print("DEBUG: Gemini response received.")
             response_text = response.text
 
-            # Defensive Cleanup: If LLM put strings in scenario_overrides, try to fix them
+            # Defensive Cleanup: If LLM wrapped in a list or put strings in scenario_overrides, fix them
             try:
                 data = json.loads(response_text)
-                if "scenario_overrides" in data and data["scenario_overrides"]:
-                    for col, val in data["scenario_overrides"].items():
-                        if isinstance(val, str):
-                            lower_val = val.lower()
-                            if lower_val in ["yes", "true", "active", "on"]:
-                                data["scenario_overrides"][col] = 1.0
-                            elif lower_val in ["no", "false", "inactive", "off"]:
-                                data["scenario_overrides"][col] = 0.0
-                            else:
-                                try:
-                                    data["scenario_overrides"][col] = float(val)
-                                except ValueError:
-                                    data["scenario_overrides"][col] = None
-                response_text = json.dumps(data)
+
+                # Extract first item if it's a list
+                if isinstance(data, list) and len(data) > 0:
+                    data = data[0]
+
+                if isinstance(data, dict):
+                    if "scenario_overrides" in data and isinstance(
+                        data["scenario_overrides"], list
+                    ):
+                        for item in data["scenario_overrides"]:
+                            if isinstance(item, dict) and "values" in item:
+                                val = item["values"]
+                                if isinstance(val, str):
+                                    lower_val = val.lower()
+                                    if lower_val in ["yes", "true", "active", "on"]:
+                                        item["values"] = 1.0
+                                    elif lower_val in [
+                                        "no",
+                                        "false",
+                                        "inactive",
+                                        "off",
+                                    ]:
+                                        item["values"] = 0.0
+                                    else:
+                                        try:
+                                            item["values"] = float(val)
+                                        except ValueError:
+                                            item["values"] = None
+                    response_text = json.dumps(data)
             except Exception:
                 pass
 
-            ontology = ForecastOntology.model_validate_json(response_text)
+            # Validate first into ForecastPlan (the strict schema), then into ForecastOntology
+            plan = ForecastPlan.model_validate_json(response_text)
+            ontology = ForecastOntology(**plan.model_dump())
 
             # Stage 2: Python Enrichment
             ontology = self._enrich_ontology(df, ontology)

@@ -74,6 +74,13 @@ export interface ModelMetadata {
   description: string
   rationale: string
   educational_video_url?: string
+  supports_covariates?: boolean
+  feature_engineering_steps?: string[]
+}
+
+export interface ScenarioOverride {
+  column_name: string
+  values: number | number[]
 }
 
 // --- MAIN ONTOLOGY ---
@@ -86,7 +93,7 @@ export interface ForecastOntology {
   model_metadata?: ModelMetadata
   session_id?: string
   sample_data?: Record<string, any>[]
-  scenario_overrides?: Record<string, number | number[] | null>
+  scenario_overrides?: ScenarioOverride[]
   ignored_columns?: string[]
   // Risk Preference & Confidence Intervals
   risk_preference?: RiskPreference
@@ -142,6 +149,7 @@ export interface TournamentResult {
   complexity: number
   status: 'winner' | 'runner_up' | 'rejected'
   metrics: ForecastMetric[]
+  supports_covariates?: boolean
 }
 
 export interface BacktestPoint {

@@ -18,19 +18,40 @@ class RuleBasedCleaner:
         - YY-MM-DD (e.g., '88-01-01' = January 1, 1988)
         - Y-MM or YY-MM (e.g., '1-01' = January 2001, for shampoo sales data)
         """
+        # 1. NUMERIC CHECK: If it's already a number, or cleanly converts to one.
+        # We must intercept this BEFORE pd.to_datetime, because pd.to_datetime
+        # will blindly convert small integers to nanoseconds from 1970.
+        series_numeric = pd.to_numeric(series, errors="coerce")
+        if series_numeric.notna().sum() > (len(series) * 0.5):  # If mostly numeric
+            sample = series_numeric.dropna().iloc[0]
+            if 1_000_000_000 <= sample < 10_000_000_000:
+                return pd.to_datetime(series_numeric, unit="s", errors="coerce")
+            elif sample >= 10_000_000_000:
+                return pd.to_datetime(series_numeric, unit="ms", errors="coerce")
+            elif 10_000_000 <= sample <= 30_000_000:
+                # Likely YYYYMMDD as an integer (e.g. 20240101)
+                return pd.to_datetime(series_numeric.astype(int).astype(str), format="%Y%m%d", errors="coerce")
+            elif 1700 <= sample <= 2500:
+                return pd.to_datetime(
+                    series_numeric.astype(int).astype(str), format="%Y", errors="coerce"
+                )
+            elif 10_000 <= sample < 100_000:
+                return pd.to_datetime(
+                    series_numeric, unit="D", origin="1899-12-30", errors="coerce"
+                )
+            else:
+                # Catch-all for arbitrary integer sequences (e.g. 1, 2, 3...)
+                return pd.to_datetime(series_numeric, unit="s", origin="2000-01-01", errors="coerce")
+
         str_series = series.astype(str).str.strip()
 
-        # 1. Try YY-MM-DD format FIRST (e.g., '88-01-01', '91-11-30')
-        # Pattern: 2 digit year, dash, 2 digit month, dash, 2 digit day
+        # 2. Try YY-MM-DD format FIRST (e.g., '88-01-01', '91-11-30')
         if str_series.str.match(r"^\d{2}[-/]\d{2}[-/]\d{2}$").all():
             try:
-                # Convert '88-01-01' to '1988-01-01'
                 def convert_yy_mm_dd(val: str) -> str:
-                    """Convert '88-01-01' to '1988-01-01'"""
                     parts = val.replace("/", "-").split("-")
                     if len(parts) == 3:
                         year_part = int(parts[0])
-                        # 2-digit year conversion: 00-30 -> 2000s, 31-99 -> 1900s
                         if year_part <= 30:
                             full_year = 2000 + year_part
                         else:
@@ -45,54 +66,23 @@ class RuleBasedCleaner:
             except Exception:
                 pass
 
-        # 2. THE HAPPY PATH: Let Pandas guess (fastest for standard ISO data)
+        # 3. THE HAPPY PATH: Let Pandas guess (fastest for standard ISO data)
         try:
             result = pd.to_datetime(series, format="mixed", dayfirst=True)
-            # Check for ancient dates (pandas might parse "1-01" as Jan 1, Year 1 AD)
             if result.min().year < 1900:
                 raise ValueError("Detected ancient date - likely a Year-Month format")
             return result
         except (ValueError, TypeError, pd.errors.OutOfBoundsDatetime):
             pass
 
-        # 3. NUMERIC CHECK (Excel vs Unix)
-        # If the column is numeric (or mostly numeric strings), handle that.
-        series_numeric = pd.to_numeric(series, errors="coerce")
-        if series_numeric.notna().sum() > (len(series) * 0.5):  # If mostly numeric
-            sample = series_numeric.dropna().iloc[0]
-            # Heuristic: Unix timestamps (seconds vs milliseconds)
-            # 1 billion < sample < 10 billion: likely seconds (Year 2001 to 2286)
-            if 1_000_000_000 <= sample < 10_000_000_000:
-                return pd.to_datetime(series_numeric, unit="s", errors="coerce")
-            # sample > 10 billion: likely milliseconds (Year 1970 10M ms is early,
-            # but 1T is 2001). Most modern MS timestamps are in the 1.5T to 2T range.
-            elif sample >= 10_000_000_000:
-                return pd.to_datetime(series_numeric, unit="ms", errors="coerce")
-            # Heuristic: 4-digit years (e.g., 1990, 2024) - Handle before Excel serials
-            elif 1700 <= sample <= 2500:
-                return pd.to_datetime(
-                    series_numeric.astype(int).astype(str), format="%Y", errors="coerce"
-                )
-            # Heuristic: Excel serials are usually between 10,000 and 100,000
-            # (matches dates from 1927 to 2173)
-            elif 10_000 <= sample < 100_000:
-                return pd.to_datetime(
-                    series_numeric, unit="D", origin="1899-12-30", errors="coerce"
-                )
-
         # 4. THE "YEAR-MONTH" FIX (for data like shampoo_sales)
-        # Handles "1-01", "2-05", "12-01" by interpreting as Year-Month
-        # Pattern: 1 or 2 digit year, dash, 1 or 2 digit month (ONLY 2 parts, no day)
         if str_series.str.match(r"^\d{1,2}[-/]\d{1,2}$").all():
             try:
-
                 def convert_year_month(val: str) -> str:
-                    """Convert '1-01' to '2001-01-01', '12-05' to '2012-05-01'"""
                     parts = val.replace("/", "-").split("-")
                     if len(parts) == 2:
-                        year_part = parts[0].zfill(2)  # '1' -> '01'
-                        month_part = parts[1].zfill(2)  # '1' -> '01'
-                        # Assume 2000s: '01' -> '2001', '12' -> '2012'
+                        year_part = parts[0].zfill(2)
+                        month_part = parts[1].zfill(2)
                         full_year = f"20{year_part}"
                         return f"{full_year}-{month_part}-01"
                     return val
@@ -335,16 +325,28 @@ class RuleBasedCleaner:
             )
 
         # 5. Infer Frequency and Reindex
-        inferred_freq = pd.infer_freq(df.index)
+        try:
+            if len(df) >= 3:
+                inferred_freq = pd.infer_freq(df.index)
+            else:
+                inferred_freq = None
+        except ValueError:
+            inferred_freq = None
 
         if not inferred_freq:
-            unit = ontology.problem.granularity.unit
+            unit = ontology.problem.granularity.unit if ontology and ontology.problem and ontology.problem.granularity else "day"
             if unit == "day":
                 inferred_freq = "D"
             elif unit == "month":
                 inferred_freq = "MS"
             elif unit == "hour":
                 inferred_freq = "H"
+            elif unit == "minute":
+                inferred_freq = "min"
+            elif unit == "second":
+                inferred_freq = "s"
+            elif unit == "millisecond":
+                inferred_freq = "ms"
             else:
                 inferred_freq = "D"
             actions.append(
@@ -388,23 +390,25 @@ class RuleBasedCleaner:
             )
 
         # 6. Imputation
-        target_def = next(c for c in ontology.columns if c.column_name == target_col)
-        nulls_count = df[target_col].isna().sum()
-        if nulls_count > 0:
-            if target_def.data_type == "continuous":
-                df[target_col] = (
-                    df[target_col].interpolate(method="linear").ffill().bfill()
-                )
-                imp_method = "Linear Interpolation"
-            else:
-                df[target_col] = df[target_col].ffill().bfill()
-                imp_method = "Forward Fill"
+        total_nulls = 0
+        for col in df.columns:
+            nulls_count = df[col].isna().sum()
+            if nulls_count > 0:
+                total_nulls += nulls_count
+                col_def = next((c for c in ontology.columns if c.column_name == col), None)
+                if col_def and col_def.data_type == "continuous":
+                    df[col] = df[col].interpolate(method="linear").ffill().bfill()
+                elif pd.api.types.is_numeric_dtype(df[col]):
+                    df[col] = df[col].interpolate(method="linear").ffill().bfill()
+                else:
+                    df[col] = df[col].ffill().bfill()
 
+        if total_nulls > 0:
             actions.append(
                 CleaningAction(
-                    column=target_col,
+                    column="Multiple",
                     action="imputation",
-                    description=f"Imputed {nulls_count} values using {imp_method}.",
+                    description=f"Imputed {total_nulls} missing values across all columns to maintain continuity.",
                 )
             )
 

@@ -56,10 +56,7 @@
               <v-icon color="white" size="18">mdi-sitemap-outline</v-icon>
             </div>
             <div>
-              <h3 class="text-subtitle-1 font-weight-bold mb-0">Column Ontology</h3>
-              <div class="text-caption text-medium-emphasis">
-                How each column has been classified. Click to reassign.
-              </div>
+              <h3 class="text-subtitle-1 font-weight-bold mb-0">Column Roles</h3>
             </div>
           </div>
 
@@ -226,18 +223,37 @@
                   </v-chip>
                 </div>
                 <div class="text-caption text-medium-emphasis" :class="{ 'text-disabled': isColumnIgnored(feat.column_name) }">
-                  {{ feat.data_type }}{{ feat.future_availability ? ' · future: ' + feat.future_availability.status : '' }}
+                  {{ feat.data_type }}
                 </div>
 
-                <!-- Inline override controls -->
+                <!-- Inline controls -->
                 <v-expand-transition>
-                  <div v-if="editingColumn === feat.column_name && !isColumnIgnored(feat.column_name)" class="mt-3" @click.stop>
-                    <CovariateSentence
-                      v-if="covariateStates[feat.column_name]"
-                      v-model="covariateStates[feat.column_name]!"
-                      :column="feat.column_name"
-                      :type="feat.covariate_type || 'exogenous'"
-                    />
+                  <div v-if="editingColumn === feat.column_name" class="mt-3" @click.stop>
+                    <!-- Ignore toggle -->
+                    <div class="d-flex align-center justify-space-between mb-2">
+                      <span class="text-caption font-weight-medium">Include in model</span>
+                      <v-switch
+                        v-model="covariateStates[feat.column_name].isIgnored"
+                        color="primary"
+                        density="compact"
+                        hide-details
+                        :label="covariateStates[feat.column_name].isIgnored ? 'Ignored' : 'Active'"
+                        @update:model-value="v => toggleColumnIgnore(feat.column_name, v as boolean)"
+                      />
+                    </div>
+
+                    <!-- Planned / External toggle (only when active) -->
+                    <div v-if="!covariateStates[feat.column_name].isIgnored" class="d-flex align-center justify-space-between">
+                      <span class="text-caption font-weight-medium">Control</span>
+                      <v-switch
+                        :model-value="feat.covariate_type === 'known_future'"
+                        color="success"
+                        density="compact"
+                        hide-details
+                        :label="feat.covariate_type === 'known_future' ? 'I can control' : 'I cannot control'"
+                        @update:model-value="v => changeCovariateType(feat.column_name, v ? 'known_future' : 'unknown_past')"
+                      />
+                    </div>
                   </div>
                 </v-expand-transition>
               </div>
@@ -250,7 +266,11 @@
               dot-color="grey"
               size="x-small"
             >
-              <div class="column-card column-card--ignored pa-3 rounded-lg mb-1">
+              <div
+                class="column-card column-card--ignored pa-3 rounded-lg mb-1"
+                :class="{ 'column-card--active': editingColumn === ign.column_name }"
+                @click="toggleColumnEdit(ign.column_name)"
+              >
                 <div class="d-flex align-center justify-space-between mb-1">
                   <span class="text-subtitle-2 text-disabled text-decoration-line-through">{{ ign.display_name || ign.column_name }}</span>
                   <v-chip color="grey" size="x-small" variant="outlined">IGNORED</v-chip>
@@ -258,6 +278,23 @@
                 <div class="text-caption text-disabled">
                   {{ ign.data_type }} · excluded from model
                 </div>
+
+                <!-- Inline controls -->
+                <v-expand-transition>
+                  <div v-if="editingColumn === ign.column_name" class="mt-3" @click.stop>
+                    <div class="d-flex align-center justify-space-between">
+                      <span class="text-caption font-weight-medium">Include in model</span>
+                      <v-switch
+                        v-model="covariateStates[ign.column_name].isIgnored"
+                        color="primary"
+                        density="compact"
+                        hide-details
+                        :label="covariateStates[ign.column_name].isIgnored ? 'Ignored' : 'Active'"
+                        @update:model-value="v => toggleColumnIgnore(ign.column_name, v as boolean)"
+                      />
+                    </div>
+                  </div>
+                </v-expand-transition>
               </div>
             </v-timeline-item>
           </v-timeline>
@@ -326,7 +363,7 @@
           <!-- Clarification Hub is now a Dialog managed by showClarification -->
 
           <!-- SECTION 2: Scenario Overrides -->
-          <div v-if="controllableCovariates.length > 0 || exogenousCovariates.length > 0" class="section-card mb-6">
+          <div v-if="plannedCovariates.length > 0 || externalCovariates.length > 0" class="section-card mb-6">
             <div class="section-header mb-4">
               <div class="section-header__icon section-header__icon--secondary">
                 <v-icon color="white" size="18">mdi-tune-variant</v-icon>
@@ -334,60 +371,38 @@
               <div>
                 <h3 class="text-subtitle-1 font-weight-bold mb-0">Scenario Configuration</h3>
                 <div class="text-caption text-medium-emphasis mt-1">
-                  Define how external and controllable factors behave in the forecast window.
+                  Define how planned and external factors behave in the forecast window.
                 </div>
               </div>
             </div>
 
-            <!-- Controllable Covariates -->
-            <div v-if="controllableCovariates.length > 0" class="mb-5">
-              <div class="d-flex align-center mb-3">
-                <v-icon class="mr-2" color="success" size="18">mdi-account-cog-outline</v-icon>
-                <span class="text-body-2 font-weight-bold">My Decisions</span>
-                <v-chip class="ml-2" color="success" size="x-small" variant="tonal">{{ controllableCovariates.length }}</v-chip>
-              </div>
-              <div v-for="col in controllableCovariates" :key="col.column_name" class="mb-2">
-                <CovariateSentence
-                  v-if="covariateStates[col.column_name]"
-                  v-model="covariateStates[col.column_name]!"
-                  :column="col.column_name"
-                  :type="'controllable'"
-                  @change-type="newType => changeCovariateType(col.column_name, newType)"
-                />
-              </div>
-            </div>
-
-            <!-- Exogenous Covariates -->
-            <div v-if="exogenousCovariates.length > 0" class="mb-5">
-              <div class="d-flex align-center mb-3">
-                <v-icon class="mr-2" color="info" size="18">mdi-weather-partly-cloudy</v-icon>
-                <span class="text-body-2 font-weight-bold">External Assumptions</span>
-                <v-chip class="ml-2" color="info" size="x-small" variant="tonal">{{ exogenousCovariates.length }}</v-chip>
-              </div>
-              <div v-for="col in exogenousCovariates" :key="col.column_name" class="mb-2">
-                <CovariateSentence
-                  v-if="covariateStates[col.column_name]"
-                  v-model="covariateStates[col.column_name]!"
-                  :column="col.column_name"
-                  :type="'exogenous'"
-                  @change-type="newType => changeCovariateType(col.column_name, newType)"
-                />
+            <!-- Strategy summary chips -->
+            <div v-if="activeCovariates.length > 0" class="mb-4">
+              <div class="d-flex flex-wrap" style="gap: 6px;">
+                <v-chip
+                  v-for="col in activeCovariates"
+                  :key="col.column_name"
+                  :color="col.covariate_type === 'known_future' ? 'success' : 'info'"
+                  density="comfortable"
+                  size="small"
+                  variant="tonal"
+                >
+                  <v-icon size="14" start>
+                    {{ col.covariate_type === 'known_future' ? 'mdi-account-cog-outline' : 'mdi-weather-partly-cloudy' }}
+                  </v-icon>
+                  {{ col.display_name || col.column_name }}
+                  <span class="ml-1 text-caption font-weight-bold">{{ getStrategyLabel(col.column_name) }}</span>
+                </v-chip>
               </div>
             </div>
 
-            <!-- Future Data Grid (Excel-like Spreadsheet) -->
-            <div v-if="controllableCovariates.length > 0" class="mt-6">
-              <div class="d-flex align-center mb-3">
-                <v-icon class="mr-2" color="primary" size="18">mdi-table-edit</v-icon>
-                <span class="text-body-2 font-weight-bold">Future Data Entry</span>
-              </div>
-              <FutureDataGrid
-                :columns="controllableCovariates"
-                :frequency="sentenceState?.frequency || 'month'"
-                :horizon="sentenceState?.horizon || 12"
-                @update:overrides="handleGridOverrides"
-              />
-            </div>
+            <!-- Future Data Grid -->
+            <FutureDataGrid
+              v-if="activeCovariates.length > 0"
+              :columns="activeCovariates"
+              :frequency="sentenceState?.frequency || 'month'"
+              :horizon="sentenceState?.horizon || 12"
+            />
           </div>
 
           <!-- SECTION 3: Static Attributes -->
@@ -555,16 +570,20 @@
       .filter(c => c.role !== 'group_id' && c.column_name !== sentenceState.value?.target_col && c.column_name !== sentenceState.value?.time_col)
   })
 
-  const controllableCovariates = computed(() => {
-    return covariates.value.filter(c => c.role === 'covariate' && (c.covariate_type === 'controllable' || c.covariate_type === 'known_future'))
+  const plannedCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'known_future')
   })
 
-  const exogenousCovariates = computed(() => {
-    return covariates.value.filter(c => c.role === 'covariate' && (c.covariate_type === 'exogenous' || c.covariate_type === 'unknown_past'))
+  const externalCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'unknown_past')
   })
 
   const staticCovariates = computed(() => {
     return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'static')
+  })
+
+  const activeCovariates = computed(() => {
+    return covariates.value.filter(c => c.role === 'covariate' && !covariateStates.value[c.column_name]?.isIgnored)
   })
 
   // ─── Stats for header ───
@@ -629,12 +648,26 @@
     editingColumn.value = editingColumn.value === colName ? null : colName
   }
 
+  function toggleColumnIgnore (colName: string, ignored: boolean) {
+    if (!covariateStates.value[colName]) {
+      covariateStates.value[colName] = { override: null, isIgnored: false }
+    }
+    covariateStates.value[colName].isIgnored = ignored
+    // Update ontology role
+    if (!store.ontology) return
+    const col = store.ontology.columns.find(c => c.column_name === colName)
+    if (!col) return
+    if (ignored) {
+      col.role = 'ignore'
+    } else {
+      col.role = 'covariate'
+    }
+  }
+
   function getCovariateColor (type?: CovariateType): string {
     switch (type) {
-      case 'controllable':
       case 'known_future': { return 'success'
       }
-      case 'exogenous':
       case 'unknown_past': { return 'info'
       }
       case 'static': { return 'grey'
@@ -646,10 +679,8 @@
 
   function getCovariateIcon (type?: CovariateType): string {
     switch (type) {
-      case 'controllable':
       case 'known_future': { return 'mdi-cog'
       }
-      case 'exogenous':
       case 'unknown_past': { return 'mdi-cloud'
       }
       case 'static': { return 'mdi-tag'
@@ -661,11 +692,9 @@
 
   function formatCovariateType (type?: CovariateType): string {
     switch (type) {
-      case 'controllable':
       case 'known_future': { return 'PLANNED'
       }
-      case 'exogenous':
-      case 'unknown_past': { return 'OBSERVED'
+      case 'unknown_past': { return 'EXTERNAL'
       }
       case 'static': { return 'STATIC'
       }
@@ -705,6 +734,29 @@
   }
 
   // Re-initialize sentenceState whenever ontology changes (initial load + re-analysis)
+  // Bidirectional sync: scenario_overrides (from spreadsheet) → covariateStates (left panel)
+  watch(() => store.ontology?.scenario_overrides, (overrides) => {
+    if (!overrides || !Array.isArray(overrides)) return
+    for (const item of overrides) {
+      const col = item.column_name
+      const val = item.values
+      if (!covariateStates.value[col]) {
+        covariateStates.value[col] = { override: null, isIgnored: false }
+      }
+      const state = covariateStates.value[col]
+      if (val === null) {
+        state.override = null
+        state.isIgnored = false
+      } else if (typeof val === 'number') {
+        state.override = val
+        state.isIgnored = false
+      } else if (Array.isArray(val)) {
+        state.override = val
+        state.isIgnored = false
+      }
+    }
+  }, { deep: true })
+
   watch(() => store.ontology, () => {
     initSentenceState()
     // Show clarification popup if needed and not bypassed
@@ -758,23 +810,26 @@
     store.ontology.risk_preference = sentenceState.value.risk_preference
 
     // Sync all overrides from covariateStates
-    if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = {}
+    store.ontology.scenario_overrides = []
     for (const [col, state] of Object.entries(covariateStates.value)) {
       if (state.override !== null) {
-        store.ontology.scenario_overrides[col] = state.override
+        store.ontology.scenario_overrides.push({
+          column_name: col,
+          values: state.override as any,
+        })
       }
     }
 
     store.executeForecast()
   }
 
-  function handleGridOverrides (overrides: Record<string, number[]>) {
-    if (!store.ontology) return
-    if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = {}
-    
-    for (const col in overrides) {
-      store.ontology.scenario_overrides[col] = overrides[col]
-    }
+  function getStrategyLabel (colName: string): string {
+    const item = store.ontology?.scenario_overrides?.find(o => o.column_name === colName)
+    const override = item?.values
+    if (override === 'seasonal') return '→ Seasonal'
+    if (Array.isArray(override)) return '→ Custom'
+    if (typeof override === 'number') return '→ Fixed'
+    return '→ Steady'
   }
 
   function changeCovariateType (colName: string, newType: CovariateType) {
