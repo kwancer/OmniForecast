@@ -449,7 +449,7 @@
       } else {
         const data = gridData.value[col.column_name]
         if (!data) continue
-        
+
         if (s === 'constant') {
           newOverrides.push({ column_name: col.column_name, values: data[0] })
         } else {
@@ -577,9 +577,11 @@
       if (col.covariate_type === 'unknown_past') continue
       const data = gridData.value[col.column_name]
       if (!data) continue
-      
-      store.ontology.scenario_overrides = store.ontology.scenario_overrides.filter(o => o.column_name !== col.column_name)
-      store.ontology.scenario_overrides.push({ column_name: col.column_name, values: [...data] })
+
+      if (store.ontology.scenario_overrides) {
+        store.ontology.scenario_overrides = store.ontology.scenario_overrides.filter(o => o.column_name !== col.column_name)
+        store.ontology.scenario_overrides.push({ column_name: col.column_name, values: [...data] })
+      }
     }
     emitOverrides()
   }

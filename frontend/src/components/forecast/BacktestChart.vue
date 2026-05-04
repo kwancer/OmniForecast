@@ -38,6 +38,7 @@
   import type { BacktestPoint } from '@/types'
   import {
     Chart as ChartJS,
+    Decimation,
     Legend,
     LinearScale,
     LineElement,
@@ -45,7 +46,6 @@
     TimeScale,
     Title,
     Tooltip,
-    Decimation,
   } from 'chart.js'
   import { computed } from 'vue'
   import { Line } from 'vue-chartjs'
@@ -76,7 +76,7 @@
         pointRadius: 3,
         data: props.data.map(p => ({ x: new Date(p.date).getTime(), y: p.actual })),
         tension: 0.1,
-        parsing: false,
+        parsing: false as const,
         normalized: true,
       },
       {
@@ -88,7 +88,7 @@
         pointRadius: 3,
         data: props.data.map(p => ({ x: new Date(p.date).getTime(), y: p.prediction })),
         tension: 0.1,
-        parsing: false,
+        parsing: false as const,
         normalized: true,
       },
     ],
@@ -105,7 +105,7 @@
       },
       decimation: {
         enabled: true,
-        algorithm: 'lttb',
+        algorithm: 'lttb' as const,
         samples: 200,
       },
     },

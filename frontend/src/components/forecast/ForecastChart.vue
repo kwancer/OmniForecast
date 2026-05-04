@@ -143,6 +143,7 @@
 
   import {
     Chart as ChartJS,
+    Decimation,
     Filler,
     Legend,
     LinearScale,
@@ -151,7 +152,6 @@
     TimeScale,
     Title,
     Tooltip,
-    Decimation,
   } from 'chart.js'
   import zoomPlugin from 'chartjs-plugin-zoom'
   import { computed, ref, watch } from 'vue'
@@ -195,18 +195,20 @@
       const timeCol = store.timeCol
       const historyTimes = store.historyResults.map((r: any) => parseDate(r[timeCol])).filter((t: number) => !Number.isNaN(t))
       const forecastTimes = store.forecastResults.map((r: any) => parseDate(r.date || r.year || r[timeCol])).filter((t: number) => !Number.isNaN(t))
-      
+
       if (historyTimes.length === 0 || forecastTimes.length === 0) return
 
       const minHist = historyTimes[0]
-      const maxHist = historyTimes[historyTimes.length - 1]
+      const maxHist = historyTimes.at(-1)
       const minFore = forecastTimes[0]
-      const maxFore = forecastTimes[forecastTimes.length - 1]
-      
+      const maxFore = forecastTimes.at(-1)
+
+      if (minHist === undefined || maxHist === undefined || minFore === undefined || maxFore === undefined) return
+
       const forecastDuration = maxFore - minFore
       const effectiveForecastDuration = forecastDuration > 0 ? forecastDuration : Math.max(0, maxFore - maxHist)
       const totalDuration = maxFore - minHist
-      
+
       if (effectiveForecastDuration > 0 && effectiveForecastDuration < totalDuration * 0.1) {
         const visibleWindow = effectiveForecastDuration * 10
         rangeMin.value = Math.max(minHist, maxFore - visibleWindow)
@@ -214,7 +216,7 @@
         isZoomed.value = true
       }
     },
-    { immediate: true }
+    { immediate: true },
   )
 
   // Shared Date Parsing Logic
@@ -308,79 +310,79 @@
       const connect = (y: number, upper?: number) => ({ x: lastHistoryPoint?.x, y, upper })
 
       const datasets = [
-          {
-            label: 'Historical',
-            borderColor: '#9E9E9E',
-            borderWidth: 2,
-            pointRadius: 0,
-            data: historyPoints,
-            tension: 0.1,
-          },
-          // 80% Band (Outer)
-          {
-            label: '80% Upper',
-            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p90 }))],
-            borderColor: 'transparent',
-            pointRadius: 0,
-            fill: false,
-            tension: 0.3,
-          },
-          {
-            label: '80% Prediction',
-            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p10, upper: p.p90 }))],
-            borderColor: 'transparent',
-            backgroundColor: 'rgba(187, 222, 251, 0.2)', // Light Blue
-            fill: '-1',
-            pointRadius: 0,
-            tension: 0.3,
-          },
-          // 60% Band (Middle)
-          {
-            label: '60% Upper',
-            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p80 }))],
-            borderColor: 'transparent',
-            pointRadius: 0,
-            fill: false,
-            tension: 0.3,
-          },
-          {
-            label: '60% Prediction',
-            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p20, upper: p.p80 }))],
-            borderColor: 'transparent',
-            backgroundColor: 'rgba(100, 181, 246, 0.4)', // Medium Blue
-            fill: '-1',
-            pointRadius: 0,
-            tension: 0.3,
-          },
-          // 30% Band (Inner)
-          {
-            label: '30% Upper',
-            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p65 }))],
-            borderColor: 'transparent',
-            pointRadius: 0,
-            fill: false,
-            tension: 0.3,
-          },
-          {
-            label: '30% Prediction',
-            data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p35, upper: p.p65 }))],
-            borderColor: 'transparent',
-            backgroundColor: 'rgba(25, 118, 210, 0.6)', // Dark Blue
-            fill: '-1',
-            pointRadius: 0,
-            tension: 0.3,
-          },
-          // Median Line
-          {
-            label: 'Median Forecast',
-            borderColor: '#0D47A1',
-            borderWidth: 3,
-            data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.median }))],
-            pointRadius: 3,
-            fill: false,
-            tension: 0.3,
-          },
-        ]
+        {
+          label: 'Historical',
+          borderColor: '#9E9E9E',
+          borderWidth: 2,
+          pointRadius: 0,
+          data: historyPoints,
+          tension: 0.1,
+        },
+        // 80% Band (Outer)
+        {
+          label: '80% Upper',
+          data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p90 }))],
+          borderColor: 'transparent',
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: '80% Prediction',
+          data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p10, upper: p.p90 }))],
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(187, 222, 251, 0.2)', // Light Blue
+          fill: '-1',
+          pointRadius: 0,
+          tension: 0.3,
+        },
+        // 60% Band (Middle)
+        {
+          label: '60% Upper',
+          data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p80 }))],
+          borderColor: 'transparent',
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: '60% Prediction',
+          data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p20, upper: p.p80 }))],
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(100, 181, 246, 0.4)', // Medium Blue
+          fill: '-1',
+          pointRadius: 0,
+          tension: 0.3,
+        },
+        // 30% Band (Inner)
+        {
+          label: '30% Upper',
+          data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p65 }))],
+          borderColor: 'transparent',
+          pointRadius: 0,
+          fill: false,
+          tension: 0.3,
+        },
+        {
+          label: '30% Prediction',
+          data: [connect(lastHistoryPoint?.y, lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.p35, upper: p.p65 }))],
+          borderColor: 'transparent',
+          backgroundColor: 'rgba(25, 118, 210, 0.6)', // Dark Blue
+          fill: '-1',
+          pointRadius: 0,
+          tension: 0.3,
+        },
+        // Median Line
+        {
+          label: 'Median Forecast',
+          borderColor: '#0D47A1',
+          borderWidth: 3,
+          data: [connect(lastHistoryPoint?.y), ...forecastData.map(p => ({ x: p.x, y: p.median }))],
+          pointRadius: 3,
+          fill: false,
+          tension: 0.3,
+        },
+      ]
 
       return {
         datasets: datasets.map(ds => ({ ...ds, parsing: false, normalized: true })),
@@ -568,7 +570,7 @@
       },
       decimation: {
         enabled: true,
-        algorithm: 'lttb',
+        algorithm: 'lttb' as const,
         samples: 500, // Reduced from thousands to 500 points for clear trajectory
       },
     },
