@@ -54,14 +54,14 @@
             prepend-icon="mdi-account-cog-outline"
             subtitle="I will set future values"
             title="Make Planned Driver"
-            @click="emit('changeType', 'known_future')"
+            @click="emit('change-type', 'known_future')"
           />
           <v-list-item
             v-else
             prepend-icon="mdi-weather-partly-cloudy"
             subtitle="Use historical patterns"
             title="Make External Factor"
-            @click="emit('changeType', 'unknown_past')"
+            @click="emit('change-type', 'unknown_past')"
           />
           <v-divider />
           <v-list-item
@@ -111,8 +111,8 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
   import type { CovariateType } from '@/types'
+  import { computed, onMounted, ref } from 'vue'
 
   export interface CovariateState {
     override: number | number[] | 'seasonal' | null
@@ -127,7 +127,7 @@
 
   const isPlanned = computed(() => covariateProps.type === 'known_future')
 
-  const emit = defineEmits(['update:modelValue', 'changeType'])
+  const emit = defineEmits(['update:modelValue', 'change-type'])
 
   const option = ref<'default' | 'constant' | 'custom' | 'seasonal' | 'ignore'>('default')
   const constantValue = ref<number>(0)
@@ -259,4 +259,3 @@
   background-color: rgba(33, 150, 243, 0.05) !important;
 }
 </style>
-

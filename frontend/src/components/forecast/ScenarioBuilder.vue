@@ -88,7 +88,7 @@
               variant="outlined"
               @update:model-value="markChanged"
             />
-            
+
             <!-- Series Input -->
             <v-textarea
               v-else
@@ -115,7 +115,7 @@
 </template>
 
 <script setup lang="ts">
-  import type { ColumnOntology } from '@/types'
+  import type { ScenarioOverride } from '@/types'
   import { computed, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
 
@@ -134,26 +134,31 @@
   })
 
   // State
-  const localOverrides = ref<Record<string, number | number[] | null>>({})
+  const localOverrides = ref<Record<string, number | number[] | 'seasonal' | null>>({})
   const inputModes = ref<Record<string, 'constant' | 'series'>>({})
   const seriesInputs = ref<Record<string, string>>({})
   const hasChanges = ref(false)
 
   // Initialize
-  watch(() => store.ontology?.scenario_overrides, (overrides) => {
+  watch(() => store.ontology?.scenario_overrides, overrides => {
     if (!overrides) return
-    localOverrides.value = { ...overrides }
-    
+    // Convert ScenarioOverride[] to a lookup record
+    const record: Record<string, number | number[] | 'seasonal' | null> = {}
+    for (const o of overrides) {
+      record[o.column_name] = o.values
+    }
+    localOverrides.value = record
+
     // Set modes based on existing data
-    plannedColumns.value.forEach(col => {
-      const val = overrides[col.column_name]
+    for (const col of plannedColumns.value) {
+      const val = record[col.column_name]
       if (Array.isArray(val)) {
         inputModes.value[col.column_name] = 'series'
         seriesInputs.value[col.column_name] = val.join(', ')
       } else {
         inputModes.value[col.column_name] = 'constant'
       }
-    })
+    }
   }, { immediate: true })
 
   function getHistoricalValues (colName: string): number[] {
@@ -163,7 +168,7 @@
 
   function handleSeriesInput (colName: string) {
     const raw = seriesInputs.value[colName]
-    const parsed = raw.split(',').map(s => s.trim()).filter(s => s !== '').map(Number).filter(n => !Number.isNaN(n))
+    const parsed = (raw ?? '').split(',').map(s => s.trim()).filter(s => s !== '').map(Number).filter(n => !Number.isNaN(n))
     localOverrides.value[colName] = parsed
     markChanged()
   }
@@ -172,7 +177,13 @@
     hasChanges.value = true
     // Update store immediately so recalculate uses fresh data
     if (store.ontology) {
-      store.ontology.scenario_overrides = { ...localOverrides.value }
+      const arr: ScenarioOverride[] = []
+      for (const [colName, val] of Object.entries(localOverrides.value)) {
+        if (val !== null && val !== undefined) {
+          arr.push({ column_name: colName, values: val })
+        }
+      }
+      store.ontology.scenario_overrides = arr
     }
   }
 </script>

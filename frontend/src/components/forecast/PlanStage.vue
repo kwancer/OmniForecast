@@ -233,24 +233,24 @@
                     <div class="d-flex align-center justify-space-between mb-2">
                       <span class="text-caption font-weight-medium">Include in model</span>
                       <v-switch
-                        v-model="covariateStates[feat.column_name].isIgnored"
+                        v-model="covState(feat.column_name).isIgnored"
                         color="primary"
                         density="compact"
                         hide-details
-                        :label="covariateStates[feat.column_name].isIgnored ? 'Ignored' : 'Active'"
+                        :label="covState(feat.column_name).isIgnored ? 'Ignored' : 'Active'"
                         @update:model-value="v => toggleColumnIgnore(feat.column_name, v as boolean)"
                       />
                     </div>
 
                     <!-- Planned / External toggle (only when active) -->
-                    <div v-if="!covariateStates[feat.column_name].isIgnored" class="d-flex align-center justify-space-between">
+                    <div v-if="!covState(feat.column_name).isIgnored" class="d-flex align-center justify-space-between">
                       <span class="text-caption font-weight-medium">Control</span>
                       <v-switch
-                        :model-value="feat.covariate_type === 'known_future'"
                         color="success"
                         density="compact"
                         hide-details
                         :label="feat.covariate_type === 'known_future' ? 'I can control' : 'I cannot control'"
+                        :model-value="feat.covariate_type === 'known_future'"
                         @update:model-value="v => changeCovariateType(feat.column_name, v ? 'known_future' : 'unknown_past')"
                       />
                     </div>
@@ -285,11 +285,11 @@
                     <div class="d-flex align-center justify-space-between">
                       <span class="text-caption font-weight-medium">Include in model</span>
                       <v-switch
-                        v-model="covariateStates[ign.column_name].isIgnored"
+                        v-model="covState(ign.column_name).isIgnored"
                         color="primary"
                         density="compact"
                         hide-details
-                        :label="covariateStates[ign.column_name].isIgnored ? 'Ignored' : 'Active'"
+                        :label="covState(ign.column_name).isIgnored ? 'Ignored' : 'Active'"
                         @update:model-value="v => toggleColumnIgnore(ign.column_name, v as boolean)"
                       />
                     </div>
@@ -510,11 +510,11 @@
 </template>
 
 <script setup lang="ts">
+  import type { CovariateState } from './CovariateSentence.vue'
   import type { CovariateType } from '@/types'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import ClarificationDialog from './ClarificationDialog.vue'
-  import CovariateSentence, { type CovariateState } from './CovariateSentence.vue'
   import DataXRay from './DataXRay.vue'
   import FutureDataGrid from './FutureDataGrid.vue'
   import OntologySentence, { type SentenceState } from './OntologySentence.vue'
@@ -644,6 +644,10 @@
     return covariateStates.value[colName]?.isIgnored === true
   }
 
+  function covState (colName: string): CovariateState {
+    return covariateStates.value[colName]!
+  }
+
   function toggleColumnEdit (colName: string) {
     editingColumn.value = editingColumn.value === colName ? null : colName
   }
@@ -657,11 +661,7 @@
     if (!store.ontology) return
     const col = store.ontology.columns.find(c => c.column_name === colName)
     if (!col) return
-    if (ignored) {
-      col.role = 'ignore'
-    } else {
-      col.role = 'covariate'
-    }
+    col.role = ignored ? 'ignore' : 'covariate'
   }
 
   function getCovariateColor (type?: CovariateType): string {
@@ -735,7 +735,7 @@
 
   // Re-initialize sentenceState whenever ontology changes (initial load + re-analysis)
   // Bidirectional sync: scenario_overrides (from spreadsheet) → covariateStates (left panel)
-  watch(() => store.ontology?.scenario_overrides, (overrides) => {
+  watch(() => store.ontology?.scenario_overrides, overrides => {
     if (!overrides || !Array.isArray(overrides)) return
     for (const item of overrides) {
       const col = item.column_name
@@ -777,11 +777,9 @@
     // Update ontology based on current state
     for (const col of store.ontology.columns) {
       // Standard role mapping
-      if (col.role === 'target' || col.role === 'time_index') {
-        // Reset old roles to avoid duplicates
-        if (col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
-          col.role = 'ignore'
-        }
+      if ((col.role === 'target' || col.role === 'time_index') // Reset old roles to avoid duplicates
+        && col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
+        col.role = 'ignore'
       }
 
       if (col.column_name === sentenceState.value?.target_col) {
@@ -796,12 +794,10 @@
       // Sync ignored status from covariateStates
       if (covariateStates.value[col.column_name]?.isIgnored) {
         col.role = 'ignore'
-      } else if (col.role === 'ignore' && !covariateStates.value[col.column_name]?.isIgnored) {
-        // Recover role if user un-ignored it
+      } else if (col.role === 'ignore' && !covariateStates.value[col.column_name]?.isIgnored // Recover role if user un-ignored it
         // We'll default to covariate if it was ignored
-        if (col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
-          col.role = 'covariate'
-        }
+        && col.column_name !== sentenceState.value.target_col && col.column_name !== sentenceState.value.time_col) {
+        col.role = 'covariate'
       }
     }
 

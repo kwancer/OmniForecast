@@ -80,7 +80,7 @@ export interface ModelMetadata {
 
 export interface ScenarioOverride {
   column_name: string
-  values: number | number[]
+  values: number | number[] | 'seasonal'
 }
 
 // --- MAIN ONTOLOGY ---
@@ -95,6 +95,8 @@ export interface ForecastOntology {
   sample_data?: Record<string, any>[]
   scenario_overrides?: ScenarioOverride[]
   ignored_columns?: string[]
+  aggregate_series?: boolean
+  target_series_id?: string
   // Risk Preference & Confidence Intervals
   risk_preference?: RiskPreference
   interval_width?: number

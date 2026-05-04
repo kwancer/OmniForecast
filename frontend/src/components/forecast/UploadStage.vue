@@ -101,7 +101,7 @@
                 style="display: none"
                 type="file"
                 @change="onFileInputChange"
-              />
+              >
 
               <!-- Empty state -->
               <div v-if="!file" class="dropzone__empty">
@@ -134,7 +134,13 @@
                   <div class="flex-grow-1">
                     <div class="d-flex align-center mb-1">
                       <span class="text-body-2 font-weight-bold text-truncate" style="max-width: 300px;">{{ fileStats?.name }}</span>
-                      <v-chip class="ml-2" color="success" prepend-icon="mdi-check-circle" size="x-small" variant="tonal">Loaded</v-chip>
+                      <v-chip
+                        class="ml-2"
+                        color="success"
+                        prepend-icon="mdi-check-circle"
+                        size="x-small"
+                        variant="tonal"
+                      >Loaded</v-chip>
                     </div>
                     <div class="d-flex align-center flex-wrap file-meta-row">
                       <span v-if="fileStats?.sizeLabel" class="file-meta-item">
@@ -267,8 +273,12 @@
 
   // Local intent value for textarea (syncs with store)
   const intentValue = ref(intent.value || '')
-  watch(intentValue, val => { intent.value = val })
-  watch(intent, val => { if (val !== intentValue.value) intentValue.value = val || '' })
+  watch(intentValue, val => {
+    intent.value = val
+  })
+  watch(intent, val => {
+    if (val !== intentValue.value) intentValue.value = val || ''
+  })
 
   // State for the "Learn more" alert toggle
   const showIntegrityDetail = ref(false)

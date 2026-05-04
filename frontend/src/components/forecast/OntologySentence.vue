@@ -337,19 +337,6 @@
     }
   }
 
-  function getRiskIcon (pref: RiskPreference | undefined) {
-    switch (pref) {
-      case 'under_penalty': {
-        return 'mdi-shield-alert-outline'
-      }
-      case 'over_penalty': {
-        return 'mdi-leaf'
-      }
-      default: {
-        return 'mdi-scale-balance'
-      }
-    }
-  }
 </script>
 
 <style scoped>

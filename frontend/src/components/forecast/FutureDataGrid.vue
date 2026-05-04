@@ -112,12 +112,12 @@
             >
               <input
                 v-if="!isSeasonalInsufficient(col.column_name)"
-                v-model.number="gridData[col.column_name][rowIdx]"
+                v-model.number="gridData[col.column_name]![rowIdx]"
                 class="spreadsheet-input"
                 :class="{ 'readonly-input': col.covariate_type === 'unknown_past' }"
                 placeholder="0"
-                type="number"
                 :readonly="col.covariate_type === 'unknown_past'"
+                type="number"
                 @input="onCellInput(col.column_name)"
               >
               <div
@@ -132,7 +132,7 @@
         </tbody>
         <tbody v-else>
           <tr>
-            <td :colspan="columns.length + 1" class="text-center pa-4 text-caption text-medium-emphasis">
+            <td class="text-center pa-4 text-caption text-medium-emphasis" :colspan="columns.length + 1">
               <v-icon class="mb-1" size="18">mdi-calendar-remove</v-icon>
               <div>No date data available to generate forecast steps.</div>
             </td>
@@ -144,10 +144,10 @@
 </template>
 
 <script setup lang="ts">
+  import type { ColumnOntology } from '@/types'
+  import { addDays, addHours, addMinutes, addMonths, addWeeks, addYears, format, parseISO } from 'date-fns'
   import { computed, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
-  import { addDays, addHours, addMinutes, addMonths, addWeeks, addYears, format, parseISO } from 'date-fns'
-  import type { ColumnOntology } from '@/types'
 
   const store = useForecastStore()
   const props = defineProps<{
@@ -179,22 +179,28 @@
   function getLastHistoricalDate (): Date | null {
     const timeCol = store.timeCol
     if (store.historyResults.length > 0) {
-      const raw = store.historyResults[store.historyResults.length - 1][timeCol]
-      if (raw) {
-        const d = new Date(raw)
-        if (!Number.isNaN(d.getTime())) return d
-        const p = parseISO(String(raw))
-        if (!Number.isNaN(p.getTime())) return p
+      const lastRow = store.historyResults.at(-1)
+      if (lastRow) {
+        const raw = lastRow[timeCol]
+        if (raw) {
+          const d = new Date(raw)
+          if (!Number.isNaN(d.getTime())) return d
+          const p = parseISO(String(raw))
+          if (!Number.isNaN(p.getTime())) return p
+        }
       }
     }
     const samples = store.ontology?.sample_data
     if (samples && samples.length > 0) {
-      const raw = samples[samples.length - 1][timeCol]
-      if (raw) {
-        const d = new Date(raw)
-        if (!Number.isNaN(d.getTime())) return d
-        const p = parseISO(String(raw))
-        if (!Number.isNaN(p.getTime())) return p
+      const lastRow = samples.at(-1)
+      if (lastRow) {
+        const raw = lastRow[timeCol]
+        if (raw) {
+          const d = new Date(raw)
+          if (!Number.isNaN(d.getTime())) return d
+          const p = parseISO(String(raw))
+          if (!Number.isNaN(p.getTime())) return p
+        }
       }
     }
     return null
@@ -207,14 +213,37 @@
     const dates: Date[] = []
     for (let i = 1; i <= props.horizon; i++) {
       switch (props.frequency.toLowerCase()) {
-        case 'minute': current = addMinutes(current, 1); break
-        case 'hour': current = addHours(current, 1); break
-        case 'day': current = addDays(current, 1); break
-        case 'week': current = addWeeks(current, 1); break
-        case 'month': current = addMonths(current, 1); break
-        case 'quarter': current = addMonths(current, 3); break
-        case 'year': current = addYears(current, 1); break
-        default: current = addDays(current, 1)
+        case 'minute': {
+          current = addMinutes(current, 1)
+          break
+        }
+        case 'hour': {
+          current = addHours(current, 1)
+          break
+        }
+        case 'day': {
+          current = addDays(current, 1)
+          break
+        }
+        case 'week': {
+          current = addWeeks(current, 1)
+          break
+        }
+        case 'month': {
+          current = addMonths(current, 1)
+          break
+        }
+        case 'quarter': {
+          current = addMonths(current, 3)
+          break
+        }
+        case 'year': {
+          current = addYears(current, 1)
+          break
+        }
+        default: {
+          current = addDays(current, 1)
+        }
       }
       dates.push(new Date(current))
     }
@@ -236,25 +265,37 @@
 
   function getLastKnownValue (colName: string): number {
     if (store.historyResults.length > 0) {
-      const v = store.historyResults[store.historyResults.length - 1][colName]
-      if (v !== undefined) return Number(v) || 0
+      const lastRow = store.historyResults.at(-1)
+      if (lastRow) {
+        const v = lastRow[colName]
+        if (v !== undefined) return Number(v) || 0
+      }
     }
     const samples = store.ontology?.sample_data
     if (samples && samples.length > 0) {
-      const v = samples[samples.length - 1][colName]
-      if (v !== undefined) return Number(v) || 0
+      const lastRow = samples.at(-1)
+      if (lastRow) {
+        const v = lastRow[colName]
+        if (v !== undefined) return Number(v) || 0
+      }
     }
     return 0
   }
 
   function getPeriod (): number | null {
     switch (props.frequency.toLowerCase()) {
-      case 'day': return 7
-      case 'week': return 52
-      case 'month': return 12
-      case 'quarter': return 4
-      case 'year': return 1
-      default: return null
+      case 'day': { return 7
+      }
+      case 'week': { return 52
+      }
+      case 'month': { return 12
+      }
+      case 'quarter': { return 4
+      }
+      case 'year': { return 1
+      }
+      default: { return null
+      }
     }
   }
 
@@ -288,7 +329,7 @@
     const history = getHistorySeries(colName)
     const period = getPeriod()
     if (!period || history.length < period) {
-      return Array(props.horizon).fill(getLastKnownValue(colName))
+      return Array.from({ length: props.horizon }, () => getLastKnownValue(colName))
     }
     const values: number[] = []
     for (let i = 0; i < props.horizon; i++) {
@@ -297,9 +338,9 @@
         idx -= period
       }
       if (idx >= 0) {
-        values.push(history[idx])
+        values.push(history[idx]!)
       } else {
-        values.push(history[history.length - 1])
+        values.push(history.at(-1)!)
       }
     }
     return values
@@ -318,19 +359,27 @@
 
   function strategyLabel (s: 'default' | 'constant' | 'custom' | 'seasonal'): string {
     switch (s) {
-      case 'default': return 'Hold Steady'
-      case 'constant': return 'Set Fixed'
-      case 'custom': return 'Custom Series'
-      case 'seasonal': return 'Seasonal'
+      case 'default': { return 'Hold Steady'
+      }
+      case 'constant': { return 'Set Fixed'
+      }
+      case 'custom': { return 'Custom Series'
+      }
+      case 'seasonal': { return 'Seasonal'
+      }
     }
   }
 
   function strategyColor (s: 'default' | 'constant' | 'custom' | 'seasonal'): string {
     switch (s) {
-      case 'default': return 'grey'
-      case 'constant': return 'secondary'
-      case 'custom': return 'primary'
-      case 'seasonal': return 'info'
+      case 'default': { return 'grey'
+      }
+      case 'constant': { return 'secondary'
+      }
+      case 'custom': { return 'primary'
+      }
+      case 'seasonal': { return 'info'
+      }
     }
   }
 
@@ -344,14 +393,14 @@
     }
     if (Array.isArray(override)) {
       const arr = [...override]
-      while (arr.length < props.horizon) arr.push(arr[arr.length - 1] || 0)
+      while (arr.length < props.horizon) arr.push(arr.at(-1) || 0)
       return arr.slice(0, props.horizon)
     }
     if (typeof override === 'number') {
-      return Array(props.horizon).fill(override)
+      return Array.from({ length: props.horizon }, () => override)
     }
     const lastVal = getLastKnownValue(colName)
-    return Array(props.horizon).fill(lastVal)
+    return Array.from({ length: props.horizon }, () => lastVal)
   }
 
   function initGrid () {
@@ -397,7 +446,7 @@
       if (!data) continue
       const s = strategyFor(col.column_name)
       if (s === 'default') continue
-      
+
       if (s === 'constant') {
         newOverrides.push({ column_name: col.column_name, values: data[0] })
       } else if (s === 'seasonal') {
@@ -419,15 +468,26 @@
     // Filter out existing override for this column
     store.ontology.scenario_overrides = store.ontology.scenario_overrides.filter(o => o.column_name !== colName)
 
-    if (strategy === 'constant') {
-      const lastVal = getLastKnownValue(colName)
-      store.ontology.scenario_overrides.push({ column_name: colName, values: lastVal })
-      constantInputs.value[colName] = lastVal
-    } else if (strategy === 'seasonal') {
-      store.ontology.scenario_overrides.push({ column_name: colName, values: 'seasonal' as any })
-    } else if (strategy === 'custom') {
-      const lastVal = getLastKnownValue(colName)
-      store.ontology.scenario_overrides.push({ column_name: colName, values: Array(props.horizon).fill(lastVal) })
+    switch (strategy) {
+      case 'constant': {
+        const lastVal = getLastKnownValue(colName)
+        store.ontology.scenario_overrides.push({ column_name: colName, values: lastVal })
+        constantInputs.value[colName] = lastVal
+
+        break
+      }
+      case 'seasonal': {
+        store.ontology.scenario_overrides.push({ column_name: colName, values: 'seasonal' as any })
+
+        break
+      }
+      case 'custom': {
+        const lastVal = getLastKnownValue(colName)
+        store.ontology.scenario_overrides.push({ column_name: colName, values: Array.from({ length: props.horizon }, () => lastVal) })
+
+        break
+      }
+    // No default
     }
 
     // Rebuild this column's grid data
@@ -439,27 +499,27 @@
     const val = constantInputs.value[colName] ?? 0
     if (!store.ontology) return
     if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = []
-    
+
     const existing = store.ontology.scenario_overrides.find(o => o.column_name === colName)
     if (existing) {
       existing.values = val
     } else {
       store.ontology.scenario_overrides.push({ column_name: colName, values: val })
     }
-    
-    gridData.value[colName] = Array(props.horizon).fill(val)
+
+    gridData.value[colName] = Array.from({ length: props.horizon }, () => val)
     emitOverrides()
   }
 
   function onCellInput (colName: string) {
     if (!store.ontology) return
     if (!store.ontology.scenario_overrides) store.ontology.scenario_overrides = []
-    
+
     const existing = store.ontology.scenario_overrides.find(o => o.column_name === colName)
     if (existing) {
-      existing.values = [...gridData.value[colName]]
+      existing.values = [...gridData.value[colName]!]
     } else {
-      store.ontology.scenario_overrides.push({ column_name: colName, values: [...gridData.value[colName]] })
+      store.ontology.scenario_overrides.push({ column_name: colName, values: [...gridData.value[colName]!] })
     }
     emitOverrides()
   }
@@ -473,13 +533,10 @@
     const file = target.files?.[0]
     if (!file) return
 
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target?.result as string
+    file.text().then(text => {
       if (!text) return
       parseCsvUpload(text)
-    }
-    reader.readAsText(file)
+    })
     target.value = ''
   }
 
@@ -488,13 +545,15 @@
     const lines = text.split('\n').filter(l => l.trim())
     if (lines.length < 2) return
 
-    const headers = lines[0].split(',').map(h => h.trim())
-    const timeCol = store.timeCol
+    const firstLine = lines[0]!
+    const headers = firstLine.split(',').map(h => h.trim())
 
     for (let rowIdx = 1; rowIdx < lines.length && rowIdx - 1 < props.horizon; rowIdx++) {
-      const cells = lines[rowIdx].split(',').map(c => c.trim())
-      for (let colIdx = 0; colIdx < headers.length; colIdx++) {
-        const colName = headers[colIdx]
+      const line = lines[rowIdx]
+      if (!line) continue
+      const cells = line.split(',').map(c => c.trim())
+      for (const [colIdx, colName] of headers.entries()) {
+        if (!colName) continue
         const col = props.columns.find(c => c.column_name === colName)
         if (!col || col.covariate_type === 'unknown_past') continue
 
@@ -506,7 +565,7 @@
         if (!gridData.value[colName]) continue
         const gridRow = rowIdx - 1
         if (gridRow < props.horizon) {
-          gridData.value[colName][gridRow] = val
+          gridData.value[colName]![gridRow] = val
         }
       }
     }

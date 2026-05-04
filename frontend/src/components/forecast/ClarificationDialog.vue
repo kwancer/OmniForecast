@@ -53,7 +53,6 @@
 
       <v-card-actions class="pa-6 flex-column align-stretch">
 
-
         <!-- Input Area -->
         <div class="d-flex align-center">
           <v-text-field
@@ -65,9 +64,9 @@
             flat
             hide-details
             label="Provide more context..."
+            :loading="store.loading"
             placeholder="e.g., Use 'Sales' as target and 'Price' as a planned driver."
             variant="solo"
-            :loading="store.loading"
             @click:append-inner="submit()"
             @keyup.enter="submit()"
           />
@@ -90,7 +89,7 @@
             size="small"
             variant="flat"
           >
-            <v-icon start size="14">{{ confidenceScore >= 0.85 ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
+            <v-icon size="14" start>{{ confidenceScore >= 0.85 ? 'mdi-check-circle' : 'mdi-alert-circle' }}</v-icon>
             Confidence: {{ Math.round(confidenceScore * 100) }}%
           </v-chip>
         </div>
@@ -100,55 +99,53 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { useForecastStore } from '@/stores/forecast'
+  import { computed, ref } from 'vue'
+  import { useForecastStore } from '@/stores/forecast'
 
-const props = defineProps<{
-  modelValue: boolean
-}>()
+  const props = defineProps<{
+    modelValue: boolean
+  }>()
 
-const emit = defineEmits(['update:modelValue', 'bypass'])
+  const emit = defineEmits(['update:modelValue', 'bypass'])
 
-const store = useForecastStore()
-const input = ref('')
+  const store = useForecastStore()
+  const input = ref('')
 
-const visible = computed({
-  get: () => props.modelValue,
-  set: (val) => emit('update:modelValue', val)
-})
+  const visible = computed({
+    get: () => props.modelValue,
+    set: val => emit('update:modelValue', val),
+  })
 
+  const confidenceScore = computed(() => {
+    return store.ontology?.meta.confidence_score ?? null
+  })
 
+  const confidenceColor = computed(() => {
+    if (confidenceScore.value === null) return 'grey'
+    if (confidenceScore.value >= 0.85) return 'success'
+    if (confidenceScore.value >= 0.6) return 'warning'
+    return 'error'
+  })
 
-const confidenceScore = computed(() => {
-  return store.ontology?.meta.confidence_score ?? null
-})
+  async function submit (val?: string) {
+    const text = (typeof val === 'string' ? val : input.value) || ''
+    if (!text.trim() || store.loading) return
 
-const confidenceColor = computed(() => {
-  if (confidenceScore.value === null) return 'grey'
-  if (confidenceScore.value >= 0.85) return 'success'
-  if (confidenceScore.value >= 0.6) return 'warning'
-  return 'error'
-})
+    await store.analyzeIntent(text)
+    input.value = ''
 
-async function submit(val?: string) {
-  const text = (typeof val === 'string' ? val : input.value) || ''
-  if (!text.trim() || store.loading) return
-
-  await store.analyzeIntent(text)
-  input.value = ''
-  
-  // If confidence is now high enough, we could auto-close, 
+  // If confidence is now high enough, we could auto-close,
   // but let's let the parent handle the visibility based on needsClarification
-}
+  }
 
-function bypass() {
-  emit('bypass')
-}
+  function bypass () {
+    emit('bypass')
+  }
 
-function formatMessage(content: string) {
-  // Simple line break replacement
-  return content.replace(/\n/g, '<br>')
-}
+  function formatMessage (content: string) {
+    // Simple line break replacement
+    return content.replace(/\n/g, '<br>')
+  }
 </script>
 
 <style scoped>

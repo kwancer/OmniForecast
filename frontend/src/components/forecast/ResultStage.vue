@@ -139,10 +139,10 @@
                           <v-card-text class="pt-0">
                             <div class="d-flex align-center mb-2">
                               <v-chip
+                                class="mr-2"
+                                :color="item.isIgnored ? 'grey' : 'info'"
                                 size="x-small"
                                 variant="outlined"
-                                :color="item.isIgnored ? 'grey' : 'info'"
-                                class="mr-2"
                               >
                                 {{ item.strategyLabel }}
                               </v-chip>
@@ -244,7 +244,13 @@
                         </div>
 
                         <v-card class="border layout-card bg-surface" style="border-radius: 12px; overflow-x: auto;" variant="flat">
-                          <v-table v-if="currentData.headers.length > 0" density="compact" fixed-header hover style="background: transparent;">
+                          <v-table
+                            v-if="currentData.headers.length > 0"
+                            density="compact"
+                            fixed-header
+                            hover
+                            style="background: transparent;"
+                          >
                             <thead class="bg-surface-light">
                               <tr>
                                 <th
@@ -381,7 +387,6 @@
                   </v-col>
                 </v-row>
               </div>
-              
 
               <!-- AI Explainability Layer -->
               <div class="insight-card insight-card--secondary mb-5">
@@ -422,7 +427,7 @@
                     <div v-else class="text-body-2" style="white-space: pre-line; line-height: 1.5;">{{ msg.content }}</div>
 
                     <!-- Evidence disclosure -->
-                    <div v-if="msg.evidence && msg.evidence.length" class="mt-2">
+                    <div v-if="msg.evidence && msg.evidence.length > 0" class="mt-2">
                       <v-btn
                         class="text-caption"
                         density="compact"
@@ -443,7 +448,7 @@
                   </div>
                 </div>
 
-                <div v-if="topSuggestions.length" class="mt-3">
+                <div v-if="topSuggestions.length > 0" class="mt-3">
                   <v-chip
                     v-for="(suggestion, i) in topSuggestions"
                     :key="`s-${i}`"
@@ -469,10 +474,10 @@
                   />
                   <v-btn
                     class="chat-send-btn"
-                    :disabled="!question.trim() || store.askingExplainability"
-                    :loading="store.askingExplainability"
                     color="secondary"
+                    :disabled="!question.trim() || store.askingExplainability"
                     icon
+                    :loading="store.askingExplainability"
                     variant="flat"
                     @click="submitQuestion()"
                   >
@@ -495,7 +500,7 @@
                       size="x-small"
                       variant="tonal"
                     >
-                      <v-icon start size="12">{{ store.modelMetadata.supports_covariates ? 'mdi-check' : 'mdi-close' }}</v-icon>
+                      <v-icon size="12" start>{{ store.modelMetadata.supports_covariates ? 'mdi-check' : 'mdi-close' }}</v-icon>
                       {{ store.modelMetadata.supports_covariates ? 'Uses covariates' : 'No covariate support' }}
                     </v-chip>
                     <v-chip
@@ -504,7 +509,7 @@
                       size="x-small"
                       variant="tonal"
                     >
-                      <v-icon start size="12">mdi-hammer-wrench</v-icon>
+                      <v-icon size="12" start>mdi-hammer-wrench</v-icon>
                       Feature Engineering
                       <v-tooltip activator="parent" location="top">
                         <div class="text-caption">
@@ -543,8 +548,8 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
   import { marked } from 'marked'
+  import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import BacktestChart from './BacktestChart.vue'
   import DataHealthCard from './DataHealthCard.vue'
@@ -607,17 +612,9 @@
     return ignored
   })
 
-  const targetColumn = computed(() => {
-    if (store.ontology?.columns) {
-      const target = store.ontology.columns.find(c => c.role === 'target')
-      if (target) return target.column_name.trim()
-    }
-    return null
-  })
-
   // Covariate display data for the results panel
   const selectedModelSupportsCovariates = computed(() =>
-    store.modelMetadata?.supports_covariates === true
+    store.modelMetadata?.supports_covariates === true,
   )
 
   const covariateDisplayData = computed(() => {
@@ -625,18 +622,22 @@
 
     const ignoredSet = new Set<string>(store.ontology.ignored_columns || [])
     // Also mark columns whose role is explicitly 'ignore'
-    store.ontology.columns.forEach(c => {
+    for (const c of store.ontology.columns) {
       if (c.role === 'ignore') ignoredSet.add(c.column_name)
-    })
+    }
 
     // Show all columns that were ever identified as covariates (including ignored)
     const allCovariates = store.ontology.columns.filter(c =>
-      c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name)
+      c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name),
     )
 
     if (allCovariates.length === 0) return []
 
-    const overrides = store.ontology.scenario_overrides || {}
+    const overridesArr = store.ontology.scenario_overrides || []
+    const overrides: Record<string, number | number[] | 'seasonal'> = {}
+    for (const o of overridesArr) {
+      overrides[o.column_name] = o.values
+    }
     const history = store.historyResults
 
     return allCovariates.map(col => {
@@ -649,8 +650,8 @@
         .slice(-5)
         .map(r => r[colName])
         .filter(v => v !== undefined && v !== null)
-      const pastValues = histValues.map((v: number) =>
-        typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v)
+      const pastValues = histValues.map((v: any) =>
+        typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v),
       ).join(', ')
 
       // Strategy label
@@ -667,24 +668,24 @@
 
       // Future values preview
       let futureValues = ''
-      const lastVal = histValues.length > 0 ? histValues[histValues.length - 1] : null
+      const lastVal = histValues.length > 0 ? histValues.at(-1) : null
       if (isIgnored) {
         futureValues = 'Not used by model'
       } else if (override === 'seasonal') {
         futureValues = 'Following seasonal pattern'
       } else if (Array.isArray(override)) {
         futureValues = override.slice(0, 5).map((v: number) =>
-          typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v)
+          typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v),
         ).join(', ') + (override.length > 5 ? ', ...' : '')
       } else if (typeof override === 'number') {
         futureValues = String(Number.isInteger(override) ? override : override.toFixed(3))
-      } else if (lastVal !== null) {
+      } else if (lastVal === null) {
+        futureValues = '—'
+      } else {
         const formatted = typeof lastVal === 'number'
           ? (Number.isInteger(lastVal) ? String(lastVal) : lastVal.toFixed(3))
           : String(lastVal)
         futureValues = `${formatted} (steady)`
-      } else {
-        futureValues = '—'
       }
 
       return {
@@ -700,30 +701,44 @@
   })
 
   const hasActiveCovariates = computed(() =>
-    covariateDisplayData.value.some(c => !c.isIgnored)
+    covariateDisplayData.value.some(c => !c.isIgnored),
   )
 
   function getActionIcon (action: string) {
     switch (action) {
-      case 'normalization': return 'mdi-format-letter-case'
-      case 'type_conversion': return 'mdi-variable'
-      case 'aggregation': return 'mdi-layers-triple'
-      case 'resampling': return 'mdi-calendar-clock'
-      case 'gap_filling': return 'mdi-plus-box'
-      case 'imputation': return 'mdi-eyedropper'
-      case 'column_dropping': return 'mdi-table-column-remove'
-      default: return 'mdi-wrench'
+      case 'normalization': { return 'mdi-format-letter-case'
+      }
+      case 'type_conversion': { return 'mdi-variable'
+      }
+      case 'aggregation': { return 'mdi-layers-triple'
+      }
+      case 'resampling': { return 'mdi-calendar-clock'
+      }
+      case 'gap_filling': { return 'mdi-plus-box'
+      }
+      case 'imputation': { return 'mdi-eyedropper'
+      }
+      case 'column_dropping': { return 'mdi-table-column-remove'
+      }
+      default: { return 'mdi-wrench'
+      }
     }
   }
 
   function getActionColor (action: string) {
     switch (action) {
-      case 'imputation': return 'warning'
-      case 'resampling': return 'info'
-      case 'gap_filling': return 'secondary'
-      case 'type_conversion': return 'primary'
-      case 'column_dropping': return 'grey-darken-1'
-      default: return 'primary'
+      case 'imputation': { return 'warning'
+      }
+      case 'resampling': { return 'info'
+      }
+      case 'gap_filling': { return 'secondary'
+      }
+      case 'type_conversion': { return 'primary'
+      }
+      case 'column_dropping': { return 'grey-darken-1'
+      }
+      default: { return 'primary'
+      }
     }
   }
 
@@ -739,14 +754,6 @@
       }
     }
     return asked
-  })
-
-  const lastMsgEmpty = computed(() => {
-    const msgs = store.explainabilityMessages
-    if (msgs.length === 0) return true
-    const last = msgs[msgs.length - 1]
-    if (!last) return true
-    return last.role === 'assistant' && !last.content
   })
 
   function renderMarkdown (text: string): string {
