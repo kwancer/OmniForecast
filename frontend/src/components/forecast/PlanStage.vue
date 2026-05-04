@@ -10,7 +10,7 @@
         @click="store.setStep('upload')"
       />
       <div class="ml-4">
-        <h2 class="text-h6 font-weight-bold font-header mb-0">Mission Plan</h2>
+        <h2 class="text-h6 font-weight-bold font-header mb-0">Review</h2>
       </div>
       <v-spacer />
 
@@ -41,7 +41,7 @@
         @click="confirmAndProceed"
       >
         Execute Run
-        <v-icon end>mdi-rocket-launch</v-icon>
+        <v-icon end>mdi-chevron-right</v-icon>
       </v-btn>
     </div>
 
@@ -442,9 +442,6 @@
                 </div>
                 <div>
                   <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Snapshot</h3>
-                  <div class="text-caption text-medium-emphasis mt-1">
-                    Preview based on the current ontology. First {{ sampleRows.length }} rows.
-                  </div>
                 </div>
               </div>
               <v-spacer />
@@ -705,9 +702,21 @@
 
   // Initialize covariate states when covariates change
   watch(covariates, newCovs => {
+    // Build a lookup from existing scenario_overrides so we can seed state
+    // correctly on component mount (e.g. navigating back from Results).
+    const overridesArr = store.ontology?.scenario_overrides || []
+    const overrideLookup: Record<string, number | number[] | 'seasonal'> = {}
+    for (const o of overridesArr) {
+      overrideLookup[o.column_name] = o.values
+    }
+
     for (const col of newCovs) {
       if (!covariateStates.value[col.column_name]) {
-        covariateStates.value[col.column_name] = { override: null, isIgnored: false }
+        const existing = overrideLookup[col.column_name]
+        covariateStates.value[col.column_name] = {
+          override: existing !== undefined ? existing : null,
+          isIgnored: false,
+        }
       }
     }
     // Clean up old
@@ -746,6 +755,9 @@
       const state = covariateStates.value[col]
       if (val === null) {
         state.override = null
+        state.isIgnored = false
+      } else if (val === 'seasonal') {
+        state.override = 'seasonal'
         state.isIgnored = false
       } else if (typeof val === 'number') {
         state.override = val

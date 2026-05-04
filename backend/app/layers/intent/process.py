@@ -81,7 +81,11 @@ class GeminiIntentAnalyzer:
           E) 'meta.clarification_questions': If ANY score < 0.85, generate
              1-3 focused questions that, if answered, would resolve the
              lowest-confidence decisions.
+             CRITICAL RULE: Questions MUST ONLY be about how to map the existing columns to the Ontology (e.g., choosing roles like target, group_id, or covariate).
+             NEVER propose data transformations, mathematical conversions (e.g., raw values to growth rates), or time resampling (e.g., hourly to daily). The platform cannot perform these operations.
              Bad question: "Can you tell me more about your data?"
+             Bad question: "Would you like to convert this data into growth rates?"
+             Bad question: "Should we aggregate the hourly data into daily data?"
              Good question: "Should 'Store_ID' be treated as a group key to
              produce per-store forecasts, or ignored?"
 
@@ -112,9 +116,15 @@ class GeminiIntentAnalyzer:
           If Yes -> known_future. If No -> unknown_past.
 
         - SCENARIO OVERRIDES (CRITICAL):
-          The 'scenario_overrides' field MUST only contain numeric values (float or list of floats).
+          The 'scenario_overrides' field MUST only contain numeric values (float or list of floats) OR the exact string "seasonal".
+          - For 'unknown_past' (environmental) covariates, or if the user requests it, you should set the override to "seasonal" so the system projects its historical seasonal pattern.
+          - If you want the system to just hold a covariate steady at its last known value, simply omit it from scenario_overrides.
           - If a covariate is binary (Yes/No), map it to 1.0/0.0.
           - NEVER use strings like "Yes" or "Active" in scenario_overrides.
+
+        - ENGINEERED DATE FEATURES (CRITICAL):
+          If the dataset contains pre-engineered features based on the date/time (e.g., 'day_of_week', 'month', 'year', 'quarter', 'is_weekend', 'hour'), you MUST set their 'role' to 'ignore'.
+          The forecasting models engineer these features automatically, so including them explicitly as covariates will cause errors during the forecast horizon.
 
         Output ONLY the JSON adhering to:
         {json.dumps(schema_desc, indent=2)}
@@ -168,10 +178,14 @@ class GeminiIntentAnalyzer:
 
                     print(f"LOG: Enriched Ontology with Sparsity Ratio: {ratio:.2%}")
 
-        # POPULATE SAMPLE DATA
+        # POPULATE SAMPLE DATA AND HISTORICAL TAIL
         # Convert first 5 rows to a list of dictionaries, handling NaNs
         sample = df.head(5).fillna("").to_dict(orient="records")
         ontology.sample_data = sample
+        
+        # Add up to 100 of the most recent rows so the frontend can compute seasonal patterns during planning
+        tail = df.tail(100).fillna("").to_dict(orient="records")
+        ontology.historical_tail = tail
 
         return ontology
 
@@ -317,6 +331,8 @@ class GeminiIntentAnalyzer:
                         for item in data["scenario_overrides"]:
                             if isinstance(item, dict) and "values" in item:
                                 val = item["values"]
+                                if val == "seasonal":
+                                    continue
                                 if isinstance(val, str):
                                     lower_val = val.lower()
                                     if lower_val in ["yes", "true", "active", "on"]:

@@ -5,7 +5,7 @@
         <div class="fill-height d-flex flex-column">
           <!-- Custom Stepper Header for Mobile/Desktop Stability -->
           <div class="d-flex align-center flex-shrink-0 bg-surface border-b px-4 py-2 overflow-x-auto" style="min-height: 64px; gap: 8px">
-            <template v-for="(step, i) in ['Data Upload', 'Mission Plan', 'Analytic Output']" :key="i">
+            <template v-for="(step, i) in ['Step 1: Upload', 'Step 2: Review', 'Step 3: Forecast']" :key="i">
               <div
                 class="d-flex align-center cursor-pointer hover-lift rounded-pill px-2 py-1"
                 :class="{

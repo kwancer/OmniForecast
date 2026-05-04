@@ -12,17 +12,36 @@
       </div>
 
       <!-- Sample data shortcut in the header when no file is loaded -->
-      <v-btn
-        v-if="!file"
-        class="mr-3 hover-lift"
-        color="secondary"
-        prepend-icon="mdi-auto-fix"
-        size="small"
-        variant="tonal"
-        @click="store.loadSampleData"
-      >
-        Try Sample Data
-      </v-btn>
+      <v-menu v-if="!file" open-on-hover>
+        <template #activator="{ props }">
+          <v-btn
+            v-bind="props"
+            class="mr-3 hover-lift"
+            color="secondary"
+            prepend-icon="mdi-auto-fix"
+            size="small"
+            variant="tonal"
+          >
+            Try with sample data
+            <v-icon end>mdi-chevron-down</v-icon>
+          </v-btn>
+        </template>
+        <v-list class="elevation-3 rounded-lg" max-width="400" min-width="320">
+          <v-list-subheader class="text-uppercase font-weight-bold text-caption">Available Datasets</v-list-subheader>
+          <v-list-item
+            v-for="ds in sampleDatasets"
+            :key="ds.filename"
+            class="mb-1"
+            link
+            @click="store.loadSampleData(ds.filename, ds.goal)"
+          >
+            <v-list-item-title class="font-weight-bold text-body-2">{{ ds.title }}</v-list-item-title>
+            <div class="text-caption mt-1" style="line-height: 1.3; opacity: 0.8;">
+              {{ ds.description }}
+            </div>
+          </v-list-item>
+        </v-list>
+      </v-menu>
 
       <v-btn
         class="ml-2 hover-lift font-weight-bold"
@@ -115,10 +134,31 @@
                     mdi-cloud-upload-outline
                   </v-icon>
                 </div>
-                <div class="mt-4">
+                <div class="mt-4 d-flex align-center justify-center">
                   <span class="text-body-1 font-weight-bold" :class="isDragOver ? 'text-primary' : ''">
                     {{ isDragOver ? 'Drop your file here' : 'Drag & drop your CSV file' }}
                   </span>
+                  <v-tooltip location="top" max-width="300" open-delay="200">
+                    <template #activator="{ props }">
+                      <v-icon
+                        v-bind="props"
+                        class="ml-2 mb-1 opacity-80"
+                        color="medium-emphasis"
+                        size="18"
+                        @click.stop
+                      >
+                        mdi-information-outline
+                      </v-icon>
+                    </template>
+                    <div class="text-caption" style="line-height: 1.5;">
+                      <div class="font-weight-bold mb-1 text-white">CSV Requirements:</div>
+                      <ul class="pl-4 mb-0">
+                        <li>Standard comma-separated values</li>
+                        <li>Vertical layout (rows = time steps, columns = variables)</li>
+                        <li>Requires a date/time column (any date format works)</li>
+                      </ul>
+                    </div>
+                  </v-tooltip>
                 </div>
                 <div class="mt-1 text-caption text-medium-emphasis">
                   or <span class="text-primary font-weight-bold cursor-pointer">browse files</span> — CSV up to 10 MB
@@ -168,18 +208,77 @@
             <!-- Sample Data Link (contextual, only when no file) -->
             <transition name="fade-up">
               <div v-if="!file" class="text-center mt-3 mb-2">
-                <v-btn
-                  class="text-none"
-                  color="secondary"
-                  prepend-icon="mdi-auto-fix"
-                  size="small"
-                  variant="text"
-                  @click="store.loadSampleData"
-                >
-                  Or try with sample sales data
-                </v-btn>
+                <v-menu open-on-hover>
+                  <template #activator="{ props }">
+                    <v-btn
+                      v-bind="props"
+                      class="text-none"
+                      color="secondary"
+                      prepend-icon="mdi-auto-fix"
+                      size="small"
+                      variant="text"
+                    >
+                      Or try with sample data
+                      <v-icon end>mdi-chevron-down</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-list class="elevation-3 rounded-lg" max-width="400" min-width="320">
+                    <v-list-subheader class="text-uppercase font-weight-bold text-caption">Available Datasets</v-list-subheader>
+                    <v-list-item
+                      v-for="ds in sampleDatasets"
+                      :key="ds.filename"
+                      class="mb-1"
+                      link
+                      @click="store.loadSampleData(ds.filename, ds.goal)"
+                    >
+                      <v-list-item-title class="font-weight-bold text-body-2">{{ ds.title }}</v-list-item-title>
+                      <div class="text-caption mt-1" style="line-height: 1.3; opacity: 0.8;">
+                        {{ ds.description }}
+                      </div>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
               </div>
             </transition>
+
+            <!-- DATA PREVIEW -->
+            <v-expand-transition>
+              <div v-if="previewData" class="mt-6">
+                <div class="d-flex align-center mb-2">
+                  <v-icon class="mr-2" color="secondary" size="18">mdi-table-eye</v-icon>
+                  <span class="text-caption font-weight-bold text-uppercase" style="letter-spacing: 1px;">Data Preview</span>
+                  <v-chip class="ml-3" size="x-small" variant="outlined">First {{ previewData.rows.length }} Rows</v-chip>
+                </div>
+
+                <v-card class="preview-card overflow-hidden" variant="outlined">
+                  <v-table density="compact" hover>
+                    <thead class="bg-surface-light">
+                      <tr>
+                        <th
+                          v-for="h in previewData.headers"
+                          :key="h"
+                          class="font-weight-bold font-mono text-no-wrap text-medium-emphasis"
+                          style="background: var(--v-theme-surface-light) !important;"
+                        >
+                          {{ h }}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(row, i) in previewData.rows" :key="i">
+                        <td
+                          v-for="(val, j) in row"
+                          :key="j"
+                          class="text-caption text-no-wrap font-mono text-medium-emphasis"
+                        >
+                          {{ val }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                </v-card>
+              </div>
+            </v-expand-transition>
 
             <!-- ═══ INTENT INPUT ═══ -->
             <div class="intent-input-wrap mt-6">
@@ -209,45 +308,6 @@
               </div>
             </div>
           </div>
-
-          <!-- DATA PREVIEW -->
-          <v-expand-transition>
-            <div v-if="previewData" class="mt-8">
-              <div class="d-flex align-center mb-4">
-                <v-icon class="mr-2" color="secondary" size="20">mdi-table-eye</v-icon>
-                <h3 class="text-subtitle-1 font-weight-bold">Data Preview</h3>
-                <v-chip class="ml-3" size="x-small" variant="outlined">First {{ previewData.rows.length }} Rows</v-chip>
-              </div>
-
-              <v-card class="preview-card overflow-hidden" variant="outlined">
-                <v-table density="compact" hover>
-                  <thead class="bg-surface-light">
-                    <tr>
-                      <th
-                        v-for="h in previewData.headers"
-                        :key="h"
-                        class="font-weight-bold font-mono text-no-wrap text-medium-emphasis"
-                        style="background: var(--v-theme-surface-light) !important;"
-                      >
-                        {{ h }}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="(row, i) in previewData.rows" :key="i">
-                      <td
-                        v-for="(val, j) in row"
-                        :key="j"
-                        class="text-caption text-no-wrap font-mono text-medium-emphasis"
-                      >
-                        {{ val }}
-                      </td>
-                    </tr>
-                  </tbody>
-                </v-table>
-              </v-card>
-            </div>
-          </v-expand-transition>
         </div>
       </v-col>
     </v-row>
@@ -255,11 +315,31 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import IntentProgressView from './IntentProgressView.vue'
 
   const store = useForecastStore()
+
+  interface SampleDataset {
+    filename: string
+    title: string
+    goal: string
+    description: string
+  }
+
+  const sampleDatasets = ref<SampleDataset[]>([])
+
+  onMounted(async () => {
+    try {
+      const response = await fetch('/datasets/samples.json')
+      if (response.ok) {
+        sampleDatasets.value = await response.json()
+      }
+    } catch (error) {
+      console.error('Failed to load sample datasets', error)
+    }
+  })
 
   const file = computed({
     get: () => store.file,

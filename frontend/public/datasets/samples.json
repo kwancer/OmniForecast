@@ -1,0 +1,20 @@
+[
+  {
+    "filename": "AirPassengers.csv",
+    "title": "Airline Passengers",
+    "goal": "Forecast the next 24 months of passenger demand.",
+    "description": "Classic dataset demonstrating how the system handles non-standard time columns and data with a clear trend and seasonality."
+  },
+  {
+    "filename": "h2o_exo.csv",
+    "title": "Exogenous Variables Demo",
+    "goal": "Forecast the target variable 'y' for the next 12 periods using the provided exogenous variables.",
+    "description": "Demonstrates the pipeline's ability to handle exogenous (covariate) data."
+  },
+  {
+    "filename": "poland_gdp_vertical.csv",
+    "title": "Poland GDP",
+    "goal": "Forecast Poland's GDP over the next 10 years.",
+    "description": "Macroeconomic time-series illustrating long-term trend forecasting with yearly data."
+  }
+]

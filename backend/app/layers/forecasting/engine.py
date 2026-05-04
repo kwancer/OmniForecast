@@ -26,12 +26,10 @@ class SmartForecastEngine:
         self.data_health_report: Dict[str, Any] = {}
         self.progress_callback: Optional[Callable[[int, int, str], None]] = None
 
-    def set_progress_callback(
-        self, callback: Callable[[int, int, str], None]
-    ) -> None:
+    def set_progress_callback(self, callback: Callable[[int, int, str], None]) -> None:
         """
         Set a callback function to report tournament progress.
-        
+
         Args:
             callback: Function that takes (current, total, model_name) as arguments
         """
@@ -93,12 +91,13 @@ class SmartForecastEngine:
         target_col = next(c.column_name for c in ontology.columns if c.role == "target")
 
         # Check for covariates in ontology roles or extra numeric columns
-        ontology_covariates = [c.column_name for c in ontology.columns if c.role == "covariate"]
+        ontology_covariates = [
+            c.column_name for c in ontology.columns if c.role == "covariate"
+        ]
         extra_numeric_cols = [
             c
             for c in df.columns
-            if c not in [time_col, target_col]
-            and pd.api.types.is_numeric_dtype(df[c])
+            if c not in [time_col, target_col] and pd.api.types.is_numeric_dtype(df[c])
         ]
 
         if len(ontology_covariates) > 0 or len(extra_numeric_cols) > 0:
@@ -116,8 +115,10 @@ class SmartForecastEngine:
         # would be silently ignored.
         # Naive is ALWAYS kept as a baseline for the Forecast Skill Score (FSS).
         known_future_covariates = [
-            c for c in ontology.columns
-            if c.role == "covariate" and getattr(c, "covariate_type", None) == "known_future"
+            c
+            for c in ontology.columns
+            if c.role == "covariate"
+            and getattr(c, "covariate_type", None) == "known_future"
         ]
         if known_future_covariates:
             before = len(candidates)
@@ -138,17 +139,21 @@ class SmartForecastEngine:
         # 3. Run Tournament
         results = []
         total_models = len(candidates)
-        
-        print(f"[Tournament] Starting with {total_models} models, callback: {self.progress_callback is not None}")
+
+        print(
+            f"[Tournament] Starting with {total_models} models, callback: {self.progress_callback is not None}"
+        )
 
         for idx, model in enumerate(candidates):
             model_name = model.get_metadata().name
-            
+
             # Report progress at start
             if self.progress_callback:
-                print(f"[Tournament] Reporting progress: {idx}/{total_models} - {model_name}")
+                print(
+                    f"[Tournament] Reporting progress: {idx}/{total_models} - {model_name}"
+                )
                 self.progress_callback(idx, total_models, model_name)
-            
+
             try:
                 metrics = model.fit(df, ontology)
                 mae = next((m.value for m in metrics if m.name == "MAE"), float("inf"))
@@ -177,21 +182,23 @@ class SmartForecastEngine:
                 print(
                     f"LOG: {model.get_metadata().name} finished. MAE={mae:.4f}, MSE={mse:.4f}, Score={model.complexity_score}"
                 )
-                
+
                 # Report progress after completion
                 if self.progress_callback:
                     print(f"[Tournament] Model completed: {idx + 1}/{total_models}")
                     self.progress_callback(idx + 1, total_models, f"{model_name} ✓")
-                    
+
             except (ValueError, RuntimeError, TypeError) as e:
                 print(f"LOG: {model.get_metadata().name} failed/crashed: {e}")
-        
+
         # Report completion
         if self.progress_callback:
             self.progress_callback(total_models, total_models, "Tournament Complete")
 
         # 4. Selection Logic (The Rashomon Set)
-        valid_results = [r for r in results if np.isfinite(r["mae"]) and r["mae"] >= 0.0]
+        valid_results = [
+            r for r in results if np.isfinite(r["mae"]) and r["mae"] >= 0.0
+        ]
         if not valid_results:
             raise ValueError("All models failed to fit.")
 
@@ -209,7 +216,9 @@ class SmartForecastEngine:
         # If known_future covariates exist, the Naive baseline must not win —
         # it would silently ignore the user's planned drivers.
         if known_future_covariates and isinstance(winner["model"], NaiveForecaster):
-            covariate_winners = [r for r in rashomon_set if r["model"].supports_covariates]
+            covariate_winners = [
+                r for r in rashomon_set if r["model"].supports_covariates
+            ]
             if covariate_winners:
                 winner = covariate_winners[0]
                 print(
@@ -441,7 +450,9 @@ class SmartForecastEngine:
                 "complexity": model.complexity_score,
                 "status": status,
                 "metrics": [m.model_dump() for m in r["metrics"]],
-                "supports_covariates": r.get("supports_covariates", model.supports_covariates),
+                "supports_covariates": r.get(
+                    "supports_covariates", model.supports_covariates
+                ),
             }
             if rmse_val is not None and np.isfinite(rmse_val):
                 row["rmse"] = round(rmse_val, 4)

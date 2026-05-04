@@ -45,6 +45,7 @@
     TimeScale,
     Title,
     Tooltip,
+    Decimation,
   } from 'chart.js'
   import { computed } from 'vue'
   import { Line } from 'vue-chartjs'
@@ -58,6 +59,7 @@
     Tooltip,
     Legend,
     TimeScale,
+    Decimation,
   )
 
   const props = defineProps<{
@@ -74,6 +76,8 @@
         pointRadius: 3,
         data: props.data.map(p => ({ x: new Date(p.date).getTime(), y: p.actual })),
         tension: 0.1,
+        parsing: false,
+        normalized: true,
       },
       {
         label: 'Prediction',
@@ -84,6 +88,8 @@
         pointRadius: 3,
         data: props.data.map(p => ({ x: new Date(p.date).getTime(), y: p.prediction })),
         tension: 0.1,
+        parsing: false,
+        normalized: true,
       },
     ],
   }))
@@ -96,6 +102,11 @@
       tooltip: {
         mode: 'index' as const,
         intersect: false,
+      },
+      decimation: {
+        enabled: true,
+        algorithm: 'lttb',
+        samples: 200,
       },
     },
     scales: {

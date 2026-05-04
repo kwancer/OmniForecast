@@ -12,9 +12,7 @@
             width="6"
           />
           <h2 class="text-h4 font-header mb-4">Analyzing Data</h2>
-          <p class="text-body-1 text-medium-emphasis mb-6">
-            We are analyzing your dataset to map its ontology to your business intent.
-          </p>
+
 
           <v-card class="w-100 text-left" color="primary" variant="tonal">
             <v-card-text>

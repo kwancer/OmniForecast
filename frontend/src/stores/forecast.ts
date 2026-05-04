@@ -352,28 +352,30 @@ export const useForecastStore = defineStore('forecast', {
       ;(this as any)._progressEventSource = eventSource
     },
 
-    loadSampleData () {
-      const csvContent = `Date,Daily_Sales,Store_Region,Promotional_Active
-2023-01-01,120.5,North,No
-2023-01-02,135.2,North,No
-2023-01-03,110.8,North,Yes
-2023-01-04,145.0,North,No
-2023-01-05,160.2,North,No
-2023-01-06,155.5,North,No
-2023-01-07,140.1,North,No
-2023-01-08,125.4,North,No
-2023-01-09,130.2,North,No
-2023-01-10,142.1,North,Yes`
-
-      const blob = new Blob([csvContent], { type: 'text/csv' })
-      const file = new File([blob], 'sample_sales_data.csv', { type: 'text/csv' })
-
-      this.file = file
-      this.intent = 'Forecast daily sales for the next 7 days, considering the recent promotional activity.'
-      this.setStep('upload')
-
+    async loadSampleData (filename: string, intent: string) {
       const appStore = useAppStore()
-      appStore.notify('Sample sales data loaded successfully.', 'success')
+      this.loading = true
+      
+      try {
+        const response = await fetch(`/datasets/${filename}`)
+        if (!response.ok) {
+          throw new Error(`Failed to load dataset: ${filename}`)
+        }
+        
+        const text = await response.text()
+        const blob = new Blob([text], { type: 'text/csv' })
+        const file = new File([blob], filename, { type: 'text/csv' })
+
+        this.file = file
+        this.intent = intent
+        this.setStep('upload')
+
+        appStore.notify(`Sample data '${filename}' loaded successfully.`, 'success')
+      } catch (error: any) {
+        appStore.notify(error.message || 'Error loading sample data', 'error')
+      } finally {
+        this.loading = false
+      }
     },
 
     reset () {

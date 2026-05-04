@@ -94,7 +94,7 @@
                         icon="mdi-check-circle"
                         variant="tonal"
                       >
-                        The selected model <strong>{{ store.modelMetadata?.name }}</strong> supports covariates and used the values shown below.
+                        The selected model <strong>{{ store.modelMetadata?.name }}</strong> supports covariates and used the <strong>active</strong> factors shown below.
                       </v-alert>
                       <v-alert
                         v-else
@@ -123,7 +123,10 @@
                                 {{ item.isIgnored ? 'mdi-eye-off' : (item.covariate_type === 'known_future' ? 'mdi-pencil-circle' : 'mdi-lock') }}
                               </v-icon>
                             </template>
-                            <v-card-title class="text-subtitle-2 font-weight-bold">
+                            <v-card-title
+                              class="text-subtitle-2 font-weight-bold"
+                              :class="{ 'text-disabled text-decoration-line-through': item.isIgnored }"
+                            >
                               {{ item.display_name }}
                             </v-card-title>
                             <template #append>
@@ -149,12 +152,12 @@
                             </div>
 
                             <div class="value-row">
-                              <span class="text-caption text-medium-emphasis">Past:</span>
-                              <span class="text-caption font-weight-medium ml-1">{{ item.pastValues }}</span>
+                              <span class="text-caption text-medium-emphasis" :class="{ 'text-disabled': item.isIgnored }">Past:</span>
+                              <span class="text-caption font-weight-medium ml-1" :class="{ 'text-disabled': item.isIgnored }">{{ item.pastValues }}</span>
                             </div>
                             <div class="value-row">
-                              <span class="text-caption text-medium-emphasis">Future:</span>
-                              <span class="text-caption font-weight-medium ml-1">{{ item.futureValues }}</span>
+                              <span class="text-caption text-medium-emphasis" :class="{ 'text-disabled': item.isIgnored }">Future:</span>
+                              <span class="text-caption font-weight-medium ml-1" :class="{ 'text-disabled': item.isIgnored }">{{ item.futureValues }}</span>
                             </div>
                           </v-card-text>
                         </v-card>
@@ -626,9 +629,13 @@
       if (c.role === 'ignore') ignoredSet.add(c.column_name)
     }
 
-    // Show all columns that were ever identified as covariates (including ignored)
+    // Show all columns that were identified as covariates (including ignored), 
+    // but exclude the primary time and target columns.
     const allCovariates = store.ontology.columns.filter(c =>
-      c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name),
+      (c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name)) &&
+      c.role !== 'target' &&
+      c.role !== 'time_index' &&
+      c.role !== 'group_id',
     )
 
     if (allCovariates.length === 0) return []
@@ -1273,8 +1280,9 @@
 }
 
 .covariate-card--ignored {
-  opacity: 0.7;
+  opacity: 0.5;
   background: rgba(var(--v-theme-surface), 0.6);
+  filter: grayscale(0.5);
 }
 
 .value-row {

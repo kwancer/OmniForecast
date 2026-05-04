@@ -10,7 +10,7 @@
       <!-- Header -->
       <div class="pa-6 pb-4 bg-primary d-flex align-center">
         <div>
-          <h2 class="text-h5 font-weight-bold text-white mb-0">More information need</h2>
+          <h2 class="text-h5 font-weight-bold text-white mb-0">More information needed</h2>
           <div class="text-caption text-white opacity-80 mt-1">
             We need a few details to generate your forecast
           </div>

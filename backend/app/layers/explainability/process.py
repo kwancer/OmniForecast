@@ -364,8 +364,8 @@ class ForecastExplainabilityService:
             }
 
         if tool_name == "get_forecast_points":
-            n = int(args.get("n", 5)) if str(args.get("n", "")).strip() else 5
-            n = max(1, min(n, 30))
+            n = int(args.get("n", 1000)) if str(args.get("n", "")).strip() else 1000
+            n = max(1, min(n, 1000))
             return ctx.get("series", {}).get("points", [])[:n]
 
         if tool_name == "get_cleaning_summary":
@@ -548,21 +548,21 @@ class ForecastExplainabilityService:
                             f"  • {a.get('column', '?')}: {a.get('description', a.get('action', ''))}"
                         )
 
-        # ── Forecast point samples from tool trace ──
-        for call in tool_trace:
-            tool = call.get("tool", "")
-            output = call.get("output")
-            if tool == "get_forecast_points" and isinstance(output, list) and output:
-                lines.append(f"Sample Forecast Points (first {min(len(output), 5)}):")
-                for pt in output[:5]:
-                    if isinstance(pt, dict):
-                        date = pt.get("date", f"t+{pt.get('index', '?')}")
-                        y = pt.get("y")
-                        lo, hi = pt.get("lower"), pt.get("upper")
-                        s = f"  {date}: {y:.2f}" if y is not None else f"  {date}: N/A"
-                        if lo is not None and hi is not None:
-                            s += f" [{lo:.2f} – {hi:.2f}]"
-                        lines.append(s)
+        # ── Forecast Data Points ──
+        points = ctx.get("series", {}).get("points", [])
+        if points:
+            limit = 1000
+            display_points = points[:limit]
+            lines.append(f"Forecast Data Points (first {len(display_points)}):")
+            for pt in display_points:
+                if isinstance(pt, dict):
+                    date = pt.get("date", f"t+{pt.get('index', '?')}")
+                    y = pt.get("y")
+                    lo, hi = pt.get("lower"), pt.get("upper")
+                    s = f"  {date}: {y:.2f}" if y is not None else f"  {date}: N/A"
+                    if lo is not None and hi is not None:
+                        s += f" [{lo:.2f} – {hi:.2f}]"
+                    lines.append(s)
 
         return "\n".join(lines)
 
@@ -658,7 +658,7 @@ class ForecastExplainabilityService:
             for k in ["forecast", "trend", "shape", "flat", "up", "down", "interval"]
         ):
             calls.append({"tool": "get_forecast_diagnostics", "args": {}})
-            calls.append({"tool": "get_forecast_points", "args": {"n": 8}})
+            calls.append({"tool": "get_forecast_points", "args": {"n": 1000}})
 
         if any(
             k in q

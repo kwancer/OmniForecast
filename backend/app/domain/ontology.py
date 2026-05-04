@@ -114,7 +114,7 @@ class ModelMetadata(BaseModel):
 
 class ScenarioOverride(BaseModel):
     column_name: str
-    values: Union[float, List[float]]
+    values: Union[float, List[float], Literal["seasonal"]]
 
 
 class ForecastPlan(BaseModel):
@@ -150,6 +150,7 @@ class ForecastOntology(BaseModel):
     model_metadata: Optional[ModelMetadata] = None
     session_id: Optional[str] = None
     sample_data: Optional[List[Any]] = None
+    historical_tail: Optional[List[Any]] = None
     scenario_overrides: Optional[List[ScenarioOverride]] = None
     ignored_columns: Optional[List[str]] = None
     target_series_id: Optional[str] = None

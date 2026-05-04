@@ -151,9 +151,10 @@
     TimeScale,
     Title,
     Tooltip,
+    Decimation,
   } from 'chart.js'
   import zoomPlugin from 'chartjs-plugin-zoom'
-  import { computed, ref } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { Line } from 'vue-chartjs'
 
   import { useForecastStore } from '@/stores/forecast'
@@ -169,6 +170,7 @@
     Filler,
     TimeScale,
     zoomPlugin,
+    Decimation,
   )
 
   const store = useForecastStore()
@@ -178,6 +180,42 @@
   // Range Selector State
   const rangeMin = ref<number | null>(null)
   const rangeMax = ref<number | null>(null)
+
+  // Auto-zoom to ensure forecast is at least 10% of visible area
+  watch(
+    () => store.forecastResults,
+    () => {
+      if (!store.historyResults?.length || !store.forecastResults?.length) {
+        rangeMin.value = null
+        rangeMax.value = null
+        isZoomed.value = false
+        return
+      }
+
+      const timeCol = store.timeCol
+      const historyTimes = store.historyResults.map((r: any) => parseDate(r[timeCol])).filter((t: number) => !Number.isNaN(t))
+      const forecastTimes = store.forecastResults.map((r: any) => parseDate(r.date || r.year || r[timeCol])).filter((t: number) => !Number.isNaN(t))
+      
+      if (historyTimes.length === 0 || forecastTimes.length === 0) return
+
+      const minHist = historyTimes[0]
+      const maxHist = historyTimes[historyTimes.length - 1]
+      const minFore = forecastTimes[0]
+      const maxFore = forecastTimes[forecastTimes.length - 1]
+      
+      const forecastDuration = maxFore - minFore
+      const effectiveForecastDuration = forecastDuration > 0 ? forecastDuration : Math.max(0, maxFore - maxHist)
+      const totalDuration = maxFore - minHist
+      
+      if (effectiveForecastDuration > 0 && effectiveForecastDuration < totalDuration * 0.1) {
+        const visibleWindow = effectiveForecastDuration * 10
+        rangeMin.value = Math.max(minHist, maxFore - visibleWindow)
+        rangeMax.value = maxFore
+        isZoomed.value = true
+      }
+    },
+    { immediate: true }
+  )
 
   // Shared Date Parsing Logic
   function parseDate (d: any): number {
@@ -269,8 +307,7 @@
       // Connector point with range info (all range points start from the same history point)
       const connect = (y: number, upper?: number) => ({ x: lastHistoryPoint?.x, y, upper })
 
-      return {
-        datasets: [
+      const datasets = [
           {
             label: 'Historical',
             borderColor: '#9E9E9E',
@@ -343,7 +380,10 @@
             fill: false,
             tension: 0.3,
           },
-        ],
+        ]
+
+      return {
+        datasets: datasets.map(ds => ({ ...ds, parsing: false, normalized: true })),
       }
     } else {
       // Standard View
@@ -399,7 +439,7 @@
         tension: 0.3,
       })
 
-      return { datasets }
+      return { datasets: datasets.map(ds => ({ ...ds, parsing: false, normalized: true })) }
     }
   })
 
@@ -525,6 +565,11 @@
           x: { min: 'original' as const, max: 'original' as const },
           y: { min: 'original' as const, max: 'original' as const },
         },
+      },
+      decimation: {
+        enabled: true,
+        algorithm: 'lttb',
+        samples: 500, // Reduced from thousands to 500 points for clear trajectory
       },
     },
     scales: {

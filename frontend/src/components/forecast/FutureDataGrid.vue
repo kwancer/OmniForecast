@@ -190,9 +190,9 @@
         }
       }
     }
-    const samples = store.ontology?.sample_data
-    if (samples && samples.length > 0) {
-      const lastRow = samples.at(-1)
+    const tail = store.ontology?.historical_tail || store.ontology?.sample_data
+    if (tail && tail.length > 0) {
+      const lastRow = tail.at(-1)
       if (lastRow) {
         const raw = lastRow[timeCol]
         if (raw) {
@@ -271,9 +271,9 @@
         if (v !== undefined) return Number(v) || 0
       }
     }
-    const samples = store.ontology?.sample_data
-    if (samples && samples.length > 0) {
-      const lastRow = samples.at(-1)
+    const tail = store.ontology?.historical_tail || store.ontology?.sample_data
+    if (tail && tail.length > 0) {
+      const lastRow = tail.at(-1)
       if (lastRow) {
         const v = lastRow[colName]
         if (v !== undefined) return Number(v) || 0
@@ -307,9 +307,9 @@
       }
       return series
     }
-    const samples = store.ontology?.sample_data
-    if (samples) {
-      for (const row of samples) {
+    const tail = store.ontology?.historical_tail || store.ontology?.sample_data
+    if (tail) {
+      for (const row of tail) {
         series.push(Number(row[colName]) || 0)
       }
     }
@@ -441,18 +441,20 @@
     if (!store.ontology) return
     const newOverrides: any[] = []
     for (const col of props.columns) {
-      if (col.covariate_type === 'unknown_past') continue
-      const data = gridData.value[col.column_name]
-      if (!data) continue
       const s = strategyFor(col.column_name)
       if (s === 'default') continue
 
-      if (s === 'constant') {
-        newOverrides.push({ column_name: col.column_name, values: data[0] })
-      } else if (s === 'seasonal') {
+      if (s === 'seasonal') {
         newOverrides.push({ column_name: col.column_name, values: 'seasonal' })
       } else {
-        newOverrides.push({ column_name: col.column_name, values: [...data] })
+        const data = gridData.value[col.column_name]
+        if (!data) continue
+        
+        if (s === 'constant') {
+          newOverrides.push({ column_name: col.column_name, values: data[0] })
+        } else {
+          newOverrides.push({ column_name: col.column_name, values: [...data] })
+        }
       }
     }
     store.ontology.scenario_overrides = newOverrides
@@ -571,11 +573,12 @@
     }
 
     // Sync to store
-    store.ontology.scenario_overrides = []
     for (const col of props.columns) {
       if (col.covariate_type === 'unknown_past') continue
       const data = gridData.value[col.column_name]
       if (!data) continue
+      
+      store.ontology.scenario_overrides = store.ontology.scenario_overrides.filter(o => o.column_name !== col.column_name)
       store.ontology.scenario_overrides.push({ column_name: col.column_name, values: [...data] })
     }
     emitOverrides()
