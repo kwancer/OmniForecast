@@ -511,6 +511,7 @@
   import type { CovariateType } from '@/types'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import { formatNumber } from '@/utils/formatters'
   import ClarificationDialog from './ClarificationDialog.vue'
   import DataXRay from './DataXRay.vue'
   import FutureDataGrid from './FutureDataGrid.vue'
@@ -630,10 +631,8 @@
   }
 
   function formatVal (val: any) {
-    if (val === null || val === undefined) return '-'
-    if (typeof val === 'number') return Number.isInteger(val) ? val : val.toFixed(2)
     if (typeof val === 'string' && val.length > 20) return val.slice(0, 17) + '...'
-    return val
+    return formatNumber(val)
   }
 
   // ─── Helpers ───

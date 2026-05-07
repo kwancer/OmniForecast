@@ -49,7 +49,7 @@
             </v-tooltip>
           </td>
           <td class="text-center">
-            <code>{{ res.mae.toFixed(4) }}</code>
+            <code>{{ formatMetric(res.mae, 'MAE') }}</code>
           </td>
           <td class="text-center">
             <code :class="res.status === 'winner' ? 'text-success font-weight-bold' : ''">
@@ -80,6 +80,7 @@
 <script setup lang="ts">
   import type { TournamentResult } from '@/types'
   import { computed } from 'vue'
+  import { formatMetric, formatNumber } from '@/utils/formatters'
 
   const props = defineProps<{
     results: TournamentResult[]
@@ -95,9 +96,7 @@
   })
 
   function formatRmse (val: number | undefined | null) {
-    if (val === undefined || val === null || !Number.isFinite(val)) return 'N/A'
-    // RMSE is in the same units as the data — 2 decimal places is clean
-    return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return formatNumber(val)
   }
 
   function getStatusColor (status: string) {

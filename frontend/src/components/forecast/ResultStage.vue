@@ -554,6 +554,7 @@
   import { marked } from 'marked'
   import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import { formatMetric, formatNumber } from '@/utils/formatters'
   import BacktestChart from './BacktestChart.vue'
   import DataHealthCard from './DataHealthCard.vue'
   import ForecastChart from './ForecastChart.vue'
@@ -586,7 +587,7 @@
       const val = row[h]
       // Try to round excessively long floats for neatness, but handle strings nicely.
       if (typeof val === 'number') {
-        return Number.isInteger(val) ? String(val) : val.toFixed(4)
+        return formatNumber(val, { decimals: 4 })
       }
       return String(val ?? '')
     }))
@@ -629,13 +630,13 @@
       if (c.role === 'ignore') ignoredSet.add(c.column_name)
     }
 
-    // Show all columns that were identified as covariates (including ignored), 
+    // Show all columns that were identified as covariates (including ignored),
     // but exclude the primary time and target columns.
     const allCovariates = store.ontology.columns.filter(c =>
-      (c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name)) &&
-      c.role !== 'target' &&
-      c.role !== 'time_index' &&
-      c.role !== 'group_id',
+      (c.covariate_type != null || c.role === 'covariate' || ignoredSet.has(c.column_name))
+      && c.role !== 'target'
+      && c.role !== 'time_index'
+      && c.role !== 'group_id',
     )
 
     if (allCovariates.length === 0) return []
@@ -657,9 +658,7 @@
         .slice(-5)
         .map(r => r[colName])
         .filter(v => v !== undefined && v !== null)
-      const pastValues = histValues.map((v: any) =>
-        typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v),
-      ).join(', ')
+      const pastValues = histValues.map((v: any) => formatNumber(v, { decimals: 3 })).join(', ')
 
       // Strategy label
       let strategyLabel = 'Hold Steady'
@@ -681,17 +680,13 @@
       } else if (override === 'seasonal') {
         futureValues = 'Following seasonal pattern'
       } else if (Array.isArray(override)) {
-        futureValues = override.slice(0, 5).map((v: number) =>
-          typeof v === 'number' ? (Number.isInteger(v) ? String(v) : v.toFixed(3)) : String(v),
-        ).join(', ') + (override.length > 5 ? ', ...' : '')
+        futureValues = override.slice(0, 5).map((v: number) => formatNumber(v, { decimals: 3 })).join(', ') + (override.length > 5 ? ', ...' : '')
       } else if (typeof override === 'number') {
-        futureValues = String(Number.isInteger(override) ? override : override.toFixed(3))
+        futureValues = formatNumber(override, { decimals: 3 })
       } else if (lastVal === null) {
         futureValues = '—'
       } else {
-        const formatted = typeof lastVal === 'number'
-          ? (Number.isInteger(lastVal) ? String(lastVal) : lastVal.toFixed(3))
-          : String(lastVal)
+        const formatted = formatNumber(lastVal, { decimals: 3 })
         futureValues = `${formatted} (steady)`
       }
 
@@ -856,10 +851,7 @@
   }
 
   function formatValue (val: any) {
-    if (typeof val === 'number') {
-      return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    }
-    return val
+    return formatNumber(val)
   }
 
   // Determine metrics to display based on UI mode
@@ -886,17 +878,7 @@
   }
 
   function formatMetricValue (metric: any) {
-    const val = typeof metric.value === 'number' ? metric.value : 0
-    if (metric.name === 'MAE') {
-      return `±${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-    }
-    if (metric.name === 'MAPE') {
-      return `${val.toFixed(1)}%`
-    }
-    if (metric.name === 'R²') {
-      return `${(val * 100).toFixed(0)}%`
-    }
-    return val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    return formatMetric(metric.value, metric.name)
   }
 </script>
 

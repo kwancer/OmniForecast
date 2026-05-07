@@ -158,6 +158,7 @@
   import { Line } from 'vue-chartjs'
 
   import { useForecastStore } from '@/stores/forecast'
+  import { formatNumber } from '@/utils/formatters'
   import 'chartjs-adapter-date-fns'
 
   ChartJS.register(
@@ -541,9 +542,9 @@
 
             // Show range if upper bound is present in data point
             if (raw && typeof raw === 'object' && raw.upper !== undefined) {
-              return `${label}${y.toLocaleString()} - ${raw.upper.toLocaleString()}`
+              return `${label}${formatNumber(y)} - ${formatNumber(raw.upper)}`
             }
-            return `${label}${y.toLocaleString()}`
+            return `${label}${formatNumber(y)}`
           },
         },
       },

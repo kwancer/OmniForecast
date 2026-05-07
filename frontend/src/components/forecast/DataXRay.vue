@@ -38,7 +38,7 @@
                 rounded
                 style="width: 80px"
               />
-              <span class="font-weight-bold">{{ sparsityPercent.toFixed(1) }}% Zeros</span>
+              <span class="font-weight-bold">{{ formatNumber(sparsityPercent, { decimals: 1 }) }}% Zeros</span>
             </div>
           </v-col>
         </v-row>
@@ -84,6 +84,7 @@
 <script setup lang="ts">
   import type { ColumnRole, ForecastOntology } from '@/types'
   import { computed } from 'vue'
+  import { formatNumber } from '@/utils/formatters'
 
   const props = defineProps<{
     ontology: ForecastOntology

@@ -187,7 +187,7 @@
                         <v-icon size="12">mdi-weight</v-icon> {{ fileStats.sizeLabel }}
                       </span>
                       <span v-if="fileStats?.rowCount" class="file-meta-item">
-                        <v-icon size="12">mdi-table-row</v-icon> {{ fileStats.rowCount.toLocaleString() }} rows
+                        <v-icon size="12">mdi-table-row</v-icon> {{ formatNumber(fileStats.rowCount) }} rows
                       </span>
                       <span v-if="fileStats?.colCount" class="file-meta-item">
                         <v-icon size="12">mdi-table-column</v-icon> {{ fileStats.colCount }} cols
@@ -317,6 +317,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
+  import { formatFileSize, formatNumber } from '@/utils/formatters'
   import IntentProgressView from './IntentProgressView.vue'
 
   const store = useForecastStore()
@@ -417,12 +418,6 @@
   }
 
   const fileStats = ref<FileStats | null>(null)
-
-  function formatFileSize (bytes: number): string {
-    if (bytes < 1024) return bytes + ' B'
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
-  }
 
   // ─── Preview Data ───
   interface PreviewData {

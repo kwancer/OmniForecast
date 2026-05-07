@@ -151,8 +151,8 @@
               rounded
             />
             <div class="text-caption text-medium-emphasis mt-1">
-              FSS: {{ dataHealthReport.score }}/100 — equivalent to R² = {{ (dataHealthReport.score / 100).toFixed(2) }}
-              (MSE reduced from {{ formatMse(dataHealthReport.mse_naive) }} → {{ formatMse(dataHealthReport.mse_winner) }})
+              FSS: {{ dataHealthReport.score }}/100 — equivalent to R² = {{ formatNumber(dataHealthReport.score / 100, { decimals: 2 }) }}
+              (MSE reduced from {{ formatNumber(dataHealthReport.mse_naive) }} → {{ formatNumber(dataHealthReport.mse_winner) }})
             </div>
           </div>
         </div>
@@ -164,6 +164,7 @@
 <script setup lang="ts">
   import type { DataHealthReport } from '@/types'
   import { computed, ref } from 'vue'
+  import { formatNumber } from '@/utils/formatters'
 
   const props = defineProps<{
     dataHealthReport: DataHealthReport | null
@@ -172,12 +173,7 @@
   const showDetails = ref(false)
 
   function formatMse (val: number | undefined | null) {
-    if (val === undefined || val === null || !Number.isFinite(val)) return 'N/A'
-    if (val === 0) return '0'
-    // Use scientific notation for very small values, otherwise adaptive fixed precision
-    if (val < 0.001) return val.toExponential(4)
-    if (val < 1) return val.toFixed(6)
-    return val.toLocaleString(undefined, { maximumFractionDigits: 2 })
+    return formatNumber(val)
   }
 
   const borderColorClass = computed(() => {
