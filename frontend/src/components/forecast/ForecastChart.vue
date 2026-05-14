@@ -21,18 +21,18 @@
         <!-- Action Buttons -->
         <div class="d-flex align-center gap-2">
           <v-btn
+            icon="mdi-content-copy"
+            size="small"
+            title="Copy Image"
+            variant="text"
+            @click="copyImage"
+          />
+          <v-btn
             icon="mdi-camera"
             size="small"
             title="Save as Image"
             variant="text"
             @click="exportImage"
-          />
-          <v-btn
-            icon="mdi-download"
-            size="small"
-            title="Export CSV"
-            variant="text"
-            @click="exportCSV"
           />
           <v-btn
             v-if="isZoomed"
@@ -467,30 +467,18 @@
     }
   }
 
-  function exportCSV () {
-    const data = store.forecastResults
-    if (!data || data.length === 0) return
-
-    const timeCol = store.timeCol
-    const headers = ['Date', 'Median', '80_Lower', '80_Upper', '60_Lower', '60_Upper', '30_Lower', '30_Upper']
-    const rows = data.map((row: any) => [
-      row.date || row.year || row[timeCol],
-      row.median_forecast ?? row.mean,
-      row.conf_80_lower,
-      row.conf_80_upper,
-      row.conf_60_lower,
-      row.conf_60_upper,
-      row.conf_30_lower,
-      row.conf_30_upper,
-    ])
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `forecast_data_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
+  async function copyImage () {
+    const chart = ChartJS.getChart('forecast-chart')
+    if (chart && chart.canvas) {
+      const canvas = chart.canvas as HTMLCanvasElement
+      try {
+        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+        if (!blob) throw new Error('No blob')
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      } catch {
+        console.error('Failed to copy chart image')
+      }
+    }
   }
 
   const suggestedUnit = computed(() => {

@@ -332,11 +332,33 @@
                 <!-- Raw Data -->
                 <v-expansion-panel rounded="lg">
                   <v-expansion-panel-title class="font-weight-bold">
-                    <div class="d-flex align-center">
-                      <div class="panel-icon panel-icon--primary mr-3">
-                        <v-icon color="white" size="16">mdi-table</v-icon>
+                    <div class="d-flex align-center w-100">
+                      <div class="d-flex align-center">
+                        <div class="panel-icon panel-icon--primary mr-3">
+                          <v-icon color="white" size="16">mdi-table</v-icon>
+                        </div>
+                        View Raw Forecast Data
                       </div>
-                      View Raw Forecast Data
+                      <v-spacer />
+                      <v-btn
+                        class="mr-2"
+                        color="primary"
+                        prepend-icon="mdi-content-copy"
+                        size="small"
+                        variant="text"
+                        @click.stop="copyForecastTable"
+                      >
+                        Copy
+                      </v-btn>
+                      <v-btn
+                        color="primary"
+                        prepend-icon="mdi-download"
+                        size="small"
+                        variant="text"
+                        @click.stop="downloadForecastCSV"
+                      >
+                        Download
+                      </v-btn>
                     </div>
                   </v-expansion-panel-title>
                   <v-expansion-panel-text>
@@ -380,6 +402,15 @@
                     <v-icon color="white" size="16">mdi-chart-bar</v-icon>
                   </div>
                   <span class="text-overline font-weight-bold">Reliability Metrics</span>
+                  <v-spacer />
+                  <v-btn
+                    color="primary"
+                    icon="mdi-content-copy"
+                    size="small"
+                    title="Copy metrics"
+                    variant="text"
+                    @click="copyMetrics"
+                  />
                 </div>
                 <v-row class="mt-3" dense>
                   <v-col v-for="metric in displayMetrics" :key="metric.name" cols="6">
@@ -553,6 +584,7 @@
 <script setup lang="ts">
   import { marked } from 'marked'
   import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+  import { useAppStore } from '@/stores/app'
   import { useForecastStore } from '@/stores/forecast'
   import { formatMetric, formatNumber } from '@/utils/formatters'
   import BacktestChart from './BacktestChart.vue'
@@ -686,7 +718,7 @@
       } else if (lastVal === null) {
         futureValues = '—'
       } else {
-        const formatted = formatNumber(lastVal, { decimals: 3 })
+        const formatted = formatNumber(lastVal as number, { decimals: 3 })
         futureValues = `${formatted} (steady)`
       }
 
@@ -879,6 +911,56 @@
 
   function formatMetricValue (metric: any) {
     return formatMetric(metric.value, metric.name)
+  }
+
+  const appStore = useAppStore()
+
+  async function copyForecastTable () {
+    const timeCol = store.timeCol
+    const headers = ['Date', 'Lower (80%)', 'Median', 'Upper (80%)']
+    const rows = store.forecastResults.map((row: any) => [
+      row.date || row.year || row[timeCol],
+      row.conf_80_lower ?? row.lower ?? '',
+      row.median_forecast ?? row.mean ?? row[store.targetCol] ?? '',
+      row.conf_80_upper ?? row.upper ?? '',
+    ])
+    const csv = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n')
+    try {
+      await navigator.clipboard.writeText(csv)
+      appStore.notify('Forecast data copied to clipboard', 'success')
+    } catch {
+      appStore.notify('Failed to copy data', 'error')
+    }
+  }
+
+  function downloadForecastCSV () {
+    const timeCol = store.timeCol
+    const headers = ['Date', 'Lower (80%)', 'Median', 'Upper (80%)']
+    const rows = store.forecastResults.map((row: any) => [
+      row.date || row.year || row[timeCol],
+      row.conf_80_lower ?? row.lower ?? '',
+      row.median_forecast ?? row.mean ?? row[store.targetCol] ?? '',
+      row.conf_80_upper ?? row.upper ?? '',
+    ])
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `forecast_data_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function copyMetrics () {
+    const lines = displayMetrics.value.map(m => `${getMetricLabel(m.name)}: ${formatMetricValue(m)}`)
+    const text = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      appStore.notify('Metrics copied to clipboard', 'success')
+    } catch {
+      appStore.notify('Failed to copy metrics', 'error')
+    }
   }
 </script>
 

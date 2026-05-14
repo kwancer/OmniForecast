@@ -6,9 +6,9 @@
         <v-card class="pa-8" elevation="8">
           <div class="text-center mb-8">
             <v-icon color="primary" size="64">mdi-chart-timeline-variant</v-icon>
-            <h2 class="text-h4 font-header mt-4">Running Forecast</h2>
+            <h2 class="text-h4 font-header mt-4">Running Your Forecast</h2>
             <p class="text-body-1 text-medium-emphasis mt-2">
-              Evaluating models to find the optimal forecast...
+              Testing different approaches to find the most accurate one...
             </p>
           </div>
 
@@ -28,7 +28,7 @@
               striped
             />
             <div class="text-center mt-2 text-caption text-medium-emphasis">
-              {{ current }} of {{ total }} models evaluated
+              {{ current }} of {{ total }} models tested
             </div>
           </div>
 
@@ -86,9 +86,9 @@
   })
 
   const messages = [
-    'Our forecasting pipeline is fully reproducible, unlike famous LLMs which can give different forecasts from the same data.',
-    'We run a frugal tournament across multiple models, selecting the winner based on both accuracy and simplicity using Occam\'s Razor.',
-    'All forecasts include prediction intervals calibrated to your data, helping you understand the uncertainty in predictions.',
+    'Your forecast is fully reproducible — run it again with the same data and you will get the same result.',
+    'We test multiple forecasting methods and pick the one that is both accurate and simple.',
+    'All forecasts include a range of likely outcomes, so you can see how certain or uncertain the predictions are.',
   ]
 
   const currentMessageIndex = ref(0)

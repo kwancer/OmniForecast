@@ -11,7 +11,7 @@
             size="64"
             width="6"
           />
-          <h2 class="text-h4 font-header mb-4">Analyzing Data</h2>
+          <h2 class="text-h4 font-header mb-4">Analyzing Your Data</h2>
 
 
           <v-card class="w-100 text-left" color="primary" variant="tonal">
@@ -36,10 +36,10 @@
   import { onBeforeUnmount, onMounted, ref } from 'vue'
 
   const messages = [
-    'Grabbing summary statistics and parsing the first few rows of your data...',
-    'Constructing a custom ontology schema mapped directly to your raw data...',
-    'Asking a Large Language Model to populate the ontology intelligently, bridging the gap between raw data and business logic...',
-    'Finalising deterministic pathways for a statistically robust forecasting pipeline...',
+    'Reading your data and getting a first look at the numbers...',
+    'Identifying which columns are dates, targets, and supporting factors...',
+    'Understanding your forecast goal and how the columns relate to each other...',
+    'Preparing everything for the forecasting step...',
   ]
 
   const currentMessageIndex = ref(0)

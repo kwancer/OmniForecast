@@ -98,9 +98,9 @@
           variant="tonal"
         >
           <div class="text-body-2">
-            <strong>⚠️ Why is the forecast conservative?</strong>
+            <strong>Why is the forecast flat?</strong>
             <br>
-            This score measures how much predictable structure exists in your data compared to a baseline. A score of 0 indicates the data is functionally random or highly chaotic to standard models, resulting in a baseline forecast.
+            A low score means your data does not have a clear, repeatable pattern that the models can latch onto. This often happens with very volatile or sparse data. The forecast falls back to a simple average, which is the safest guess when patterns are unclear.
           </div>
         </v-alert>
 
@@ -114,29 +114,27 @@
             class="mt-3"
           >
             <div class="d-flex align-center gap-1 mb-2">
-              <span class="text-caption text-medium-emphasis">Out-of-Sample MSE Comparison</span>
+              <span class="text-caption text-medium-emphasis">How the score is calculated</span>
               <v-tooltip location="top" max-width="320">
                 <template #activator="{ props: tip }">
                   <v-icon v-bind="tip" class="text-medium-emphasis" size="14">mdi-information-outline</v-icon>
                 </template>
                 <span>
-                  MSE (Mean Squared Error) is used here — not RMSE — because the FSS formula
-                  <strong>FSS = 1 - MSE_winner / MSE_naive</strong> is algebraically identical
-                  to the out-of-sample R² statistic. Squaring errors before dividing ensures
-                  the ratio is scale-invariant and mathematically consistent with R².
+                  The score compares the winning model's accuracy against a simple "flat line" baseline.
+                  A score of 100 means the model predicts perfectly; 0 means it did no better than the baseline.
                 </span>
               </v-tooltip>
             </div>
             <div class="d-flex gap-3">
               <v-card class="flex-1 pa-3" color="surface" variant="outlined">
-                <div class="text-caption text-medium-emphasis">Naive Baseline MSE</div>
+                <div class="text-caption text-medium-emphasis">Simple Baseline Error</div>
                 <div class="text-h6 font-weight-bold font-mono text-error">
                   {{ formatMse(dataHealthReport.mse_naive) }}
                 </div>
-                <div class="text-caption text-medium-emphasis mt-1">Flat-line forecast</div>
+                <div class="text-caption text-medium-emphasis mt-1">Guessing the average every time</div>
               </v-card>
               <v-card class="flex-1 pa-3" color="surface" variant="outlined">
-                <div class="text-caption text-medium-emphasis">Winner MSE</div>
+                <div class="text-caption text-medium-emphasis">Winner Model Error</div>
                 <div class="text-h6 font-weight-bold font-mono text-success">
                   {{ formatMse(dataHealthReport.mse_winner) }}
                 </div>
@@ -151,8 +149,9 @@
               rounded
             />
             <div class="text-caption text-medium-emphasis mt-1">
-              FSS: {{ dataHealthReport.score }}/100 — equivalent to R² = {{ formatNumber(dataHealthReport.score / 100, { decimals: 2 }) }}
-              (MSE reduced from {{ formatNumber(dataHealthReport.mse_naive) }} → {{ formatNumber(dataHealthReport.mse_winner) }})
+              The winner reduced the prediction error by
+              <strong>{{ formatNumber(dataHealthReport.score, { suffix: '%' }) }}</strong>
+              compared with simply guessing the historical average.
             </div>
           </div>
         </div>

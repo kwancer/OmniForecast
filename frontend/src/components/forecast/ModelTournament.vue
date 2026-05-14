@@ -53,7 +53,7 @@
           </td>
           <td class="text-center">
             <code :class="res.status === 'winner' ? 'text-success font-weight-bold' : ''">
-              {{ formatRmse(res.rmse) }}
+              {{ formatRmse(res.rmse, res.mse, res.metrics) }}
             </code>
           </td>
           <td class="text-right">
@@ -72,7 +72,7 @@
 
     <div class="mt-4 text-caption text-grey-darken-1">
       <v-icon class="mr-1" size="small">mdi-information-outline</v-icon>
-      The tournament uses a <strong>Rashomon Set</strong> approach: all models within 5% of the lowest error are considered, then the one with <strong>lowest complexity</strong> wins (Occam's Razor). The <strong>RMSE</strong> of the winning model vs. the Naive baseline determines the <strong>Forecast Skill Score (FSS)</strong> — the lower the winner's RMSE relative to Naive, the higher the score.
+      We test several forecasting methods and shortlist those within 5% of the best accuracy. From that shortlist, we pick the <strong>simplest</strong> method that still performs well. The <strong>Forecast Skill Score</strong> shows how much better the winner is than a basic "flat line" guess.
     </div>
   </v-card>
 </template>
@@ -95,8 +95,20 @@
     })
   })
 
-  function formatRmse (val: number | undefined | null) {
-    return formatNumber(val)
+  function formatRmse (val: number | undefined | null, mse?: number | undefined | null, metrics?: { name: string, value: number }[]) {
+    if (val !== undefined && val !== null && Number.isFinite(val)) {
+      return formatNumber(val)
+    }
+    // Compute RMSE from MSE if direct RMSE is not available
+    if (mse !== undefined && mse !== null && Number.isFinite(mse) && mse >= 0) {
+      return formatNumber(Math.sqrt(mse))
+    }
+    // Fallback: look for RMSE in the metrics array
+    const rmseMetric = metrics?.find(m => m.name === 'RMSE')
+    if (rmseMetric !== undefined && Number.isFinite(rmseMetric.value)) {
+      return formatNumber(rmseMetric.value)
+    }
+    return '—'
   }
 
   function getStatusColor (status: string) {

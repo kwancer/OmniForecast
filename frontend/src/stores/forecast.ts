@@ -106,7 +106,7 @@ export const useForecastStore = defineStore('forecast', {
         }
 
         this.step = 'plan'
-        appStore.notify('Signal analysis complete.', 'success')
+        appStore.notify('Data analysis complete.', 'success')
       } catch (error: any) {
         appStore.notify(error.message || 'Analysis failed', 'error')
       } finally {
@@ -165,7 +165,7 @@ export const useForecastStore = defineStore('forecast', {
         // Hide progress and move directly to results
         this.showProgress = false
         this.step = 'results'
-        appStore.notify('Modelling sequence complete.', 'success')
+        appStore.notify('Forecast complete.', 'success')
       } catch (error: any) {
         this.showProgress = false
         appStore.notify(error.message || 'Forecast failed', 'error')

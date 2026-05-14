@@ -80,7 +80,7 @@
             variant="text"
             @click="bypass"
           >
-            I'll edit the ontology manually
+            I'll adjust the column setup myself
           </v-btn>
 
           <v-chip

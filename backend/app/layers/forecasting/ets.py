@@ -135,13 +135,14 @@ class ETSForecaster(InternalForecaster):
             start=self.last_date, periods=horizon + 1, freq=self.freq
         )[1:]
 
-        # Simulation-based confidence intervals (as requested)
+        # Simulation-based confidence intervals
         try:
             # Generate simulation paths
             simulations = self.fit_result.simulate(
                 nsimulations=horizon,
                 anchor="end",
                 repetitions=1000,
+                random_state=42,
             )
             # simulations shape: (horizon, 1000)
 

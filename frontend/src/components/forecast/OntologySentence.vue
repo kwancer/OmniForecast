@@ -43,11 +43,12 @@
         <span class="font-weight-medium px-1" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
           {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }}
         </span>
-        <span class="text-medium-emphasis">, and my main objective is to </span>
-        <span class="font-weight-medium px-1" :class="'text-' + getRiskColor(modelValue.risk_preference)">
-          {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }}
-        </span>
         <span class="text-medium-emphasis">.</span>
+
+        <template v-if="covariateSentence">
+          <span class="d-block mt-4" />
+          <span class="text-medium-emphasis">{{ covariateSentence }}</span>
+        </template>
       </div>
 
       <!-- EDITING MODE -->
@@ -128,32 +129,6 @@
           </v-list>
         </v-menu>
 
-        <span class="text-medium-emphasis">, and my main objective is to </span>
-
-        <v-menu>
-          <template #activator="{ props }">
-            <span v-bind="props" class="font-weight-medium variable-text px-1 editable-item" :class="'text-' + getRiskColor(modelValue.risk_preference)">
-              {{ getRiskLabel(modelValue.risk_preference).toLowerCase() }} <v-icon size="16">mdi-chevron-down</v-icon>
-            </span>
-          </template>
-          <v-list density="compact">
-            <v-list-item
-              subtitle="Average prediction"
-              title="Achieve a balanced forecast"
-              @click="updateRiskPreference('balanced')"
-            />
-            <v-list-item
-              subtitle="Upper bound (Safety Stock)"
-              title="Minimize the risk of stockouts"
-              @click="updateRiskPreference('under_penalty')"
-            />
-            <v-list-item
-              subtitle="Lower bound (Conservative)"
-              title="Minimize the risk of waste"
-              @click="updateRiskPreference('over_penalty')"
-            />
-          </v-list>
-        </v-menu>
         <span class="text-medium-emphasis">.</span>
       </div>
     </template>
@@ -236,27 +211,6 @@
             @update:model-value="(v) => updateConstraint(v)"
           />
         </v-col>
-
-        <!-- Objective -->
-        <v-col class="py-2 mt-sm-2" cols="12" md="8" sm="6">
-          <div class="text-caption text-medium-emphasis mb-1">Main Objective</div>
-          <div v-if="!isEditing" class="text-body-1 font-weight-bold" :class="'text-' + getRiskColor(modelValue.risk_preference)">
-            {{ getRiskLabel(modelValue.risk_preference) }}
-          </div>
-          <v-select
-            v-else
-            v-model="localModelValue.risk_preference"
-            density="compact"
-            hide-details
-            :items="[
-              { title: 'Balanced Plan (Average prediction)', value: 'balanced' },
-              { title: 'Minimize Stockouts (Safety Stock)', value: 'under_penalty' },
-              { title: 'Minimize Waste (Conservative)', value: 'over_penalty' }
-            ]"
-            variant="outlined"
-            @update:model-value="(v) => updateRiskPreference(v)"
-          />
-        </v-col>
       </v-row>
     </template>
 
@@ -284,6 +238,9 @@
     allColumns: string[]
     horizonConfidenceScore?: number
     horizonConfidenceRationale?: string
+    plannedCovariates?: string[]
+    externalCovariates?: string[]
+    staticCovariates?: string[]
   }>()
 
   const emit = defineEmits(['update:modelValue'])
@@ -294,6 +251,35 @@
 
   const horizonConfidence = computed(() => sentenceProps.horizonConfidenceScore ?? 1)
   const horizonRationale = computed(() => sentenceProps.horizonConfidenceRationale ?? '')
+
+  const covariateSentence = computed(() => {
+    const planned = sentenceProps.plannedCovariates || []
+    const external = sentenceProps.externalCovariates || []
+    const staticCols = sentenceProps.staticCovariates || []
+
+    const parts: string[] = []
+
+    if (planned.length > 0) {
+      const names = planned.join(', ')
+      parts.push(`The model will use ${planned.length === 1 ? 'one planned driver' : `${planned.length} planned drivers`} (${names}) that you can control or set in advance.`)
+    }
+
+    if (external.length > 0) {
+      const names = external.join(', ')
+      parts.push(`It will also factor in ${external.length === 1 ? 'one external factor' : `${external.length} external factors`} (${names}) that are outside your control.`)
+    }
+
+    if (staticCols.length > 0) {
+      const names = staticCols.join(', ')
+      parts.push(`${staticCols.length === 1 ? 'One fixed property' : `${staticCols.length} fixed properties`} (${names}) will be included as background context.`)
+    }
+
+    if (parts.length === 0) {
+      return 'The forecast will rely on the target\'s historical pattern.'
+    }
+
+    return parts.join(' ')
+  })
 
   watch(() => sentenceProps.modelValue.horizon, val => localHorizon.value = val)
   watch(() => sentenceProps.modelValue, val => {

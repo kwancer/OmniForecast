@@ -100,107 +100,174 @@
           <!-- ═══ MAIN INPUT AREA ═══ -->
           <div class="input-area">
 
-            <!-- ═══ DRAG & DROP ZONE ═══ -->
-            <div
-              class="dropzone"
-              :class="{
-                'dropzone--active': isDragOver,
-                'dropzone--has-file': !!file,
-              }"
-              @click="triggerFileInput"
-              @dragenter.prevent="onDragEnter"
-              @dragleave.prevent="onDragLeave"
-              @dragover.prevent
-              @drop.prevent="onDrop"
-            >
-              <!-- Hidden native file input -->
-              <input
-                ref="fileInputRef"
-                accept=".csv"
-                style="display: none"
-                type="file"
-                @change="onFileInputChange"
-              >
-
-              <!-- Empty state -->
-              <div v-if="!file" class="dropzone__empty">
-                <div class="dropzone__icon-wrap">
-                  <v-icon
-                    class="dropzone__icon"
-                    :class="{ 'dropzone__icon--pulse': isDragOver }"
-                    :color="isDragOver ? 'primary' : 'medium-emphasis'"
-                    size="48"
+            <!-- ═══ UPLOAD / PASTE ROW ═══ -->
+            <div class="d-flex flex-wrap upload-paste-row">
+              <!-- CSV Upload -->
+              <div v-if="!pasteActive" class="upload-col">
+                <div
+                  class="dropzone"
+                  :class="{
+                    'dropzone--active': isDragOver,
+                    'dropzone--has-file': !!file,
+                  }"
+                  @click="triggerFileInput"
+                  @dragenter.prevent="onDragEnter"
+                  @dragleave.prevent="onDragLeave"
+                  @dragover.prevent
+                  @drop.prevent="onDrop"
+                >
+                  <!-- Hidden native file input -->
+                  <input
+                    ref="fileInputRef"
+                    accept=".csv"
+                    style="display: none"
+                    type="file"
+                    @change="onFileInputChange"
                   >
-                    mdi-cloud-upload-outline
-                  </v-icon>
-                </div>
-                <div class="mt-4 d-flex align-center justify-center">
-                  <span class="text-body-1 font-weight-bold" :class="isDragOver ? 'text-primary' : ''">
-                    {{ isDragOver ? 'Drop your file here' : 'Drag & drop your CSV file' }}
-                  </span>
-                  <v-tooltip location="top" max-width="300" open-delay="200">
-                    <template #activator="{ props }">
+
+                  <!-- Empty state -->
+                  <div v-if="!file" class="dropzone__empty">
+                    <div class="dropzone__icon-wrap">
                       <v-icon
-                        v-bind="props"
-                        class="ml-2 mb-1 opacity-80"
-                        color="medium-emphasis"
-                        size="18"
-                        @click.stop
+                        class="dropzone__icon"
+                        :class="{ 'dropzone__icon--pulse': isDragOver }"
+                        :color="isDragOver ? 'primary' : 'medium-emphasis'"
+                        size="48"
                       >
-                        mdi-information-outline
+                        mdi-cloud-upload-outline
                       </v-icon>
-                    </template>
-                    <div class="text-caption" style="line-height: 1.5;">
-                      <div class="font-weight-bold mb-1 text-white">CSV Requirements:</div>
-                      <ul class="pl-4 mb-0">
-                        <li>Standard comma-separated values</li>
-                        <li>Vertical layout (rows = time steps, columns = variables)</li>
-                        <li>Requires a date/time column (any date format works)</li>
-                      </ul>
                     </div>
-                  </v-tooltip>
-                </div>
-                <div class="mt-1 text-caption text-medium-emphasis">
-                  or <span class="text-primary font-weight-bold cursor-pointer">browse files</span> — CSV up to 10 MB
+                    <div class="mt-4 d-flex align-center justify-center">
+                      <span class="text-body-1 font-weight-bold" :class="isDragOver ? 'text-primary' : ''">
+                        {{ isDragOver ? 'Drop your file here' : 'Drag & drop your CSV file' }}
+                      </span>
+                      <v-tooltip location="top" max-width="300" open-delay="200">
+                        <template #activator="{ props }">
+                          <v-icon
+                            v-bind="props"
+                            class="ml-2 mb-1 opacity-80"
+                            color="medium-emphasis"
+                            size="18"
+                            @click.stop
+                          >
+                            mdi-information-outline
+                          </v-icon>
+                        </template>
+                        <div class="text-caption" style="line-height: 1.5;">
+                          <div class="font-weight-bold mb-1 text-white">CSV Requirements:</div>
+                          <ul class="pl-4 mb-0">
+                            <li>Standard comma-separated values</li>
+                            <li>Vertical layout (rows = time steps, columns = variables)</li>
+                            <li>Requires a date/time column (any date format works)</li>
+                          </ul>
+                        </div>
+                      </v-tooltip>
+                    </div>
+                    <div class="mt-1 text-caption text-medium-emphasis">
+                      or <span class="text-primary font-weight-bold cursor-pointer">browse files</span> — CSV up to 10 MB
+                    </div>
+                  </div>
+
+                  <!-- File loaded state -->
+                  <div v-else class="dropzone__loaded">
+                    <div class="d-flex align-center">
+                      <div class="file-icon-wrap mr-4">
+                        <v-icon color="primary" size="28">mdi-file-delimited-outline</v-icon>
+                      </div>
+                      <div class="flex-grow-1">
+                        <div class="d-flex align-center mb-1">
+                          <span class="text-body-2 font-weight-bold text-truncate" style="max-width: 300px;">{{ fileStats?.name }}</span>
+                          <v-chip
+                            class="ml-2"
+                            color="success"
+                            prepend-icon="mdi-check-circle"
+                            size="x-small"
+                            variant="tonal"
+                          >Loaded</v-chip>
+                        </div>
+                        <div class="d-flex align-center flex-wrap file-meta-row">
+                          <span v-if="fileStats?.sizeLabel" class="file-meta-item">
+                            <v-icon size="12">mdi-weight</v-icon> {{ fileStats.sizeLabel }}
+                          </span>
+                          <span v-if="fileStats?.rowCount" class="file-meta-item">
+                            <v-icon size="12">mdi-table-row</v-icon> {{ formatNumber(fileStats.rowCount) }} rows
+                          </span>
+                          <span v-if="fileStats?.colCount" class="file-meta-item">
+                            <v-icon size="12">mdi-table-column</v-icon> {{ fileStats.colCount }} cols
+                          </span>
+                        </div>
+                      </div>
+                      <v-btn
+                        color="error"
+                        icon="mdi-close"
+                        size="small"
+                        variant="text"
+                        @click.stop="clearFile"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <!-- File loaded state -->
-              <div v-else class="dropzone__loaded">
-                <div class="d-flex align-center">
-                  <div class="file-icon-wrap mr-4">
-                    <v-icon color="primary" size="28">mdi-file-delimited-outline</v-icon>
-                  </div>
-                  <div class="flex-grow-1">
-                    <div class="d-flex align-center mb-1">
-                      <span class="text-body-2 font-weight-bold text-truncate" style="max-width: 300px;">{{ fileStats?.name }}</span>
-                      <v-chip
-                        class="ml-2"
-                        color="success"
-                        prepend-icon="mdi-check-circle"
-                        size="x-small"
-                        variant="tonal"
-                      >Loaded</v-chip>
+              <!-- Excel Paste -->
+              <div v-if="!file || pasteActive" class="paste-col">
+                <div
+                  class="paste-zone"
+                  :class="{ 'paste-zone--active': pasteActive }"
+                >
+                  <div v-if="!pasteActive" class="paste-zone__empty">
+                    <div class="paste-zone__icon-wrap">
+                      <v-icon color="medium-emphasis" size="36">mdi-table-arrow-right</v-icon>
                     </div>
-                    <div class="d-flex align-center flex-wrap file-meta-row">
-                      <span v-if="fileStats?.sizeLabel" class="file-meta-item">
-                        <v-icon size="12">mdi-weight</v-icon> {{ fileStats.sizeLabel }}
-                      </span>
-                      <span v-if="fileStats?.rowCount" class="file-meta-item">
-                        <v-icon size="12">mdi-table-row</v-icon> {{ formatNumber(fileStats.rowCount) }} rows
-                      </span>
-                      <span v-if="fileStats?.colCount" class="file-meta-item">
-                        <v-icon size="12">mdi-table-column</v-icon> {{ fileStats.colCount }} cols
-                      </span>
+                    <div class="mt-3 text-body-1 font-weight-bold text-medium-emphasis">
+                      Or paste straight from Excel
+                    </div>
+                    <div class="mt-1 text-caption text-medium-emphasis">
+                      Copy cells in Excel and paste here
+                    </div>
+                    <textarea
+                      ref="pasteTextareaRef"
+                      v-model="pasteText"
+                      class="paste-textarea mt-3"
+                      placeholder="Paste your copied Excel cells here..."
+                      rows="4"
+                      @paste="onExcelPaste"
+                    />
+                  </div>
+                  <div v-else class="paste-zone__loaded">
+                    <div class="d-flex align-center">
+                      <div class="file-icon-wrap mr-4">
+                        <v-icon color="success" size="28">mdi-table-check</v-icon>
+                      </div>
+                      <div class="flex-grow-1">
+                        <div class="d-flex align-center mb-1">
+                          <span class="text-body-2 font-weight-bold">Pasted from Excel</span>
+                          <v-chip
+                            class="ml-2"
+                            color="success"
+                            prepend-icon="mdi-check-circle"
+                            size="x-small"
+                            variant="tonal"
+                          >Loaded</v-chip>
+                        </div>
+                        <div class="d-flex align-center flex-wrap file-meta-row">
+                          <span v-if="fileStats?.rowCount" class="file-meta-item">
+                            <v-icon size="12">mdi-table-row</v-icon> {{ formatNumber(fileStats.rowCount) }} rows
+                          </span>
+                          <span v-if="fileStats?.colCount" class="file-meta-item">
+                            <v-icon size="12">mdi-table-column</v-icon> {{ fileStats.colCount }} cols
+                          </span>
+                        </div>
+                      </div>
+                      <v-btn
+                        color="error"
+                        icon="mdi-close"
+                        size="small"
+                        variant="text"
+                        @click.stop="clearPaste"
+                      />
                     </div>
                   </div>
-                  <v-btn
-                    color="error"
-                    icon="mdi-close"
-                    size="small"
-                    variant="text"
-                    @click.stop="clearFile"
-                  />
                 </div>
               </div>
             </div>
@@ -307,6 +374,22 @@
                 </div>
               </div>
             </div>
+
+            <!-- Second Continue Button -->
+            <div class="mt-6 d-flex justify-end">
+              <v-btn
+                class="hover-lift font-weight-bold"
+                color="primary"
+                :disabled="!file || !intent"
+                elevation="0"
+                :loading="store.loading"
+                variant="flat"
+                @click="store.analyzeIntent()"
+              >
+                Continue
+                <v-icon end>mdi-chevron-right</v-icon>
+              </v-btn>
+            </div>
           </div>
         </div>
       </v-col>
@@ -378,6 +461,8 @@
   function onFileInputChange (e: Event) {
     const target = e.target as HTMLInputElement
     if (target.files && target.files[0]) {
+      pasteActive.value = false
+      pasteText.value = ''
       file.value = target.files[0]
     }
   }
@@ -400,13 +485,87 @@
     dragCounter = 0
     const droppedFile = e.dataTransfer?.files?.[0]
     if (droppedFile && droppedFile.name.endsWith('.csv')) {
+      pasteActive.value = false
+      pasteText.value = ''
       file.value = droppedFile
     }
   }
 
   function clearFile () {
     file.value = null
+    pasteActive.value = false
+    pasteText.value = ''
     if (fileInputRef.value) fileInputRef.value.value = ''
+  }
+
+  // ─── Excel Paste ───
+  const pasteText = ref('')
+  const pasteActive = ref(false)
+  const pasteTextareaRef = ref<HTMLTextAreaElement | null>(null)
+
+  function onExcelPaste (_e: ClipboardEvent) {
+    // Let the paste complete, then process
+    setTimeout(() => {
+      processPastedText(pasteText.value)
+    }, 0)
+  }
+
+  function processPastedText (text: string) {
+    const trimmed = text.trim()
+    if (!trimmed) {
+      pasteActive.value = false
+      return
+    }
+    const parsed = parsePastedData(trimmed)
+    if (!parsed || parsed.rows.length === 0) {
+      pasteActive.value = false
+      return
+    }
+    const csvText = convertToCsv(parsed.headers, parsed.rows)
+    const blob = new Blob([csvText], { type: 'text/csv' })
+    const newFile = new File([blob], 'pasted_data.csv', { type: 'text/csv' })
+    pasteActive.value = true
+    file.value = newFile
+  }
+
+  function clearPaste () {
+    pasteActive.value = false
+    pasteText.value = ''
+    file.value = null
+    previewData.value = null
+    fileStats.value = null
+  }
+
+  function parsePastedData (text: string): { headers: string[], rows: string[][] } | null {
+    const lines = text.split(/\r?\n/).filter(l => l.trim().length > 0)
+    if (lines.length === 0) return null
+
+    // Detect delimiter: tab is most common for Excel, but fallback to comma
+    const hasTab = lines.some(l => l.includes('\t'))
+    const delimiter = hasTab ? '\t' : ','
+
+    const firstLine = lines[0]!
+    const headers = firstLine.split(delimiter).map(h => h.trim())
+    const rows = lines.slice(1).map(line => {
+      const cells = line.split(delimiter).map(c => c.trim())
+      return cells
+    })
+
+    return { headers, rows }
+  }
+
+  function convertToCsv (headers: string[], rows: string[][]): string {
+    const escape = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`
+      }
+      return val
+    }
+    const csvLines = [
+      headers.map(escape).join(','),
+      ...rows.map(row => row.map(escape).join(',')),
+    ]
+    return csvLines.join('\n')
   }
 
   // ─── File Stats ───
@@ -593,6 +752,87 @@
 @keyframes icon-pulse {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-4px); }
+}
+
+/* ─── Upload / Paste Row ─── */
+.upload-paste-row {
+  gap: 16px;
+  align-items: stretch;
+}
+
+.upload-col,
+.paste-col {
+  flex: 1 1 0;
+  min-width: 280px;
+  display: flex;
+}
+
+.upload-col .dropzone,
+.paste-col .paste-zone {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Paste Zone ─── */
+.paste-zone {
+  position: relative;
+  border: 2px dashed rgba(var(--v-theme-secondary), 0.2);
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  background: rgba(var(--v-theme-secondary), 0.02);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.paste-zone:hover {
+  border-color: rgba(var(--v-theme-secondary), 0.4);
+  background: rgba(var(--v-theme-secondary), 0.04);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(var(--v-theme-secondary), 0.08);
+}
+
+.paste-zone--active {
+  border-style: solid;
+  border-color: rgba(var(--v-theme-success), 0.3);
+  background: rgba(var(--v-theme-success), 0.03);
+}
+
+.paste-zone__icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-secondary), 0.08);
+}
+
+.paste-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid rgba(var(--v-theme-secondary), 0.2);
+  border-radius: 10px;
+  outline: none;
+  resize: none;
+  font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: rgb(var(--v-theme-on-surface));
+  background: rgba(var(--v-theme-surface), 0.8);
+}
+
+.paste-textarea:focus {
+  border-color: rgb(var(--v-theme-secondary));
+  box-shadow: 0 0 0 2px rgba(var(--v-theme-secondary), 0.1);
+}
+
+.paste-textarea::placeholder {
+  color: rgba(var(--v-theme-on-surface), 0.35);
+  font-style: italic;
 }
 
 /* ─── File Loaded State ─── */

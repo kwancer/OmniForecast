@@ -48,261 +48,8 @@
     <!-- ═══════════════ MAIN TWO-PANEL BODY ═══════════════ -->
     <v-row class="flex-grow-1 ma-0 w-100 bg-background panel-row">
 
-      <!-- ─────── LEFT PANEL: Column Ontology Pipeline ─────── -->
-      <v-col class="panel-col overflow-y-auto border-r bg-surface" cols="12" md="4" style="border-right-width: 1px !important;">
-        <div class="pa-4">
-          <div class="section-header mb-4">
-            <div class="section-header__icon section-header__icon--secondary">
-              <v-icon color="white" size="18">mdi-sitemap-outline</v-icon>
-            </div>
-            <div>
-              <h3 class="text-subtitle-1 font-weight-bold mb-0">Column Roles</h3>
-            </div>
-          </div>
-
-          <!-- TIMELINE of columns -->
-          <v-timeline
-            align="start"
-            density="compact"
-            side="end"
-            truncate-line="both"
-          >
-            <!-- Time Index Column -->
-            <v-timeline-item
-              v-if="timeColumn"
-              dot-color="secondary"
-              fill-dot
-              size="x-small"
-            >
-              <template #icon>
-                <v-icon color="white" size="10">mdi-clock</v-icon>
-              </template>
-              <div
-                class="column-card pa-3 rounded-lg mb-1 hover-lift"
-                :class="{ 'column-card--active': editingColumn === timeColumn.column_name }"
-                @click="toggleColumnEdit(timeColumn.column_name)"
-              >
-                <div class="d-flex align-center justify-space-between mb-1">
-                  <div class="d-flex align-center">
-                    <span class="font-weight-bold text-subtitle-2">{{ timeColumn.display_name || timeColumn.column_name }}</span>
-                    <v-tooltip v-if="(timeColumn.confidence_score || 1) < 0.9" location="top">
-                      <template #activator="{ props }">
-                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
-                      </template>
-                      <span>Low confidence ({{ Math.round(timeColumn.confidence_score! * 100) }}%): {{ timeColumn.confidence_rationale }}</span>
-                    </v-tooltip>
-                  </div>
-                  <v-chip color="secondary" size="x-small" variant="flat">TIMELINE</v-chip>
-                </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ timeColumn.data_type }} · {{ timeColumn.date_format || 'auto-detected' }}
-                </div>
-
-                <!-- Inline editor -->
-                <v-expand-transition>
-                  <div v-if="editingColumn === timeColumn.column_name" class="mt-3" @click.stop>
-                    <v-select
-                      v-model="sentenceState!.time_col"
-                      class="text-caption"
-                      density="compact"
-                      hide-details
-                      :items="allColumns"
-                      label="Time column"
-                      variant="outlined"
-                    />
-                  </div>
-                </v-expand-transition>
-              </div>
-            </v-timeline-item>
-
-            <!-- Target Column -->
-            <v-timeline-item
-              v-if="targetColumn"
-              dot-color="primary"
-              fill-dot
-              size="x-small"
-            >
-              <template #icon>
-                <v-icon color="white" size="10">mdi-target</v-icon>
-              </template>
-              <div
-                class="column-card column-card--target pa-3 rounded-lg mb-1 hover-lift"
-                :class="{ 'column-card--active': editingColumn === targetColumn.column_name }"
-                @click="toggleColumnEdit(targetColumn.column_name)"
-              >
-                <div class="d-flex align-center justify-space-between mb-1">
-                  <div class="d-flex align-center">
-                    <span class="font-weight-bold text-subtitle-2 text-primary">{{ targetColumn.display_name || targetColumn.column_name }}</span>
-                    <v-tooltip v-if="(targetColumn.confidence_score || 1) < 0.9" location="top">
-                      <template #activator="{ props }">
-                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
-                      </template>
-                      <span>Low confidence ({{ Math.round(targetColumn.confidence_score! * 100) }}%): {{ targetColumn.confidence_rationale }}</span>
-                    </v-tooltip>
-                  </div>
-                  <v-chip color="primary" size="x-small" variant="flat">TARGET</v-chip>
-                </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ targetColumn.data_type }} · {{ targetColumn.constraints?.min_value !== null && targetColumn.constraints?.min_value !== undefined ? 'positive only' : '± values' }}
-                </div>
-                <v-expand-transition>
-                  <div v-if="editingColumn === targetColumn.column_name" class="mt-3" @click.stop>
-                    <v-select
-                      v-model="sentenceState!.target_col"
-                      class="text-caption"
-                      density="compact"
-                      hide-details
-                      :items="allColumns"
-                      label="Target column"
-                      variant="outlined"
-                    />
-                  </div>
-                </v-expand-transition>
-              </div>
-            </v-timeline-item>
-
-            <!-- Group ID Column (if present) -->
-            <v-timeline-item
-              v-for="grp in groupColumns"
-              :key="grp.column_name"
-              dot-color="warning"
-              fill-dot
-              size="x-small"
-            >
-              <template #icon>
-                <v-icon color="white" size="10">mdi-group</v-icon>
-              </template>
-              <div class="column-card pa-3 rounded-lg mb-1 hover-lift">
-                <div class="d-flex align-center justify-space-between mb-1">
-                  <span class="font-weight-bold text-subtitle-2">{{ grp.display_name || grp.column_name }}</span>
-                  <v-chip color="warning" size="x-small" variant="flat">GROUP</v-chip>
-                </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ grp.data_type }} · series identifier
-                </div>
-              </div>
-            </v-timeline-item>
-
-            <!-- Feature / Covariate Columns -->
-            <v-timeline-item
-              v-for="feat in featureColumns"
-              :key="feat.column_name"
-              :dot-color="getCovariateColor(feat.covariate_type)"
-              fill-dot
-              size="x-small"
-            >
-              <template #icon>
-                <v-icon color="white" size="10">{{ getCovariateIcon(feat.covariate_type) }}</v-icon>
-              </template>
-              <div
-                class="column-card pa-3 rounded-lg mb-1 hover-lift"
-                :class="{
-                  'column-card--ignored': isColumnIgnored(feat.column_name),
-                  'column-card--active': editingColumn === feat.column_name,
-                }"
-                @click="toggleColumnEdit(feat.column_name)"
-              >
-                <div class="d-flex align-center justify-space-between mb-1">
-                  <div class="d-flex align-center">
-                    <span class="font-weight-bold text-subtitle-2" :class="{ 'text-disabled text-decoration-line-through': isColumnIgnored(feat.column_name) }">
-                      {{ feat.display_name || feat.column_name }}
-                    </span>
-                    <v-tooltip v-if="(feat.confidence_score || 1) < 0.9" location="top">
-                      <template #activator="{ props }">
-                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
-                      </template>
-                      <span>Low confidence ({{ Math.round(feat.confidence_score! * 100) }}%): {{ feat.confidence_rationale }}</span>
-                    </v-tooltip>
-                  </div>
-                  <v-chip
-                    :color="getCovariateColor(feat.covariate_type)"
-                    size="x-small"
-                    :variant="isColumnIgnored(feat.column_name) ? 'outlined' : 'flat'"
-                  >
-                    {{ formatCovariateType(feat.covariate_type) }}
-                  </v-chip>
-                </div>
-                <div class="text-caption text-medium-emphasis" :class="{ 'text-disabled': isColumnIgnored(feat.column_name) }">
-                  {{ feat.data_type }}
-                </div>
-
-                <!-- Inline controls -->
-                <v-expand-transition>
-                  <div v-if="editingColumn === feat.column_name" class="mt-3" @click.stop>
-                    <!-- Ignore toggle -->
-                    <div class="d-flex align-center justify-space-between mb-2">
-                      <span class="text-caption font-weight-medium">Include in model</span>
-                      <v-switch
-                        v-model="covState(feat.column_name).isIgnored"
-                        color="primary"
-                        density="compact"
-                        hide-details
-                        :label="covState(feat.column_name).isIgnored ? 'Ignored' : 'Active'"
-                        @update:model-value="v => toggleColumnIgnore(feat.column_name, v as boolean)"
-                      />
-                    </div>
-
-                    <!-- Planned / External toggle (only when active) -->
-                    <div v-if="!covState(feat.column_name).isIgnored" class="d-flex align-center justify-space-between">
-                      <span class="text-caption font-weight-medium">Control</span>
-                      <v-switch
-                        color="success"
-                        density="compact"
-                        hide-details
-                        :label="feat.covariate_type === 'known_future' ? 'I can control' : 'I cannot control'"
-                        :model-value="feat.covariate_type === 'known_future'"
-                        @update:model-value="v => changeCovariateType(feat.column_name, v ? 'known_future' : 'unknown_past')"
-                      />
-                    </div>
-                  </div>
-                </v-expand-transition>
-              </div>
-            </v-timeline-item>
-
-            <!-- Ignored Columns -->
-            <v-timeline-item
-              v-for="ign in ignoredColumns"
-              :key="ign.column_name"
-              dot-color="grey"
-              size="x-small"
-            >
-              <div
-                class="column-card column-card--ignored pa-3 rounded-lg mb-1"
-                :class="{ 'column-card--active': editingColumn === ign.column_name }"
-                @click="toggleColumnEdit(ign.column_name)"
-              >
-                <div class="d-flex align-center justify-space-between mb-1">
-                  <span class="text-subtitle-2 text-disabled text-decoration-line-through">{{ ign.display_name || ign.column_name }}</span>
-                  <v-chip color="grey" size="x-small" variant="outlined">IGNORED</v-chip>
-                </div>
-                <div class="text-caption text-disabled">
-                  {{ ign.data_type }} · excluded from model
-                </div>
-
-                <!-- Inline controls -->
-                <v-expand-transition>
-                  <div v-if="editingColumn === ign.column_name" class="mt-3" @click.stop>
-                    <div class="d-flex align-center justify-space-between">
-                      <span class="text-caption font-weight-medium">Include in model</span>
-                      <v-switch
-                        v-model="covState(ign.column_name).isIgnored"
-                        color="primary"
-                        density="compact"
-                        hide-details
-                        :label="covState(ign.column_name).isIgnored ? 'Ignored' : 'Active'"
-                        @update:model-value="v => toggleColumnIgnore(ign.column_name, v as boolean)"
-                      />
-                    </div>
-                  </div>
-                </v-expand-transition>
-              </div>
-            </v-timeline-item>
-          </v-timeline>
-        </div>
-      </v-col>
-
-      <!-- ─────── RIGHT PANEL: Intent + Scenarios + Table + DataXRay ─────── -->
-      <v-col class="panel-col overflow-y-auto d-flex flex-column" cols="12" md="8">
+      <!-- ─────── LEFT PANEL: Intent + Scenarios + Table + DataXRay ─────── -->
+      <v-col class="panel-col overflow-y-auto d-flex flex-column order-first" cols="12" md="8">
         <div class="pa-4 pa-md-6 d-flex flex-column">
 
           <!-- SECTION 1: Forecast Intent (Natural Language) -->
@@ -355,8 +102,11 @@
               v-if="sentenceState"
               v-model="sentenceState"
               :all-columns="allColumns"
+              :external-covariates="externalCovariateNames"
               :horizon-confidence-rationale="store.ontology?.requirements.horizon_requirement.confidence_rationale"
               :horizon-confidence-score="store.ontology?.requirements.horizon_requirement.confidence_score"
+              :planned-covariates="plannedCovariateNames"
+              :static-covariates="staticCovariateNames"
             />
           </div>
 
@@ -498,6 +248,281 @@
 
         </div>
       </v-col>
+
+      <!-- ─────── RIGHT PANEL: Column Ontology Pipeline ─────── -->
+      <v-col class="panel-col overflow-y-auto border-l bg-surface order-last" cols="12" md="4" style="border-left-width: 1px !important;">
+        <div class="pa-4">
+          <div class="section-header mb-4">
+            <div class="section-header__icon section-header__icon--secondary">
+              <v-icon color="white" size="18">mdi-sitemap-outline</v-icon>
+            </div>
+            <div>
+              <h3 class="text-subtitle-1 font-weight-bold mb-0">Column Roles</h3>
+            </div>
+          </div>
+
+          <!-- TIMELINE of columns -->
+          <v-timeline
+            align="start"
+            density="compact"
+            side="end"
+            truncate-line="both"
+          >
+            <!-- Time Index Column -->
+            <v-timeline-item
+              v-if="timeColumn"
+              dot-color="secondary"
+              fill-dot
+              size="x-small"
+            >
+              <template #icon>
+                <v-icon color="white" size="10">mdi-clock</v-icon>
+              </template>
+              <div
+                class="column-card pa-3 rounded-lg mb-1 hover-lift"
+                :class="{ 'column-card--active': editingColumn === timeColumn.column_name }"
+                @click="toggleColumnEdit(timeColumn.column_name)"
+              >
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2">{{ timeColumn.display_name || timeColumn.column_name }}</span>
+                    <v-tooltip v-if="(timeColumn.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(timeColumn.confidence_score! * 100) }}%): {{ timeColumn.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
+                  <v-tooltip location="top">
+                    <template #activator="{ props: tip }">
+                      <span v-bind="tip">
+                        <v-chip color="secondary" size="x-small" variant="flat">TIMELINE</v-chip>
+                      </span>
+                    </template>
+                    <span>The date or time column that defines the sequence</span>
+                  </v-tooltip>
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ timeColumn.data_type }} · {{ timeColumn.date_format || 'auto-detected' }}
+                </div>
+
+                <!-- Inline editor -->
+                <v-expand-transition>
+                  <div v-if="editingColumn === timeColumn.column_name" class="mt-3" @click.stop>
+                    <v-select
+                      v-model="sentenceState!.time_col"
+                      class="text-caption"
+                      density="compact"
+                      hide-details
+                      :items="allColumns"
+                      label="Time column"
+                      variant="outlined"
+                    />
+                  </div>
+                </v-expand-transition>
+              </div>
+            </v-timeline-item>
+
+            <!-- Target Column -->
+            <v-timeline-item
+              v-if="targetColumn"
+              dot-color="primary"
+              fill-dot
+              size="x-small"
+            >
+              <template #icon>
+                <v-icon color="white" size="10">mdi-target</v-icon>
+              </template>
+              <div
+                class="column-card column-card--target pa-3 rounded-lg mb-1 hover-lift"
+                :class="{ 'column-card--active': editingColumn === targetColumn.column_name }"
+                @click="toggleColumnEdit(targetColumn.column_name)"
+              >
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2 text-primary">{{ targetColumn.display_name || targetColumn.column_name }}</span>
+                    <v-tooltip v-if="(targetColumn.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(targetColumn.confidence_score! * 100) }}%): {{ targetColumn.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
+                  <v-tooltip location="top">
+                    <template #activator="{ props: tip }">
+                      <span v-bind="tip">
+                        <v-chip color="primary" size="x-small" variant="flat">TARGET</v-chip>
+                      </span>
+                    </template>
+                    <span>The value you want to forecast</span>
+                  </v-tooltip>
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ targetColumn.data_type }} · {{ targetColumn.constraints?.min_value !== null && targetColumn.constraints?.min_value !== undefined ? 'positive only' : '± values' }}
+                </div>
+                <v-expand-transition>
+                  <div v-if="editingColumn === targetColumn.column_name" class="mt-3" @click.stop>
+                    <v-select
+                      v-model="sentenceState!.target_col"
+                      class="text-caption"
+                      density="compact"
+                      hide-details
+                      :items="allColumns"
+                      label="Target column"
+                      variant="outlined"
+                    />
+                  </div>
+                </v-expand-transition>
+              </div>
+            </v-timeline-item>
+
+            <!-- Group ID Column (if present) -->
+            <v-timeline-item
+              v-for="grp in groupColumns"
+              :key="grp.column_name"
+              dot-color="warning"
+              fill-dot
+              size="x-small"
+            >
+              <template #icon>
+                <v-icon color="white" size="10">mdi-group</v-icon>
+              </template>
+              <div class="column-card pa-3 rounded-lg mb-1 hover-lift">
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <span class="font-weight-bold text-subtitle-2">{{ grp.display_name || grp.column_name }}</span>
+                  <v-chip color="warning" size="x-small" variant="flat">GROUP</v-chip>
+                </div>
+                <div class="text-caption text-medium-emphasis">
+                  {{ grp.data_type }} · series identifier
+                </div>
+              </div>
+            </v-timeline-item>
+
+            <!-- Feature / Covariate Columns -->
+            <v-timeline-item
+              v-for="feat in featureColumns"
+              :key="feat.column_name"
+              :dot-color="getCovariateColor(feat.covariate_type)"
+              fill-dot
+              size="x-small"
+            >
+              <template #icon>
+                <v-icon color="white" size="10">{{ getCovariateIcon(feat.covariate_type) }}</v-icon>
+              </template>
+              <div
+                class="column-card pa-3 rounded-lg mb-1 hover-lift"
+                :class="{
+                  'column-card--ignored': isColumnIgnored(feat.column_name),
+                  'column-card--active': editingColumn === feat.column_name,
+                }"
+                @click="toggleColumnEdit(feat.column_name)"
+              >
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <div class="d-flex align-center">
+                    <span class="font-weight-bold text-subtitle-2" :class="{ 'text-disabled text-decoration-line-through': isColumnIgnored(feat.column_name) }">
+                      {{ feat.display_name || feat.column_name }}
+                    </span>
+                    <v-tooltip v-if="(feat.confidence_score || 1) < 0.9" location="top">
+                      <template #activator="{ props }">
+                        <v-icon v-bind="props" class="ml-1" color="warning" size="14">mdi-alert-circle-outline</v-icon>
+                      </template>
+                      <span>Low confidence ({{ Math.round(feat.confidence_score! * 100) }}%): {{ feat.confidence_rationale }}</span>
+                    </v-tooltip>
+                  </div>
+                  <v-tooltip location="top">
+                    <template #activator="{ props: tip }">
+                      <span v-bind="tip">
+                        <v-chip
+                          :color="getCovariateColor(feat.covariate_type)"
+                          size="x-small"
+                          :variant="isColumnIgnored(feat.column_name) ? 'outlined' : 'flat'"
+                        >
+                          {{ formatCovariateType(feat.covariate_type) }}
+                        </v-chip>
+                      </span>
+                    </template>
+                    <span>{{ getCovariateTooltip(feat.covariate_type) }}</span>
+                  </v-tooltip>
+                </div>
+                <div class="text-caption text-medium-emphasis" :class="{ 'text-disabled': isColumnIgnored(feat.column_name) }">
+                  {{ feat.data_type }}
+                </div>
+
+                <!-- Inline controls -->
+                <v-expand-transition>
+                  <div v-if="editingColumn === feat.column_name" class="mt-3" @click.stop>
+                    <!-- Ignore toggle -->
+                    <div class="d-flex align-center justify-space-between mb-2">
+                      <span class="text-caption font-weight-medium">Include in model</span>
+                      <v-switch
+                        :model-value="!covState(feat.column_name).isIgnored"
+                        color="primary"
+                        density="compact"
+                        hide-details
+                        :label="covState(feat.column_name).isIgnored ? 'Excluded' : 'Included'"
+                        @update:model-value="v => toggleColumnIgnore(feat.column_name, !v)"
+                      />
+                    </div>
+
+                    <!-- Planned / External toggle (only when active) -->
+                    <div v-if="!covState(feat.column_name).isIgnored" class="d-flex align-center justify-space-between">
+                      <span class="text-caption font-weight-medium">Control</span>
+                      <v-switch
+                        color="success"
+                        density="compact"
+                        hide-details
+                        :label="feat.covariate_type === 'known_future' ? 'I can control' : 'I cannot control'"
+                        :model-value="feat.covariate_type === 'known_future'"
+                        @update:model-value="v => changeCovariateType(feat.column_name, v ? 'known_future' : 'unknown_past')"
+                      />
+                    </div>
+                  </div>
+                </v-expand-transition>
+              </div>
+            </v-timeline-item>
+
+            <!-- Ignored Columns -->
+            <v-timeline-item
+              v-for="ign in ignoredColumns"
+              :key="ign.column_name"
+              dot-color="grey"
+              size="x-small"
+            >
+              <div
+                class="column-card column-card--ignored pa-3 rounded-lg mb-1"
+                :class="{ 'column-card--active': editingColumn === ign.column_name }"
+                @click="toggleColumnEdit(ign.column_name)"
+              >
+                <div class="d-flex align-center justify-space-between mb-1">
+                  <span class="text-subtitle-2 text-disabled text-decoration-line-through">{{ ign.display_name || ign.column_name }}</span>
+                  <v-chip color="grey" size="x-small" variant="outlined">IGNORED</v-chip>
+                </div>
+                <div class="text-caption text-disabled">
+                  {{ ign.data_type }} · excluded from model
+                </div>
+
+                <!-- Inline controls -->
+                <v-expand-transition>
+                  <div v-if="editingColumn === ign.column_name" class="mt-3" @click.stop>
+                    <div class="d-flex align-center justify-space-between">
+                      <span class="text-caption font-weight-medium">Include in model</span>
+                      <v-switch
+                        :model-value="!covState(ign.column_name).isIgnored"
+                        color="primary"
+                        density="compact"
+                        hide-details
+                        :label="covState(ign.column_name).isIgnored ? 'Excluded' : 'Included'"
+                        @update:model-value="v => toggleColumnIgnore(ign.column_name, !v)"
+                      />
+                    </div>
+                  </div>
+                </v-expand-transition>
+              </div>
+            </v-timeline-item>
+          </v-timeline>
+        </div>
+      </v-col>
+
     </v-row>
     <ClarificationDialog
       v-model="showClarification"
@@ -584,6 +609,16 @@
     return covariates.value.filter(c => c.role === 'covariate' && !covariateStates.value[c.column_name]?.isIgnored)
   })
 
+  const plannedCovariateNames = computed(() =>
+    plannedCovariates.value.map(c => c.display_name || c.column_name),
+  )
+  const externalCovariateNames = computed(() =>
+    externalCovariates.value.map(c => c.display_name || c.column_name),
+  )
+  const staticCovariateNames = computed(() =>
+    staticCovariates.value.map(c => c.display_name || c.column_name),
+  )
+
   // ─── Stats for header ───
   const totalColumns = computed(() => store.ontology?.columns.length || 0)
   const totalFeatures = computed(() => featureColumns.value.length + staticCovariates.value.length)
@@ -631,7 +666,11 @@
   }
 
   function formatVal (val: any) {
-    if (typeof val === 'string' && val.length > 20) return val.slice(0, 17) + '...'
+    if (val === undefined || val === null) return '—'
+    if (typeof val === 'string') {
+      if (val.length > 20) return val.slice(0, 17) + '...'
+      return val
+    }
     return formatNumber(val)
   }
 
@@ -699,6 +738,19 @@
     }
   }
 
+  function getCovariateTooltip (type?: CovariateType): string {
+    switch (type) {
+      case 'known_future': { return 'You can control or plan this factor (e.g., marketing spend, price)'
+      }
+      case 'unknown_past': { return 'You cannot control this factor (e.g., weather, market index)'
+      }
+      case 'static': { return 'A fixed property that does not change over time'
+      }
+      default: { return ''
+      }
+    }
+  }
+
   // Initialize covariate states when covariates change
   watch(covariates, newCovs => {
     // Build a lookup from existing scenario_overrides so we can seed state
@@ -714,7 +766,7 @@
         const existing = overrideLookup[col.column_name]
         covariateStates.value[col.column_name] = {
           override: existing !== undefined ? existing : null,
-          isIgnored: false,
+          isIgnored: col.role === 'ignore',
         }
       }
     }
