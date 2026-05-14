@@ -123,7 +123,7 @@
               <div
                 v-else
                 class="spreadsheet-input insufficient-cell"
-                title="Not enough history to compute seasonal pattern — values will be estimated from available data"
+                title="Not enough history to detect a repeating pattern — values will be estimated from available data"
               >
                 —
               </div>
@@ -164,14 +164,14 @@
 
   const plannedStrategies = [
     { value: 'default' as const, title: 'Hold Steady', subtitle: 'Repeat last known value' },
-    { value: 'seasonal' as const, title: 'Use Seasonal Pattern', subtitle: 'Same period last year' },
+    { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
     { value: 'constant' as const, title: 'Set Fixed', subtitle: 'One value for all steps' },
     { value: 'custom' as const, title: 'Custom Series', subtitle: 'Edit each step' },
   ]
 
   const externalStrategies = [
     { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
-    { value: 'seasonal' as const, title: 'Use Seasonal Pattern', subtitle: 'Same period last year' },
+    { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
   ]
 
   // ─── Date helpers ───
@@ -365,7 +365,7 @@
       }
       case 'custom': { return 'Custom Series'
       }
-      case 'seasonal': { return 'Seasonal'
+      case 'seasonal': { return 'Last Period'
       }
     }
   }

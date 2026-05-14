@@ -158,7 +158,7 @@
     }
     return [
       { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
-      { value: 'seasonal' as const, title: 'Use Seasonal Pattern', subtitle: 'Same period last year' },
+      { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
     ]
   })
 

@@ -112,50 +112,7 @@
 
           <!-- Clarification Hub is now a Dialog managed by showClarification -->
 
-          <!-- SECTION 2: Scenario Overrides -->
-          <div v-if="plannedCovariates.length > 0 || externalCovariates.length > 0" class="section-card mb-6">
-            <div class="section-header mb-4">
-              <div class="section-header__icon section-header__icon--secondary">
-                <v-icon color="white" size="18">mdi-tune-variant</v-icon>
-              </div>
-              <div>
-                <h3 class="text-subtitle-1 font-weight-bold mb-0">Scenario Configuration</h3>
-                <div class="text-caption text-medium-emphasis mt-1">
-                  Define how planned and external factors behave in the forecast window.
-                </div>
-              </div>
-            </div>
-
-            <!-- Strategy summary chips -->
-            <div v-if="activeCovariates.length > 0" class="mb-4">
-              <div class="d-flex flex-wrap" style="gap: 6px;">
-                <v-chip
-                  v-for="col in activeCovariates"
-                  :key="col.column_name"
-                  :color="col.covariate_type === 'known_future' ? 'success' : 'info'"
-                  density="comfortable"
-                  size="small"
-                  variant="tonal"
-                >
-                  <v-icon size="14" start>
-                    {{ col.covariate_type === 'known_future' ? 'mdi-account-cog-outline' : 'mdi-weather-partly-cloudy' }}
-                  </v-icon>
-                  {{ col.display_name || col.column_name }}
-                  <span class="ml-1 text-caption font-weight-bold">{{ getStrategyLabel(col.column_name) }}</span>
-                </v-chip>
-              </div>
-            </div>
-
-            <!-- Future Data Grid -->
-            <FutureDataGrid
-              v-if="activeCovariates.length > 0"
-              :columns="activeCovariates"
-              :frequency="sentenceState?.frequency || 'month'"
-              :horizon="sentenceState?.horizon || 12"
-            />
-          </div>
-
-          <!-- SECTION 3: Static Attributes -->
+          <!-- SECTION 2: Static Attributes -->
           <div v-if="staticCovariates.length > 0" class="section-card mb-6">
             <div class="section-header mb-4">
               <div class="section-header__icon" style="background: rgba(var(--v-theme-on-surface), 0.12);">
@@ -183,7 +140,7 @@
             </div>
           </div>
 
-          <!-- SECTION 4: Dataset Snapshot -->
+          <!-- SECTION 3: Dataset Preview (Historical + Future) -->
           <div class="section-card mb-6">
             <div class="d-flex align-center mb-4">
               <div class="section-header">
@@ -191,7 +148,10 @@
                   <v-icon color="white" size="18">mdi-table-large</v-icon>
                 </div>
                 <div>
-                  <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Snapshot</h3>
+                  <h3 class="text-subtitle-1 font-weight-bold ma-0">Dataset Preview</h3>
+                  <div class="text-caption text-medium-emphasis mt-1">
+                    Historical data used by the model.
+                  </div>
                 </div>
               </div>
               <v-spacer />
@@ -239,6 +199,50 @@
                 <div class="text-caption mt-2">The data preview will appear once the backend provides sample rows.</div>
               </div>
             </v-card>
+
+            <!-- Future Covariate Assumptions -->
+            <template v-if="activeCovariates.length > 0">
+              <v-divider class="my-4" />
+              <div class="d-flex align-center mb-3">
+                <div class="section-header">
+                  <div class="section-header__icon section-header__icon--secondary">
+                    <v-icon color="white" size="18">mdi-tune-variant</v-icon>
+                  </div>
+                  <div>
+                    <h3 class="text-subtitle-1 font-weight-bold ma-0">Future Assumptions</h3>
+                    <div class="text-caption text-medium-emphasis mt-1">
+                      How planned and external factors are assumed to behave in the forecast window.
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Strategy summary chips -->
+              <div class="mb-4">
+                <div class="d-flex flex-wrap" style="gap: 6px;">
+                  <v-chip
+                    v-for="col in activeCovariates"
+                    :key="col.column_name"
+                    :color="col.covariate_type === 'known_future' ? 'success' : 'info'"
+                    density="comfortable"
+                    size="small"
+                    variant="tonal"
+                  >
+                    <v-icon size="14" start>
+                      {{ col.covariate_type === 'known_future' ? 'mdi-account-cog-outline' : 'mdi-weather-partly-cloudy' }}
+                    </v-icon>
+                    {{ col.display_name || col.column_name }}
+                    <span class="ml-1 text-caption font-weight-bold">{{ getStrategyLabel(col.column_name) }}</span>
+                  </v-chip>
+                </div>
+              </div>
+
+              <FutureDataGrid
+                :columns="activeCovariates"
+                :frequency="sentenceState?.frequency || 'month'"
+                :horizon="sentenceState?.horizon || 12"
+              />
+            </template>
           </div>
 
           <!-- SECTION 5: Advanced Data Inspection -->
@@ -885,7 +889,7 @@
   function getStrategyLabel (colName: string): string {
     const item = store.ontology?.scenario_overrides?.find(o => o.column_name === colName)
     const override = item?.values
-    if (override === 'seasonal') return '→ Seasonal'
+    if (override === 'seasonal') return '→ Last Period'
     if (Array.isArray(override)) return '→ Custom'
     if (typeof override === 'number') return '→ Fixed'
     return '→ Steady'

@@ -526,7 +526,7 @@
                   <div class="panel-icon panel-icon--primary mr-3">
                     <v-icon color="white" size="16">mdi-brain</v-icon>
                   </div>
-                  <span class="font-weight-bold">Selected Model</span>
+                  <span class="font-weight-bold">Selected Method</span>
                   <div class="d-flex flex-wrap ga-2 mt-1" style="flex-basis: 100%;">
                     <v-chip color="primary" size="x-small" variant="flat">{{ store.modelMetadata.name }}</v-chip>
                     <v-chip
@@ -535,7 +535,7 @@
                       variant="tonal"
                     >
                       <v-icon size="12" start>{{ store.modelMetadata.supports_covariates ? 'mdi-check' : 'mdi-close' }}</v-icon>
-                      {{ store.modelMetadata.supports_covariates ? 'Uses covariates' : 'No covariate support' }}
+                      {{ store.modelMetadata.supports_covariates ? 'Uses your factors' : 'Ignores extra factors' }}
                     </v-chip>
                     <v-chip
                       v-if="store.modelMetadata?.feature_engineering_steps?.length"
@@ -544,34 +544,24 @@
                       variant="tonal"
                     >
                       <v-icon size="12" start>mdi-hammer-wrench</v-icon>
-                      Feature Engineering
+                      Extra signals created
                       <v-tooltip activator="parent" location="top">
                         <div class="text-caption">
+                          The model automatically created these additional signals to improve accuracy:
                           <div
                             v-for="(step, i) in store.modelMetadata.feature_engineering_steps"
                             :key="i"
-                            class="mb-1"
+                            class="mt-1"
                           >
-                            {{ step }}
+                            • {{ step }}
                           </div>
                         </div>
                       </v-tooltip>
                     </v-chip>
                   </div>
                 </div>
-                <p class="text-body-2 mt-3 mb-2">{{ store.modelMetadata.description }}</p>
-                <p class="text-body-2 text-medium-emphasis font-italic mb-3">Why? {{ store.modelMetadata.rationale }}</p>
-                <v-btn
-                  v-if="store.modelMetadata.educational_video_url"
-                  color="primary"
-                  :href="store.modelMetadata.educational_video_url"
-                  prepend-icon="mdi-youtube"
-                  size="small"
-                  target="_blank"
-                  variant="outlined"
-                >
-                  Learn More
-                </v-btn>
+                <p class="text-body-2 mt-3 mb-2">{{ friendlyModelDescription }}</p>
+                <p class="text-body-2 text-medium-emphasis font-italic mb-3">{{ friendlyModelRationale }}</p>
               </div>
 
             </v-col></v-row>
@@ -737,6 +727,42 @@
   const hasActiveCovariates = computed(() =>
     covariateDisplayData.value.some(c => !c.isIgnored),
   )
+
+  // ─── User-friendly model descriptions ───
+  const friendlyModelDescription = computed(() => {
+    const name = store.modelMetadata?.name || ''
+    const desc = store.modelMetadata?.description || ''
+    if (name.includes('AutoARIMA')) {
+      return 'A classic statistical method that looks at past trends, repeating seasons, and recent shocks to project forward.'
+    }
+    if (name.includes('ETS')) {
+      return 'A method that smooths out noise in your data and gives more weight to recent history when making predictions.'
+    }
+    if (name.includes('Naive')) {
+      return 'A simple benchmark that predicts the future will look like the most recent observation.'
+    }
+    if (name.includes('Seasonal')) {
+      return 'A simple benchmark that predicts the future will look like the same time period last year (or last week, etc.).'
+    }
+    if (name.includes('LightGBM') || name.includes('XGBoost') || name.includes('Random Forest')) {
+      return 'A machine learning approach that learns complex patterns from your historical data and any supporting factors.'
+    }
+    return desc || 'A forecasting method selected by the tournament.'
+  })
+
+  const friendlyModelRationale = computed(() => {
+    const rationale = store.modelMetadata?.rationale || ''
+    if (rationale.includes('baseline') || rationale.includes('Random Walk')) {
+      return 'This method was chosen as a baseline. If it wins, your data does not have a strong repeating pattern.'
+    }
+    if (rationale.includes('seasonal')) {
+      return 'This method was chosen because your data has clear seasonal patterns.'
+    }
+    if (rationale.includes('high-capacity') || rationale.includes('ML')) {
+      return 'This method was chosen because it can make the most of your extra factors to improve accuracy.'
+    }
+    return 'This method was chosen because it matched the patterns found in your data better than the alternatives.'
+  })
 
   function getActionIcon (action: string) {
     switch (action) {
