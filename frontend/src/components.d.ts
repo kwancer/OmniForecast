@@ -32,6 +32,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ScenarioBuilder: typeof import('./components/forecast/ScenarioBuilder.vue')['default']
+    TechnicalDetailsSheet: typeof import('./components/forecast/TechnicalDetailsSheet.vue')['default']
     UploadStage: typeof import('./components/forecast/UploadStage.vue')['default']
   }
 }

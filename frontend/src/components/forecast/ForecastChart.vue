@@ -3,7 +3,7 @@
     <div class="d-flex justify-space-between align-center mb-4">
       <div class="d-flex align-center">
         <v-icon class="mr-2" color="primary">mdi-chart-line</v-icon>
-        <div class="text-subtitle-1 font-weight-bold">Trend Trajectory</div>
+        <div class="text-subtitle-1 font-weight-bold">Forecast Path</div>
       </div>
 
       <div class="d-flex align-center gap-4">
@@ -127,13 +127,9 @@
       <Line id="forecast-chart" :data="chartData" :options="chartOptions" />
     </div>
 
-    <!-- Mini-Map / Range Selector -->
-    <div class="mt-4" style="height: 60px; width: 100%; opacity: 0.8;">
-      <Line
-        id="mini-chart"
-        :data="miniChartData"
-        :options="miniChartOptions"
-      />
+    <!-- Chart zoom hint -->
+    <div class="d-flex justify-center mt-2">
+      <span class="text-caption text-medium-emphasis">Scroll or pinch to zoom, drag to pan</span>
     </div>
   </v-card>
 </template>
@@ -157,6 +153,7 @@
   import { computed, ref, watch } from 'vue'
   import { Line } from 'vue-chartjs'
 
+  import { useAppStore } from '@/stores/app'
   import { useForecastStore } from '@/stores/forecast'
   import { formatNumber } from '@/utils/formatters'
   import 'chartjs-adapter-date-fns'
@@ -175,6 +172,7 @@
   )
 
   const store = useForecastStore()
+  const appStore = useAppStore()
   const isZoomed = ref(false)
   const riskView = ref('off')
 
@@ -464,20 +462,34 @@
       link.download = `forecast_export_${new Date().toISOString().split('T')[0]}.png`
       link.href = url
       link.click()
+      appStore.notify('Chart image saved', 'success')
+    } else {
+      appStore.notify('Could not export chart image', 'error')
     }
   }
 
   async function copyImage () {
     const chart = ChartJS.getChart('forecast-chart')
-    if (chart && chart.canvas) {
-      const canvas = chart.canvas as HTMLCanvasElement
-      try {
+    if (!chart || !chart.canvas) {
+      appStore.notify('Could not copy chart image', 'error')
+      return
+    }
+    const canvas = chart.canvas as HTMLCanvasElement
+    try {
+      // Try modern Clipboard API first
+      if (typeof ClipboardItem !== 'undefined') {
         const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
         if (!blob) throw new Error('No blob')
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      } catch {
-        console.error('Failed to copy chart image')
+        appStore.notify('Chart image copied to clipboard', 'success')
+        return
       }
+      // Fallback: copy data URL as text
+      const dataUrl = canvas.toDataURL('image/png')
+      await navigator.clipboard.writeText(dataUrl)
+      appStore.notify('Chart image URL copied to clipboard', 'success')
+    } catch {
+      appStore.notify('Failed to copy chart image', 'error')
     }
   }
 
@@ -592,59 +604,5 @@
     },
   }))
 
-  // Mini-Chart Logic
-  const miniChartData = computed(() => {
-    if (store.historyResults.length === 0) return { datasets: [] }
-    const timeCol = store.timeCol
-    const targetCol = store.targetCol
-
-    const historyPoints = store.historyResults.map((row: any) => ({
-      x: parseDate(row[timeCol]),
-      y: row[targetCol],
-    }))
-
-    return {
-      datasets: [
-        {
-          data: historyPoints,
-          borderColor: '#9E9E9E',
-          borderWidth: 1,
-          pointRadius: 0,
-          fill: true,
-          backgroundColor: 'rgba(158, 158, 158, 0.1)',
-          tension: 0.1,
-        },
-      ],
-    }
-  })
-
-  const miniChartOptions = computed(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: { display: false },
-      tooltip: { enabled: false },
-      zoom: {
-        zoom: {
-          drag: {
-            enabled: true,
-            backgroundColor: 'rgba(24, 103, 192, 0.1)',
-            borderColor: 'rgba(24, 103, 192, 0.4)',
-            borderWidth: 1,
-          },
-          mode: 'x' as const,
-          onZoomComplete: ({ chart }: any) => {
-            const { min, max } = chart.scales.x
-            rangeMin.value = min
-            rangeMax.value = max
-            isZoomed.value = true
-          },
-        },
-      },
-    },
-    scales: {
-      x: { type: 'time' as const, display: false },
-      y: { display: false },
-    },
-  }))
+  // Zoom state is tracked via isZoomed and managed by the main chart's wheel/pinch zoom
 </script>
