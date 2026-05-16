@@ -150,14 +150,6 @@
                         </v-chip>
                       </div>
 
-                      <div class="value-row">
-                        <span class="text-caption text-medium-emphasis" :class="{ 'text-disabled': item.isIgnored }">Past:</span>
-                        <span class="text-caption font-weight-medium ml-1" :class="{ 'text-disabled': item.isIgnored }">{{ item.pastValues }}</span>
-                      </div>
-                      <div class="value-row">
-                        <span class="text-caption text-medium-emphasis" :class="{ 'text-disabled': item.isIgnored }">Future:</span>
-                        <span class="text-caption font-weight-medium ml-1" :class="{ 'text-disabled': item.isIgnored }">{{ item.futureValues }}</span>
-                      </div>
                     </v-card-text>
                   </v-card>
                 </div>
@@ -431,18 +423,10 @@
     for (const o of overridesArr) {
       overrides[o.column_name] = o.values
     }
-    const history = store.historyResults
-
     return allCovariates.map(col => {
       const colName = col.column_name
       const isIgnored = ignoredSet.has(colName)
       const override = overrides[colName]
-
-      const histValues = history
-        .slice(-5)
-        .map(r => r[colName])
-        .filter(v => v !== undefined && v !== null)
-      const pastValues = histValues.map((v: any) => formatNumber(v, { decimals: 3 })).join(', ')
 
       let strategyLabel = 'Hold Steady'
       if (isIgnored) {
@@ -455,31 +439,12 @@
         strategyLabel = 'Set Fixed'
       }
 
-      let futureValues = ''
-      const lastVal = histValues.length > 0 ? histValues.at(-1) : null
-      if (isIgnored) {
-        futureValues = 'Not used by model'
-      } else if (override === 'seasonal') {
-        futureValues = 'Following seasonal pattern'
-      } else if (Array.isArray(override)) {
-        futureValues = override.slice(0, 5).map((v: number) => formatNumber(v, { decimals: 3 })).join(', ') + (override.length > 5 ? ', ...' : '')
-      } else if (typeof override === 'number') {
-        futureValues = formatNumber(override, { decimals: 3 })
-      } else if (lastVal === null) {
-        futureValues = '—'
-      } else {
-        const formatted = formatNumber(lastVal as number, { decimals: 3 })
-        futureValues = `${formatted} (steady)`
-      }
-
       return {
         column_name: colName,
         display_name: col.display_name || colName,
         covariate_type: col.covariate_type || 'unknown_past',
         isIgnored,
         strategyLabel,
-        pastValues: pastValues || '—',
-        futureValues,
       }
     })
   })

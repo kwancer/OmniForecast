@@ -50,63 +50,100 @@
       </div>
     </div>
 
-    <!-- Legend Bar -->
-    <div class="d-flex justify-center gap-6 mb-4 text-caption">
-      <!-- Standard Legend -->
-      <template v-if="riskView === 'off'">
-        <div class="d-flex align-center">
-          <v-sheet class="mr-2" color="grey" height="2" width="12" />
-          <span>Historical</span>
-        </div>
-        <div class="d-flex align-center">
-          <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
-          <span>Forecast</span>
-        </div>
-        <div v-if="hasIntervals" class="d-flex align-center">
-          <v-sheet
-            class="mr-2"
-            color="blue-darken-2"
-            height="12"
-            style="opacity: 0.1"
-            width="12"
-          />
-          <span>Prediction Range</span>
-        </div>
-      </template>
+    <!-- Legend Bar + Driver Toggles -->
+    <div class="d-flex justify-space-between align-center gap-4 mb-4">
+      <!-- Drivers (left) -->
+      <div
+        v-if="covariateColumns.length > 0"
+        class="d-flex align-center gap-2 flex-wrap"
+      >
+        <span class="text-caption text-medium-emphasis mr-1">Drivers:</span>
+        <v-chip
+          v-for="col in covariateColumns"
+          :key="col.column_name"
+          class="ma-1"
+          :color="visibleCovariates[col.column_name] ? 'primary' : undefined"
+          size="small"
+          :variant="visibleCovariates[col.column_name] ? 'flat' : 'outlined'"
+          @click="visibleCovariates[col.column_name] = !visibleCovariates[col.column_name]"
+        >
+          <v-icon
+            v-if="visibleCovariates[col.column_name]"
+            class="mr-1"
+            size="x-small"
+          >
+            mdi-eye
+          </v-icon>
+          <v-icon
+            v-else
+            class="mr-1"
+            size="x-small"
+          >
+            mdi-eye-off
+          </v-icon>
+          {{ col.display_name || col.column_name }}
+        </v-chip>
+      </div>
+      <div v-else />
 
-      <!-- Fan Chart Key (Risk View) -->
-      <template v-else>
-        <div class="d-flex align-center">
-          <v-sheet
-            class="mr-2 rounded-sm"
-            color="blue-lighten-4"
-            height="12"
-            style="opacity: 0.6"
-            width="12"
-          />
-          <span>80% Prediction (Outer)</span>
-        </div>
-        <div class="d-flex align-center">
-          <v-sheet
-            class="mr-2 rounded-sm"
-            color="blue-lighten-2"
-            height="12"
-            style="opacity: 0.6"
-            width="12"
-          />
-          <span>60% Prediction (Middle)</span>
-        </div>
-        <div class="d-flex align-center">
-          <v-sheet
-            class="mr-2 rounded-sm"
-            color="blue-darken-2"
-            height="12"
-            style="opacity: 0.8"
-            width="12"
-          />
-          <span>30% Prediction (Inner)</span>
-        </div>
-      </template>
+      <!-- Legend (right) -->
+      <div class="d-flex justify-end text-caption">
+        <!-- Standard Legend -->
+        <template v-if="riskView === 'off'">
+          <div class="d-flex align-center mx-2">
+            <v-sheet class="mr-2" color="grey" height="2" width="12" />
+            <span>Historical</span>
+          </div>
+          <div class="d-flex align-center mx-2">
+            <v-sheet class="mr-2" :color="primaryLineColor" height="2" width="12" />
+            <span>Forecast</span>
+          </div>
+          <div v-if="hasIntervals" class="d-flex align-center mx-2">
+            <v-sheet
+              class="mr-2"
+              color="blue-darken-2"
+              height="12"
+              style="opacity: 0.1"
+              width="12"
+            />
+            <span>Prediction Range</span>
+          </div>
+        </template>
+
+        <!-- Fan Chart Key (Risk View) -->
+        <template v-else>
+          <div class="d-flex align-center mx-2">
+            <v-sheet
+              class="mr-2 rounded-sm"
+              color="blue-lighten-4"
+              height="12"
+              style="opacity: 0.6"
+              width="12"
+            />
+            <span>80% Prediction (Outer)</span>
+          </div>
+          <div class="d-flex align-center mx-2">
+            <v-sheet
+              class="mr-2 rounded-sm"
+              color="blue-lighten-2"
+              height="12"
+              style="opacity: 0.6"
+              width="12"
+            />
+            <span>60% Prediction (Middle)</span>
+          </div>
+          <div class="d-flex align-center mx-2">
+            <v-sheet
+              class="mr-2 rounded-sm"
+              color="blue-darken-2"
+              height="12"
+              style="opacity: 0.8"
+              width="12"
+            />
+            <span>30% Prediction (Inner)</span>
+          </div>
+        </template>
+      </div>
     </div>
 
     <!-- Risk Preference Message -->
@@ -176,6 +213,32 @@
   const isZoomed = ref(false)
   const riskView = ref('off')
 
+  // Covariate visibility toggles (off by default)
+  const visibleCovariates = ref<Record<string, boolean>>({})
+
+  const covariateColumns = computed(() => {
+    if (!store.ontology?.columns) return []
+    const ignored = new Set(store.ontology.ignored_columns || [])
+    return store.ontology.columns.filter(c =>
+      (c.covariate_type != null || c.role === 'covariate' || ignored.has(c.column_name))
+      && c.role !== 'target'
+      && c.role !== 'time_index'
+      && c.role !== 'group_id',
+    )
+  })
+
+  watch(
+    () => covariateColumns.value,
+    cols => {
+      const next: Record<string, boolean> = {}
+      for (const c of cols) {
+        next[c.column_name] = visibleCovariates.value[c.column_name] ?? false
+      }
+      visibleCovariates.value = next
+    },
+    { immediate: true },
+  )
+
   // Range Selector State
   const rangeMin = ref<number | null>(null)
   const rangeMax = ref<number | null>(null)
@@ -228,6 +291,57 @@
     }
     return new Date(d).getTime()
   }
+
+  // Covariate future-value reconstruction from scenario overrides
+  function getCovariateFutureValues (columnName: string): number[] {
+    const horizon = store.forecastResults.length
+    if (horizon === 0) return []
+
+    const overrides = store.ontology?.scenario_overrides || []
+    const override = overrides.find(o => o.column_name === columnName)?.values
+
+    const histValues = store.historyResults
+      .map(r => r[columnName])
+      .filter(v => v !== undefined && v !== null)
+      .map(Number)
+
+    // Seasonal override
+    if (override === 'seasonal') {
+      const unit = store.ontology?.problem.granularity.unit ?? 'day'
+      const periodMap: Record<string, number> = {
+        hour: 24, day: 7, week: 52, month: 12, quarter: 4, year: 1,
+      }
+      const period = periodMap[unit] ?? 7
+      if (histValues.length < period) {
+        const last = histValues.at(-1) ?? 0
+        return Array.from({ length: horizon }, () => last)
+      }
+      return Array.from({ length: horizon }, (_, i) => {
+        let idx = histValues.length + i - period
+        while (idx >= histValues.length) idx -= period
+        while (idx < 0) idx += period
+        return histValues[idx]!
+      })
+    }
+
+    // Custom array override
+    if (Array.isArray(override)) {
+      return Array.from({ length: horizon }, (_, i) =>
+        i < override.length ? Number(override[i]) : Number(override.at(-1)),
+      )
+    }
+
+    // Fixed number override
+    if (typeof override === 'number') {
+      return Array.from({ length: horizon }, () => override)
+    }
+
+    // Default: hold steady (last historical value)
+    const last = histValues.at(-1) ?? 0
+    return Array.from({ length: horizon }, () => last)
+  }
+
+  const covariatePalette = ['#EF5350', '#AB47BC', '#FF7043', '#66BB6A', '#FFA726', '#26C6DA', '#78909C', '#8D6E63']
 
   // Risk Preference styling
   const riskPreference = computed<RiskPreference>(() => {
@@ -308,7 +422,7 @@
       // Connector point with range info (all range points start from the same history point)
       const connect = (y: number, upper?: number) => ({ x: lastHistoryPoint?.x, y, upper })
 
-      const datasets = [
+      const datasets: any[] = [
         {
           label: 'Historical',
           borderColor: '#9E9E9E',
@@ -383,6 +497,26 @@
         },
       ]
 
+      // Append visible covariate trajectories
+      const activeCovariates = covariateColumns.value.filter(c => visibleCovariates.value[c.column_name])
+      for (const [i, col] of activeCovariates.entries()) {
+        if (!col) continue
+        const color = covariatePalette[i % covariatePalette.length]!
+        const pastPoints = store.historyResults.map((row: any) => ({ x: parseDate(row[timeCol]), y: row[col!.column_name] }))
+        const futureVals = getCovariateFutureValues(col!.column_name)
+        const futurePoints = store.forecastResults.map((row: any, idx: number) => ({ x: parseDate(row.date || row.year || row[timeCol]), y: futureVals[idx] }))
+        const lastPast = pastPoints.at(-1)
+        datasets.push({
+          label: col!.display_name || col!.column_name,
+          borderColor: color,
+          borderWidth: 2,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          data: lastPast ? [...pastPoints, { x: lastPast.x, y: lastPast.y }, ...futurePoints] : [...pastPoints, ...futurePoints],
+          tension: 0.1,
+        })
+      }
+
       return {
         datasets: datasets.map(ds => ({ ...ds, parsing: false, normalized: true })),
       }
@@ -439,6 +573,26 @@
         fill: false,
         tension: 0.3,
       })
+
+      // Append visible covariate trajectories
+      const activeCovariates = covariateColumns.value.filter(c => visibleCovariates.value[c.column_name])
+      for (const [i, col] of activeCovariates.entries()) {
+        if (!col) continue
+        const color = covariatePalette[i % covariatePalette.length]!
+        const pastPoints = store.historyResults.map((row: any) => ({ x: parseDate(row[timeCol]), y: row[col!.column_name] }))
+        const futureVals = getCovariateFutureValues(col!.column_name)
+        const futurePoints = store.forecastResults.map((row: any, idx: number) => ({ x: parseDate(row.date || row.year || row[timeCol]), y: futureVals[idx] }))
+        const lastPast = pastPoints.at(-1)
+        datasets.push({
+          label: col!.display_name || col!.column_name,
+          borderColor: color,
+          borderWidth: 2,
+          borderDash: [5, 5],
+          pointRadius: 0,
+          data: lastPast ? [...pastPoints, { x: lastPast.x, y: lastPast.y }, ...futurePoints] : [...pastPoints, ...futurePoints],
+          tension: 0.1,
+        })
+      }
 
       return { datasets: datasets.map(ds => ({ ...ds, parsing: false, normalized: true })) }
     }
