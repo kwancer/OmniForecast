@@ -33,6 +33,7 @@ declare module 'vue' {
     RouterView: typeof import('vue-router')['RouterView']
     ScenarioBuilder: typeof import('./components/forecast/ScenarioBuilder.vue')['default']
     TechnicalDetailsSheet: typeof import('./components/forecast/TechnicalDetailsSheet.vue')['default']
+    UnifiedDataTable: typeof import('./components/forecast/UnifiedDataTable.vue')['default']
     UploadStage: typeof import('./components/forecast/UploadStage.vue')['default']
   }
 }

@@ -41,7 +41,7 @@
 
         <span class="text-medium-emphasis">I expect these projections to be </span>
         <span class="font-weight-medium px-1" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
-          {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }}
+          {{ modelValue.is_positive ? 'positive only' : 'can be negative' }}
         </span>
         <span class="text-medium-emphasis">.</span>
 
@@ -120,12 +120,12 @@
         <v-menu>
           <template #activator="{ props }">
             <span v-bind="props" class="font-weight-medium variable-text px-1 editable-item" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
-              {{ modelValue.is_positive ? 'strictly positive' : 'positive or negative' }} <v-icon size="16">mdi-chevron-down</v-icon>
+              {{ modelValue.is_positive ? 'positive only' : 'can be negative' }} <v-icon size="16">mdi-chevron-down</v-icon>
             </span>
           </template>
           <v-list density="compact">
-            <v-list-item subtitle="e.g. Sales" title="Strictly positive (+)" @click="updateConstraint(true)" />
-            <v-list-item subtitle="e.g. Profit" title="Positive or negative (±)" @click="updateConstraint(false)" />
+            <v-list-item subtitle="e.g. Sales" title="Positive only (+)" @click="updateConstraint(true)" />
+            <v-list-item subtitle="e.g. Profit" title="Can be negative (±)" @click="updateConstraint(false)" />
           </v-list>
         </v-menu>
 
@@ -199,14 +199,14 @@
         <v-col class="py-2 mt-sm-2" cols="12" md="4" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Value Constraint</div>
           <div v-if="!isEditing" class="text-body-1 font-weight-bold" :class="modelValue.is_positive ? 'text-success' : 'text-warning'">
-            {{ modelValue.is_positive ? 'Strictly positive (+)' : 'Positive or negative (±)' }}
+            {{ modelValue.is_positive ? 'Positive only (+)' : 'Can be negative (±)' }}
           </div>
           <v-select
             v-else
             v-model="localModelValue.is_positive"
             density="compact"
             hide-details
-            :items="[{ title: 'Strictly positive (+)', value: true }, { title: 'Positive or negative (±)', value: false }]"
+            :items="[{ title: 'Positive only (+)', value: true }, { title: 'Can be negative (±)', value: false }]"
             variant="outlined"
             @update:model-value="(v) => updateConstraint(v)"
           />
