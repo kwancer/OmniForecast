@@ -478,7 +478,7 @@
     try {
       // Try modern Clipboard API first
       if (typeof ClipboardItem !== 'undefined') {
-        const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+        const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
         if (!blob) throw new Error('No blob')
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
         appStore.notify('Chart image copied to clipboard', 'success')

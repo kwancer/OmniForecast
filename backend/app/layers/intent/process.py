@@ -1,15 +1,14 @@
-from app.domain.ontology import ForecastPlan
 import json
 import os
 import re
 import traceback
 from typing import Optional
 
-from google import genai
 import pandas as pd
 from dotenv import load_dotenv
+from google import genai
 
-from app.domain.ontology import Constraints, ForecastOntology
+from app.domain.ontology import Constraints, ForecastOntology, ForecastPlan
 
 # Load env vars
 load_dotenv()
@@ -118,6 +117,7 @@ class GeminiIntentAnalyzer:
         - SCENARIO OVERRIDES (CRITICAL):
           The 'scenario_overrides' field MUST only contain numeric values (float or list of floats) OR the exact string "seasonal".
           - For 'unknown_past' (environmental) covariates, or if the user requests it, you should set the override to "seasonal" so the system projects its historical seasonal pattern.
+          - Even though the true future value of an 'unknown_past' covariate is not known at prediction time, the user may still provide their own assumed values for scenario planning and what-if analysis. Treat "seasonal" as the default projection, but recognize the user can override it later.
           - If you want the system to just hold a covariate steady at its last known value, simply omit it from scenario_overrides.
           - If a covariate is binary (Yes/No), map it to 1.0/0.0.
           - NEVER use strings like "Yes" or "Active" in scenario_overrides.
@@ -182,7 +182,7 @@ class GeminiIntentAnalyzer:
         # Convert first 5 rows to a list of dictionaries, handling NaNs
         sample = df.head(5).fillna("").to_dict(orient="records")
         ontology.sample_data = sample
-        
+
         # Add up to 100 of the most recent rows so the frontend can compute seasonal patterns during planning
         tail = df.tail(100).fillna("").to_dict(orient="records")
         ontology.historical_tail = tail

@@ -1,13 +1,15 @@
+from typing import List, Optional
+
 import numpy as np
 import pandas as pd
 from lightgbm import LGBMRegressor
 from skforecast.direct import ForecasterDirect
 from skforecast.preprocessing import RollingFeatures, create_datetime_features
-from typing import Any, Dict, List, Optional, Tuple
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
 from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+
 
 class SkforecastForecaster(InternalForecaster):
     complexity_score = 7
@@ -28,7 +30,7 @@ class SkforecastForecaster(InternalForecaster):
             from sklearn.ensemble import RandomForestRegressor
             self.regressor = RandomForestRegressor(random_state=42, n_estimators=100, n_jobs=1)
             self.complexity_score = 5
-            
+
         self.forecaster = None
         self.time_col = None
         self.target_col = None
@@ -46,7 +48,7 @@ class SkforecastForecaster(InternalForecaster):
     def prep_forecasting_data(self, df: pd.DataFrame, target_col: str, known_cols: List[str], unknown_cols: List[str]):
         # 1. KNOWN FUTURES: Leave these exactly as they are.
         df_processed = df[[target_col] + known_cols].copy()
-        
+
         # 2. CALENDAR FEATURES: Native skforecast datetime features (no leakage)
         calendar_df = create_datetime_features(
             df_processed,
@@ -56,7 +58,7 @@ class SkforecastForecaster(InternalForecaster):
         calendar_df = calendar_df.add_prefix("skf_")
         internal_cols = list(calendar_df.columns)
         df_processed = pd.concat([df_processed, calendar_df], axis=1)
-        
+
         # 3. UNKNOWN PASTS: Mathematically prevent leakage by shifting them.
         engineered_unknown = []
         for col in unknown_cols:
@@ -64,7 +66,7 @@ class SkforecastForecaster(InternalForecaster):
                 lag_name = f"{col}_lag_{lag}"
                 df_processed[lag_name] = df[col].shift(lag)
                 engineered_unknown.append(lag_name)
-                
+
         # Drop rows with NaNs caused by the lagging process
         df_processed = df_processed.dropna()
         return df_processed, engineered_unknown, internal_cols
@@ -72,7 +74,7 @@ class SkforecastForecaster(InternalForecaster):
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
         self.time_col = next(c.column_name for c in ontology.columns if c.role == "time_index")
         self.target_col = next(c.column_name for c in ontology.columns if c.role == "target")
-        
+
         # Identify buckets - ensuring we only take numeric columns for now to prevent model crashes
         # (categorical encoding could be added here in the future)
         self.known_cols = [
@@ -87,7 +89,7 @@ class SkforecastForecaster(InternalForecaster):
             and c.covariate_type == "unknown_past"
             and pd.api.types.is_numeric_dtype(df[c.column_name])
         ]
-        
+
         # Set index
         df = df.copy()
         df[self.time_col] = pd.to_datetime(df[self.time_col])
@@ -95,14 +97,14 @@ class SkforecastForecaster(InternalForecaster):
         self.freq = pd.infer_freq(df.index) or 'D'
         df.index.freq = self.freq # Crucial for skforecast
         self.last_date = df.index.max()
-        
+
         # Prep data
         df_processed, self.engineered_unknown_cols, self.internal_feature_cols = self.prep_forecasting_data(
             df, self.target_col, self.known_cols, self.unknown_cols
         )
         # pd.concat strips freq attribute, and dropna() doesn't restore it.
         df_processed = df_processed.asfreq(self.freq)
-        
+
         # Safety check: if lagging killed too many rows
         if len(df_processed) < 10:
             print(f"LOG: Skforecast skipped - only {len(df_processed)} rows left after lagging.")
@@ -110,21 +112,21 @@ class SkforecastForecaster(InternalForecaster):
 
         self.history_df = df_processed.copy()
         self._original_unknown = {col: df[col].values.copy() for col in self.unknown_cols}
-        
+
         all_exog_features = self.known_cols + self.engineered_unknown_cols + self.internal_feature_cols
         horizon_steps = ontology.requirements.horizon_requirement.steps
-        
+
         # Train/Val Split (80/20)
         split_idx = int(len(df_processed) * 0.8)
         if split_idx < 20: split_idx = len(df_processed) - 5 # Ensure some val
         if split_idx <= 0: raise ValueError("Not enough data to train skforecast.")
-        
+
         # Dynamic lags and rolling-window features based on training budget
         budget = split_idx - horizon_steps
         if budget < 1:
             print(f"LOG: Skforecast skipped - training budget {budget} insufficient.")
             return [ForecastMetric(name="MAE", value=float("inf"))]
-        
+
         if budget >= 28:
             lags = 14
             window_features = RollingFeatures(stats=["mean", "std"], window_sizes=[7, 14])
@@ -140,7 +142,7 @@ class SkforecastForecaster(InternalForecaster):
         else:
             lags = budget
             window_features = None
-        
+
         # Initialize Forecaster
         self.forecaster = ForecasterDirect(
             estimator=self.regressor,
@@ -149,16 +151,16 @@ class SkforecastForecaster(InternalForecaster):
             window_features=window_features,
             n_jobs=1 # Disable joblib parallelism to prevent Windows access violations
         )
-        
+
         df_train = df_processed.iloc[:split_idx]
         df_val = df_processed.iloc[split_idx:]
-        
+
         # Fit on train
         self.forecaster.fit(
             y=df_train[self.target_col],
             exog=df_train[all_exog_features] if all_exog_features else None
         )
-        
+
         # Validate
         if len(df_val) > 0:
             # skforecast predict needs exog for the val period
@@ -166,16 +168,16 @@ class SkforecastForecaster(InternalForecaster):
             # ForecasterAutoregDirect predict() only predicts up to 'steps' defined at init
             # If val_steps > steps, we need to handle it. For now assume it's okay or clamp.
             predict_steps = min(val_steps, horizon_steps)
-            
+
             val_preds = self.forecaster.predict(
                 steps=predict_steps,
                 exog=df_val[all_exog_features].iloc[:predict_steps] if all_exog_features else None
             )
-            
+
             y_val = df_val[self.target_col].iloc[:predict_steps]
             self.validation_predictions = val_preds
             self.validation_actuals = y_val
-            
+
             metrics = calculate_metrics(y_val, val_preds)
             self.residuals_std = float(np.std(y_val.values - val_preds.values))
         else:
@@ -186,35 +188,37 @@ class SkforecastForecaster(InternalForecaster):
             y=df_processed[self.target_col],
             exog=df_processed[all_exog_features] if all_exog_features else None
         )
-        
+
         return metrics
 
     def predict(self, horizon: int, ontology: Optional[ForecastOntology] = None, interval_width: float = 0.80) -> pd.DataFrame:
         if not self.forecaster: raise ValueError("Model not fitted.")
-        
+
         # 1. Prepare Future Exog
         # Known Future: from overrides
         overrides_list = ontology.scenario_overrides or [] if ontology else []
         overrides = {o.column_name: o.values for o in overrides_list} if isinstance(overrides_list, list) else {}
         future_dates = pd.date_range(start=self.last_date, periods=horizon + 1, freq=self.freq)[1:]
-        
+
         future_exog_known = pd.DataFrame(index=future_dates)
         for col in self.known_cols:
             val = overrides.get(col)
             if isinstance(val, list):
                 # Use provided series
                 future_exog_known[col] = (val + [val[-1]] * horizon)[:horizon]
+            elif val == "seasonal":
+                future_exog_known[col] = self._get_seasonal_future_values(col, horizon)
             elif val is not None:
                 future_exog_known[col] = float(val)
             else:
                 # Status quo: use last historical value
                 future_exog_known[col] = self.history_df[col].iloc[-1]
-                
+
         # Unknown Past: Build lag features from future values
         future_exog_unknown = self._build_future_exog_unknown(horizon, future_dates, overrides)
-        
+
         final_future_exog = pd.concat([future_exog_known, future_exog_unknown], axis=1)
-        
+
         # Add calendar features for future dates
         if self.internal_feature_cols:
             future_calendar = create_datetime_features(
@@ -224,19 +228,19 @@ class SkforecastForecaster(InternalForecaster):
             )
             future_calendar = future_calendar.add_prefix("skf_")
             final_future_exog = pd.concat([final_future_exog, future_calendar], axis=1)
-        
+
         all_features = self.known_cols + self.engineered_unknown_cols + self.internal_feature_cols
         final_future_exog = final_future_exog[all_features] if all_features else None
 
         # 2. Predict
         # skforecast predict
         preds = self.forecaster.predict(steps=horizon, exog=final_future_exog)
-        
+
         # 3. Intervals (Simple Normal approximation for now as skforecast intervals vary by regressor)
         z = 1.28 if interval_width == 0.80 else 1.96
         lower = preds - (z * self.residuals_std)
         upper = preds + (z * self.residuals_std)
-        
+
         # Multi-layer intervals for premium UI
         intervals = self._calculate_multi_layer_intervals(preds.values, self.residuals_std)
 
@@ -298,6 +302,11 @@ class SkforecastForecaster(InternalForecaster):
             strategy = overrides.get(col)
             if strategy == "seasonal":
                 future_values = self._get_seasonal_future_values(col, horizon)
+            elif isinstance(strategy, list):
+                padded = (strategy + [strategy[-1]] * horizon)[:horizon]
+                future_values = np.array(padded, dtype=float)
+            elif isinstance(strategy, (int, float)):
+                future_values = np.full(horizon, float(strategy), dtype=float)
             else:
                 future_values = self._get_steady_future_values(col, horizon)
             col_lag_df = self._build_future_lag_features(col, future_values, future_dates)
@@ -308,7 +317,7 @@ class SkforecastForecaster(InternalForecaster):
         reg_name = self.regressor_type.upper() if self.regressor_type != 'rf' else 'Random Forest'
         if reg_name == 'LIGHTGBM': reg_name = 'LightGBM'
         if reg_name == 'XGBOOST': reg_name = 'XGBoost'
-        
+
         # Build feature engineering report from instance state
         fe_steps = []
         if self.internal_feature_cols:
@@ -318,7 +327,7 @@ class SkforecastForecaster(InternalForecaster):
                 fe_steps.append(f"Rolling window features: {', '.join(wf.features_names)}")
         if self.engineered_unknown_cols:
             fe_steps.append(f"Covariate lag features: {', '.join(self.engineered_unknown_cols)}")
-        
+
         return ModelMetadata(
             name=reg_name,
             description=f"Direct multi-step forecaster using {reg_name} with zero-leakage covariate handling.",

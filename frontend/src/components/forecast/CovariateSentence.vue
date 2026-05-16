@@ -15,11 +15,11 @@
             v-bind="tProps"
             class="mr-1"
             color="info"
-            icon="mdi-alert-circle-outline"
+            icon="mdi-weather-partly-cloudy"
             size="small"
           />
         </template>
-        <span>⚠️ This is an environmental factor. The AI is making an assumption based on past history to prevent data leakage.</span>
+        <span>This is an external factor. You can set your own assumption — the model will respond to the pattern before it.</span>
       </v-tooltip>
 
       <span class="text-medium-emphasis">{{ prefixText }}</span>
@@ -137,15 +137,15 @@
   const localState = computed(() => covariateProps.modelValue)
 
   const prefixText = computed(() => {
-    return isPlanned.value ? 'I plan to set' : 'Assume'
+    return isPlanned.value ? 'I plan to set' : 'I assume'
   })
 
   const joinText = computed(() => {
-    return isPlanned.value ? 'to' : 'will be'
+    return isPlanned.value ? 'to' : 'to follow'
   })
 
   const customPlanLabel = computed(() => {
-    return isPlanned.value ? 'Paste series of values (comma separated)' : 'Upload series of values (Custom Scenario)'
+    return isPlanned.value ? 'Paste series of values (comma separated)' : 'Paste your assumed values (comma separated)'
   })
 
   const availableOptions = computed(() => {
@@ -159,6 +159,8 @@
     return [
       { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
       { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
+      { value: 'constant' as const, title: 'Set Fixed', subtitle: 'One assumed value for every step' },
+      { value: 'custom' as const, title: 'Custom Series', subtitle: 'Different assumed value each step' },
     ]
   })
 

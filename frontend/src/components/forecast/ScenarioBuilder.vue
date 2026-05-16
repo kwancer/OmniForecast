@@ -9,7 +9,7 @@
           <template #activator="{ props }">
             <v-icon v-bind="props" class="ml-1" color="medium-emphasis" size="14">mdi-help-circle-outline</v-icon>
           </template>
-          <span>Historical context used to stabilize the forecast. Shifting is applied to prevent leakage.</span>
+          <span>External factors you can set assumptions for. The model responds to the pattern around your assumption.</span>
         </v-tooltip>
       </div>
 
@@ -31,6 +31,49 @@
               padding="4"
               smooth
             />
+            <!-- Input controls for external assumptions -->
+            <div class="d-flex align-center mt-2">
+              <v-spacer />
+              <v-btn-toggle
+                v-model="inputModes[col.column_name]"
+                class="input-mode-toggle"
+                density="compact"
+                mandatory
+                variant="tonal"
+              >
+                <v-btn icon="mdi-numeric" size="x-small" value="constant" />
+                <v-btn icon="mdi-chart-line-variant" size="x-small" value="series" />
+              </v-btn-toggle>
+            </div>
+            <v-expand-transition mode="out-in">
+              <div :key="inputModes[col.column_name]">
+                <v-text-field
+                  v-if="inputModes[col.column_name] === 'constant'"
+                  v-model.number="localOverrides[col.column_name]"
+                  class="mt-2"
+                  density="compact"
+                  hide-details
+                  label="Assumed constant value"
+                  prepend-inner-icon="mdi-equal"
+                  type="number"
+                  variant="outlined"
+                  @update:model-value="markChanged"
+                />
+                <v-textarea
+                  v-else
+                  v-model="seriesInputs[col.column_name]"
+                  class="mt-2"
+                  auto-grow
+                  density="compact"
+                  hide-details
+                  label="Paste assumed values (CSV)"
+                  placeholder="e.g. 10.5, 11, 12.2..."
+                  rows="1"
+                  variant="outlined"
+                  @update:model-value="handleSeriesInput(col.column_name)"
+                />
+              </div>
+            </v-expand-transition>
           </v-card>
         </v-col>
       </v-row>
@@ -150,7 +193,7 @@
     localOverrides.value = record
 
     // Set modes based on existing data
-    for (const col of plannedColumns.value) {
+    for (const col of [...plannedColumns.value, ...externalColumns.value]) {
       const val = record[col.column_name]
       if (Array.isArray(val)) {
         inputModes.value[col.column_name] = 'series'

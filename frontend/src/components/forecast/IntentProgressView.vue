@@ -11,7 +11,7 @@
             size="64"
             width="6"
           />
-          <h2 class="text-h4 font-header mb-4">Analyzing Your Data</h2>
+          <h2 class="text-h4 font-header mb-4">Analysing Your Data</h2>
 
 
           <v-card class="w-100 text-left" color="primary" variant="tonal">

@@ -175,11 +175,9 @@
 
   function getCovariateColor (type?: CovariateType): string {
     switch (type) {
-      case 'known_future':
-      case 'controllable': { return 'success'
+      case 'known_future': { return 'success'
       }
-      case 'unknown_past':
-      case 'exogenous': { return 'info'
+      case 'unknown_past': { return 'info'
       }
       case 'static': { return 'grey'
       }
@@ -190,11 +188,9 @@
 
   function formatCovariateType (type?: CovariateType): string {
     switch (type) {
-      case 'known_future':
-      case 'controllable': { return 'Planned'
+      case 'known_future': { return 'Planned'
       }
-      case 'unknown_past':
-      case 'exogenous': { return 'External'
+      case 'unknown_past': { return 'External'
       }
       case 'static': { return 'Static'
       }
@@ -205,11 +201,9 @@
 
   function getCovariateTooltip (type?: CovariateType): string {
     switch (type) {
-      case 'known_future':
-      case 'controllable': { return 'You can control or plan this factor (e.g., marketing spend, price)'
+      case 'known_future': { return 'You control or plan this factor (e.g., marketing spend, price)'
       }
-      case 'unknown_past':
-      case 'exogenous': { return 'You cannot control this factor (e.g., weather, market index)'
+      case 'unknown_past': { return 'You can set an assumption for this factor. The model responds to the pattern before it (e.g., weather, market index)'
       }
       case 'static': { return 'A fixed property that does not change over time'
       }

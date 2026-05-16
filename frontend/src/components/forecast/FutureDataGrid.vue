@@ -48,12 +48,6 @@
                     {{ col.covariate_type === 'known_future' ? 'mdi-account-cog-outline' : 'mdi-weather-partly-cloudy' }}
                   </v-icon>
                   <span class="text-caption">{{ col.display_name || col.column_name }}</span>
-                  <v-icon
-                    v-if="col.covariate_type === 'unknown_past'"
-                    color="medium-emphasis"
-                    size="12"
-                    title="External factor — values are auto-filled from historical patterns"
-                  >mdi-lock-outline</v-icon>
                 </div>
 
                 <!-- Strategy selector -->
@@ -84,7 +78,7 @@
 
                 <!-- Constant input inline in header -->
                 <div
-                  v-if="col.covariate_type === 'known_future' && strategyFor(col.column_name) === 'constant'"
+                  v-if="strategyFor(col.column_name) === 'constant'"
                   class="mt-1"
                   style="width: 70px;"
                 >
@@ -114,9 +108,7 @@
                 v-if="!isSeasonalInsufficient(col.column_name)"
                 v-model.number="gridData[col.column_name]![rowIdx]"
                 class="spreadsheet-input"
-                :class="{ 'readonly-input': col.covariate_type === 'unknown_past' }"
                 placeholder="0"
-                :readonly="col.covariate_type === 'unknown_past'"
                 type="number"
                 @input="onCellInput(col.column_name)"
               >
@@ -172,6 +164,8 @@
   const externalStrategies = [
     { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
     { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
+    { value: 'constant' as const, title: 'Set Fixed', subtitle: 'One assumed value for all steps' },
+    { value: 'custom' as const, title: 'Custom Series', subtitle: 'Edit each assumed step' },
   ]
 
   // ─── Date helpers ───
@@ -557,7 +551,7 @@
       for (const [colIdx, colName] of headers.entries()) {
         if (!colName) continue
         const col = props.columns.find(c => c.column_name === colName)
-        if (!col || col.covariate_type === 'unknown_past') continue
+        if (!col) continue
 
         const rawVal = cells[colIdx]
         if (!rawVal) continue
@@ -574,7 +568,6 @@
 
     // Sync to store
     for (const col of props.columns) {
-      if (col.covariate_type === 'unknown_past') continue
       const data = gridData.value[col.column_name]
       if (!data) continue
 

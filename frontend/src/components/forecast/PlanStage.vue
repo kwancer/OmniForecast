@@ -10,7 +10,7 @@
         @click="store.setStep('upload')"
       />
       <div class="ml-4">
-        <h2 class="text-h6 font-weight-bold font-header mb-0">Review</h2>
+        <h2 class="text-h6 font-weight-bold font-header mb-0">Step 2: Review</h2>
       </div>
       <v-spacer />
 
@@ -40,7 +40,7 @@
         variant="flat"
         @click="confirmAndProceed"
       >
-        Execute Run
+        Confirm and Forecast
         <v-icon end>mdi-chevron-right</v-icon>
       </v-btn>
     </div>
@@ -99,6 +99,7 @@
             v-if="sentenceState"
             v-model="sentenceState"
             :all-columns="allColumns"
+            :display-names="displayNameLookup"
             :external-covariates="externalCovariateNames"
             :horizon-confidence-rationale="store.ontology?.requirements.horizon_requirement.confidence_rationale"
             :horizon-confidence-score="store.ontology?.requirements.horizon_requirement.confidence_score"
@@ -169,6 +170,15 @@
             @toggle-ignore="toggleColumnIgnore"
             @update-override="handleUpdateOverride"
           />
+
+          <!-- Micro-explanation for non-technical users -->
+          <div v-if="hasActiveCovariates" class="mt-4 pa-3 bg-surface-light rounded-lg border">
+            <div class="text-caption text-medium-emphasis">
+              <v-icon class="mr-1" color="primary" size="14">mdi-lightbulb-outline</v-icon>
+              <strong>Planned drivers</strong> (like price or promotions) are values you control — the model uses your exact numbers directly.
+              <strong>External factors</strong> (like weather or competitor prices) are assumptions you make — the model looks at the pattern before your assumption, so the impact builds gradually.
+            </div>
+          </div>
         </div>
 
       </div>
@@ -193,17 +203,20 @@
   const store = useForecastStore()
 
   const allColumns = computed(() => store.ontology?.columns.map(c => c.column_name) || [])
+  const displayNameLookup = computed(() => {
+    const map: Record<string, string> = {}
+    if (!store.ontology) return map
+    for (const col of store.ontology.columns) {
+      map[col.column_name] = col.display_name || col.column_name
+    }
+    return map
+  })
   const sentenceState = ref<SentenceState | null>(null)
   const covariateStates = ref<Record<string, CovariateState>>({})
-  const clarificationInput = ref('')
   const showClarification = ref(false)
   const hasBypassedClarification = ref(false)
 
   // ─── Clarification Logic ───
-  const lowConfidenceColumns = computed(() => {
-    if (!store.ontology) return []
-    return store.ontology.columns.filter(c => (c.confidence_score ?? 1) < 0.85)
-  })
 
   const minColumnConfidence = computed(() => {
     if (!store.ontology?.columns.length) return 1
@@ -235,6 +248,10 @@
   const staticCovariates = computed(() => {
     return covariates.value.filter(c => c.role === 'covariate' && c.covariate_type === 'static')
   })
+
+  const hasActiveCovariates = computed(() =>
+    covariates.value.filter(c => c.role === 'covariate').some(c => !isColumnIgnored(c.column_name)),
+  )
 
   const plannedCovariateNames = computed(() =>
     plannedCovariates.value.map(c => c.display_name || c.column_name),
@@ -276,6 +293,13 @@
     if (col) {
       col.covariate_type = newType
     }
+    // Clear any stale override so strategies don't leak across types
+    if (covariateStates.value[colName]) {
+      covariateStates.value[colName].override = null
+    }
+    if (store.ontology.scenario_overrides) {
+      store.ontology.scenario_overrides = store.ontology.scenario_overrides.filter(o => o.column_name !== colName)
+    }
   }
 
   function handleUpdateOverride (colName: string, values: number | number[] | 'seasonal' | null) {
@@ -308,7 +332,7 @@
       if (!covariateStates.value[col.column_name]) {
         const existing = overrideLookup[col.column_name]
         covariateStates.value[col.column_name] = {
-          override: existing !== undefined ? existing : null,
+          override: existing === undefined ? null : existing,
           isIgnored: col.role === 'ignore',
         }
       }

@@ -35,7 +35,7 @@
       <v-col class="h-100 overflow-y-auto pa-6" cols="12">
 
         <!-- ═══ HERO SCORE ═══ -->
-        <DataHealthCard mode="hero" :data-health-report="store.dataHealthReport" />
+        <DataHealthCard :data-health-report="store.dataHealthReport" mode="hero" />
 
         <!-- ═══ MAIN CONTENT SPLIT ═══ -->
         <v-row class="mt-6 content-split" style="min-height: 0; flex-wrap: nowrap;">
@@ -47,7 +47,7 @@
             </div>
 
             <!-- Quick Actions Bar -->
-            <v-card class="quick-actions-bar pa-3 d-flex align-center flex-wrap" variant="outlined" rounded="lg">
+            <v-card class="quick-actions-bar pa-3 d-flex align-center flex-wrap" rounded="lg" variant="outlined">
               <span class="text-caption text-medium-emphasis mr-3 hidden-xs">Your forecast data</span>
               <v-btn
                 color="primary"
@@ -108,7 +108,7 @@
                   <div class="typing-indicator">
                     <span /><span /><span />
                   </div>
-                  <div class="text-caption text-medium-emphasis mt-1">Analyzing your forecast…</div>
+                  <div class="text-caption text-medium-emphasis mt-1">Analysing your forecast…</div>
                 </div>
 
                 <div
@@ -192,9 +192,6 @@
             </div>
           </v-col>
         </v-row>
-
-
-
       </v-col>
     </v-row>
   </v-container>

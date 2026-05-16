@@ -18,7 +18,7 @@
       <!-- READING MODE -->
       <div v-if="!isEditing" class="text-h5 font-weight-light" style="line-height: 1.8;">
         <span class="text-medium-emphasis">Based on the data, I will forecast </span>
-        <span class="font-weight-medium text-primary variable-text px-1">{{ modelValue.target_col }}</span>
+        <span class="font-weight-medium text-primary variable-text px-1">{{ displayName(modelValue.target_col) }}</span>
         <span class="text-medium-emphasis"> for the next </span>
         <span class="text-primary font-weight-medium px-1">{{ modelValue.horizon }} {{ formatUnit(modelValue.frequency) }}s</span>
         <v-tooltip v-if="horizonConfidence < 0.9" location="top">
@@ -34,7 +34,7 @@
           <span>Horizon confidence: {{ Math.round(horizonConfidence * 100) }}% — {{ horizonRationale || 'The system guessed this horizon from context.' }}</span>
         </v-tooltip>
         <span class="text-medium-emphasis">, using </span>
-        <span class="font-weight-medium text-secondary variable-text px-1">{{ modelValue.time_col }}</span>
+        <span class="font-weight-medium text-secondary variable-text px-1">{{ displayName(modelValue.time_col) }}</span>
         <span class="text-medium-emphasis"> as the timeline.</span>
 
         <span class="d-block mt-4" />
@@ -58,12 +58,12 @@
         <v-menu>
           <template #activator="{ props }">
             <span v-bind="props" class="font-weight-medium text-primary variable-text px-1 editable-item">
-              {{ modelValue.target_col }} <v-icon size="16">mdi-chevron-down</v-icon>
+              {{ displayName(modelValue.target_col) }} <v-icon size="16">mdi-chevron-down</v-icon>
             </span>
           </template>
           <v-list density="compact" max-height="300">
             <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.target_col" @click="updateTarget(col)">
-              <v-list-item-title>{{ col }}</v-list-item-title>
+              <v-list-item-title>{{ displayName(col) }}</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -101,12 +101,12 @@
         <v-menu>
           <template #activator="{ props }">
             <span v-bind="props" class="font-weight-medium text-secondary variable-text px-1 editable-item">
-              {{ modelValue.time_col }} <v-icon size="16">mdi-chevron-down</v-icon>
+              {{ displayName(modelValue.time_col) }} <v-icon size="16">mdi-chevron-down</v-icon>
             </span>
           </template>
           <v-list density="compact" max-height="300">
             <v-list-item v-for="col in allColumns" :key="col" :active="col === modelValue.time_col" @click="updateTime(col)">
-              <v-list-item-title>{{ col }}</v-list-item-title>
+              <v-list-item-title>{{ displayName(col) }}</v-list-item-title>
             </v-list-item>
           </v-list>
         </v-menu>
@@ -139,7 +139,7 @@
         <!-- Target -->
         <v-col class="py-2" cols="12" md="4" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Target Metric</div>
-          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-primary">{{ modelValue.target_col }}</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-primary">{{ displayName(modelValue.target_col) }}</div>
           <v-select
             v-else
             v-model="localModelValue.target_col"
@@ -183,7 +183,7 @@
         <!-- Timeline -->
         <v-col class="py-2" cols="12" md="4" sm="6">
           <div class="text-caption text-medium-emphasis mb-1">Timeline Index</div>
-          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-secondary">{{ modelValue.time_col }}</div>
+          <div v-if="!isEditing" class="text-body-1 font-weight-bold text-secondary">{{ displayName(modelValue.time_col) }}</div>
           <v-select
             v-else
             v-model="localModelValue.time_col"
@@ -236,6 +236,7 @@
   const sentenceProps = defineProps<{
     modelValue: SentenceState
     allColumns: string[]
+    displayNames?: Record<string, string>
     horizonConfidenceScore?: number
     horizonConfidenceRationale?: string
     plannedCovariates?: string[]
@@ -266,7 +267,7 @@
 
     if (external.length > 0) {
       const names = external.join(', ')
-      parts.push(`It will also factor in ${external.length === 1 ? 'one external factor' : `${external.length} external factors`} (${names}) that are outside your control.`)
+      parts.push(`It will also factor in ${external.length === 1 ? 'one external factor' : `${external.length} external factors`} (${names}) based on assumptions you can set. The model responds to the pattern before each assumption.`)
     }
 
     if (staticCols.length > 0) {
@@ -291,36 +292,11 @@
   const updateFrequency = (unit: string) => emit('update:modelValue', { ...sentenceProps.modelValue, frequency: unit })
   const updateConstraint = (isPositive: boolean) => emit('update:modelValue', { ...sentenceProps.modelValue, is_positive: isPositive })
   const updateHorizon = (val: string | number) => emit('update:modelValue', { ...sentenceProps.modelValue, horizon: Number(val) })
-  const updateRiskPreference = (pref: RiskPreference) => emit('update:modelValue', { ...sentenceProps.modelValue, risk_preference: pref })
 
   const formatUnit = (unit: string) => unit ? unit.charAt(0).toUpperCase() + unit.slice(1) : ''
 
-  function getRiskLabel (pref: RiskPreference | undefined) {
-    switch (pref) {
-      case 'under_penalty': {
-        return 'Minimize Stockouts'
-      }
-      case 'over_penalty': {
-        return 'Minimize Waste'
-      }
-      default: {
-        return 'Balanced Plan'
-      }
-    }
-  }
-
-  function getRiskColor (pref: RiskPreference | undefined) {
-    switch (pref) {
-      case 'under_penalty': {
-        return 'error'
-      }
-      case 'over_penalty': {
-        return 'info'
-      }
-      default: {
-        return 'accent'
-      }
-    }
+  function displayName (colName: string): string {
+    return sentenceProps.displayNames?.[colName] || colName
   }
 
 </script>

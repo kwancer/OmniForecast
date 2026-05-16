@@ -44,7 +44,7 @@
 
           <div v-if="store.loading" class="d-flex align-center justify-center py-4">
             <v-progress-circular color="primary" indeterminate size="24" width="2" />
-            <span class="ml-3 text-caption text-medium-emphasis">Analyzing your response...</span>
+            <span class="ml-3 text-caption text-medium-emphasis">Analysing your response...</span>
           </div>
         </div>
       </v-card-text>

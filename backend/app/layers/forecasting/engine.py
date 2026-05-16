@@ -120,20 +120,38 @@ class SmartForecastEngine:
             if c.role == "covariate"
             and getattr(c, "covariate_type", None) == "known_future"
         ]
-        if known_future_covariates:
+        # Also filter if unknown_past covariates have active scenario overrides,
+        # so user assumptions for external factors are never silently ignored.
+        unknown_past_cols = [
+            c.column_name
+            for c in ontology.columns
+            if c.role == "covariate"
+            and getattr(c, "covariate_type", None) == "unknown_past"
+        ]
+        override_cols = {
+            o.column_name for o in (ontology.scenario_overrides or [])
+        }
+        active_unknown_overrides = [
+            col for col in unknown_past_cols if col in override_cols
+        ]
+
+        if known_future_covariates or active_unknown_overrides:
             before = len(candidates)
             # Keep Naive for FSS baseline; exclude other non-covariate models
             baseline = [m for m in candidates if isinstance(m, NaiveForecaster)]
             candidates = [m for m in candidates if m.supports_covariates]
             candidates = baseline + candidates
             print(
-                f"LOG: Active known_future covariates detected ({len(known_future_covariates)}). "
-                f"Filtered from {before} to {len(candidates)} models (including Naive baseline)."
+                f"LOG: Active covariate configuration detected "
+                f"({len(known_future_covariates)} known_future, "
+                f"{len(active_unknown_overrides)} unknown_past with overrides). "
+                f"Filtered from {before} to {len(candidates)} models "
+                f"(including Naive baseline)."
             )
             if len(candidates) <= len(baseline):
                 raise ValueError(
                     "No covariate-capable models available. "
-                    "Please remove known_future covariate constraints or check your data."
+                    "Please remove covariate constraints or check your data."
                 )
 
         # 3. Run Tournament

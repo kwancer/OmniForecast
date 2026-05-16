@@ -9,7 +9,7 @@
             class="unified-th"
             :class="{ 'ignored-col': isIgnored(col.column_name), 'sticky-col': col.column_name === timeColName }"
           >
-            <div class="th-content">
+            <div class="th-content pt-4">
               <div class="th-name">
                 <v-icon
                   v-if="getColumnRole(col.column_name) === 'target'"
@@ -28,11 +28,38 @@
                   class="mr-1"
                   size="small"
                 >mdi-eye-off</v-icon>
-                <span :class="{ 'text-decoration-line-through': isIgnored(col.column_name) }">
+                <span :class="{ 'text-decoration-line-through': isIgnored(col.column_name)}">
                   {{ col.display_name || col.column_name }}
                 </span>
               </div>
 
+              <!-- Ignore / Re-include toggle in header -->
+              <template v-if="getColumnRole(col.column_name) !== 'target' && getColumnRole(col.column_name) !== 'time_index' && getColumnRole(col.column_name) !== 'group_id'">
+                <v-btn
+                  v-if="isIgnored(col.column_name)"
+                  class="th-btn"
+                  color="primary"
+                  density="compact"
+                  size="x-small"
+                  variant="outlined"
+                  @click="$emit('toggle-ignore', col.column_name, false)"
+                >
+                  <v-icon size="12" start>mdi-eye</v-icon>
+                  Re-include
+                </v-btn>
+                <v-btn
+                  v-else
+                  class="th-btn"
+                  color="grey"
+                  density="compact"
+                  size="x-small"
+                  variant="text"
+                  @click="$emit('toggle-ignore', col.column_name, true)"
+                >
+                  <v-icon size="12" start>mdi-eye-off</v-icon>
+                  Ignore
+                </v-btn>
+              </template>
             </div>
           </th>
         </tr>
@@ -91,7 +118,7 @@
         <template v-if="hasCovariates">
           <!-- Divider with label -->
           <tr class="divider-row">
-            <td :colspan="orderedColumns.length" class="divider-cell">
+            <td class="divider-cell" :colspan="orderedColumns.length">
               <span class="divider-label">Future Assumptions</span>
             </td>
           </tr>
@@ -143,17 +170,6 @@
                   <v-icon size="14" start>mdi-eye-off</v-icon>
                   Not Used
                 </v-chip>
-                <v-btn
-                  class="mt-3"
-                  color="primary"
-                  density="comfortable"
-                  size="small"
-                  variant="outlined"
-                  @click="$emit('toggleIgnore', col.column_name, false)"
-                >
-                  <v-icon size="14" start>mdi-eye</v-icon>
-                  Re-include
-                </v-btn>
               </div>
 
               <!-- Covariate column -->
@@ -161,12 +177,12 @@
                 <!-- Planned / External toggle -->
                 <div class="d-flex align-center justify-center mb-3">
                   <v-btn-toggle
-                    :model-value="col.covariate_type === 'known_future' ? 'planned' : 'external'"
                     density="comfortable"
                     mandatory
+                    :model-value="col.covariate_type === 'known_future' ? 'planned' : 'external'"
                     rounded
                     variant="outlined"
-                    @update:model-value="v => $emit('changeType', col.column_name, v === 'planned' ? 'known_future' : 'unknown_past')"
+                    @update:model-value="v => $emit('change-type', col.column_name, v === 'planned' ? 'known_future' : 'unknown_past')"
                   >
                     <v-btn size="small" value="planned">
                       <v-icon size="14" start>mdi-cog</v-icon>
@@ -177,6 +193,15 @@
                       External
                     </v-btn>
                   </v-btn-toggle>
+                  <v-tooltip location="top" max-width="260">
+                    <template #activator="{ props: tipProps }">
+                      <v-icon v-bind="tipProps" class="ml-2" color="medium-emphasis" size="14">mdi-information-outline</v-icon>
+                    </template>
+                    <div class="text-caption">
+                      <strong>Planned</strong> — the model uses your exact value directly.<br>
+                      <strong>External</strong> — the model responds to the pattern before your assumption.
+                    </div>
+                  </v-tooltip>
                 </div>
 
                 <!-- Strategy dropdown -->
@@ -206,7 +231,7 @@
 
                 <!-- Constant input -->
                 <div
-                  v-if="col.covariate_type === 'known_future' && strategyFor(col.column_name) === 'constant'"
+                  v-if="strategyFor(col.column_name) === 'constant'"
                   class="mt-3"
                   style="width: 90px;"
                 >
@@ -222,23 +247,9 @@
                     @keyup.enter="applyConstant(col.column_name)"
                   />
                 </div>
-
-                <!-- Ignore button -->
-                <v-btn
-                  class="mt-3"
-                  color="grey"
-                  density="comfortable"
-                  size="small"
-                  variant="outlined"
-                  @click="$emit('toggleIgnore', col.column_name, true)"
-                >
-                  <v-icon size="14" start>mdi-eye-off</v-icon>
-                  Ignore
-                </v-btn>
               </div>
             </td>
           </tr>
-
           <!-- Future value rows -->
           <tr
             v-for="(date, idx) in futureTimestamps"
@@ -280,14 +291,20 @@
                 <span class="text-disabled">—</span>
               </template>
 
-              <!-- External factor: read-only -->
+              <!-- External factor: editable assumption -->
               <template v-else-if="col.covariate_type === 'unknown_past'">
-                <v-tooltip location="top" text="Auto-filled from historical patterns — not editable">
+                <v-tooltip location="top" text="Your assumption — the model responds to the pattern before it">
                   <template #activator="{ props: tipProps }">
-                    <div v-bind="tipProps" class="readonly-value">
-                      <span>{{ formatNumber(getFutureValue(col.column_name, idx)) }}</span>
-                      <v-icon class="ml-2" color="medium-emphasis" size="14">mdi-lock-outline</v-icon>
-                    </div>
+                    <input
+                      v-if="gridData[col.column_name]"
+                      v-model.number="gridData[col.column_name]![idx]"
+                      v-bind="tipProps"
+                      class="future-input"
+                      placeholder="0"
+                      type="number"
+                      @input="onCellInput(col.column_name)"
+                    >
+                    <span v-else class="text-disabled">—</span>
                   </template>
                 </v-tooltip>
               </template>
@@ -295,12 +312,14 @@
               <!-- Planned driver: editable -->
               <template v-else>
                 <input
+                  v-if="gridData[col.column_name]"
                   v-model.number="gridData[col.column_name]![idx]"
                   class="future-input"
                   placeholder="0"
                   type="number"
                   @input="onCellInput(col.column_name)"
                 >
+                <span v-else class="text-disabled">—</span>
               </template>
             </td>
           </tr>
@@ -311,9 +330,9 @@
 </template>
 
 <script setup lang="ts">
-  import type { ColumnOntology, CovariateType, ForecastOntology } from '@/types'
-  import type { SentenceState } from './OntologySentence.vue'
   import type { CovariateState } from './CovariateSentence.vue'
+  import type { SentenceState } from './OntologySentence.vue'
+  import type { ColumnOntology, CovariateType, ForecastOntology } from '@/types'
   import { addDays, addHours, addMinutes, addMonths, addWeeks, addYears, format, parseISO } from 'date-fns'
   import { computed, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
@@ -328,9 +347,9 @@
   }>()
 
   const emit = defineEmits<{
-    (e: 'toggleIgnore', colName: string, ignored: boolean): void
-    (e: 'changeType', colName: string, newType: CovariateType): void
-    (e: 'updateOverride', colName: string, values: number | number[] | 'seasonal' | null): void
+    (e: 'toggle-ignore', colName: string, ignored: boolean): void
+    (e: 'change-type', colName: string, newType: CovariateType): void
+    (e: 'update-override', colName: string, values: number | number[] | 'seasonal' | null): void
   }>()
 
   // ─── Column ordering ───
@@ -351,8 +370,7 @@
     const result: ColumnOntology[] = []
     if (timeCol) result.push(timeCol)
     if (targetCol) result.push(targetCol)
-    result.push(...active)
-    result.push(...ignored)
+    result.push(...active, ...ignored)
     return result
   })
 
@@ -369,32 +387,11 @@
     return props.covariateStates[colName]?.isIgnored === true
   }
 
-  function getRoleColor (col: ColumnOntology): string {
-    if (col.column_name === props.sentenceState.target_col) return 'primary'
-    if (col.column_name === props.sentenceState.time_col) return 'secondary'
-    if (isIgnored(col.column_name)) return 'grey'
-    if (col.role === 'group_id') return 'warning'
-    if (col.covariate_type === 'known_future') return 'success'
-    if (col.covariate_type === 'unknown_past') return 'warning'
-    return 'grey'
-  }
-
   const hasCovariates = computed(() => {
     return props.ontology.columns.some(c =>
       c.role === 'covariate' && !isIgnored(c.column_name),
     )
   })
-
-  function getRoleLabel (col: ColumnOntology): string {
-    if (col.column_name === props.sentenceState.target_col) return 'TARGET'
-    if (col.column_name === props.sentenceState.time_col) return 'TIMELINE'
-    if (isIgnored(col.column_name)) return 'IGNORED'
-    if (col.role === 'group_id') return 'GROUP'
-    if (col.covariate_type === 'known_future') return 'PLANNED'
-    if (col.covariate_type === 'unknown_past') return 'EXTERNAL'
-    if (col.covariate_type === 'static') return 'STATIC'
-    return 'FEATURE'
-  }
 
   function formatVal (val: any) {
     if (val === undefined || val === null) return '—'
@@ -465,13 +462,34 @@
     const frequency = props.sentenceState.frequency || 'month'
     for (let i = 1; i <= horizon; i++) {
       switch (frequency.toLowerCase()) {
-        case 'minute': { current = addMinutes(current, 1); break }
-        case 'hour': { current = addHours(current, 1); break }
-        case 'day': { current = addDays(current, 1); break }
-        case 'week': { current = addWeeks(current, 1); break }
-        case 'month': { current = addMonths(current, 1); break }
-        case 'quarter': { current = addMonths(current, 3); break }
-        case 'year': { current = addYears(current, 1); break }
+        case 'minute': {
+          current = addMinutes(current, 1)
+          break
+        }
+        case 'hour': {
+          current = addHours(current, 1)
+          break
+        }
+        case 'day': {
+          current = addDays(current, 1)
+          break
+        }
+        case 'week': {
+          current = addWeeks(current, 1)
+          break
+        }
+        case 'month': {
+          current = addMonths(current, 1)
+          break
+        }
+        case 'quarter': {
+          current = addMonths(current, 3)
+          break
+        }
+        case 'year': {
+          current = addYears(current, 1)
+          break
+        }
         default: { current = addDays(current, 1) }
       }
       dates.push(new Date(current))
@@ -511,12 +529,18 @@
 
   function getPeriod (): number | null {
     switch ((props.sentenceState.frequency || 'month').toLowerCase()) {
-      case 'day': return 7
-      case 'week': return 52
-      case 'month': return 12
-      case 'quarter': return 4
-      case 'year': return 1
-      default: return null
+      case 'day': { return 7
+      }
+      case 'week': { return 52
+      }
+      case 'month': { return 12
+      }
+      case 'quarter': { return 4
+      }
+      case 'year': { return 1
+      }
+      default: { return null
+      }
     }
   }
 
@@ -571,6 +595,8 @@
   const externalStrategies = [
     { value: 'default' as const, title: 'Hold Steady', subtitle: 'Freeze last known value' },
     { value: 'seasonal' as const, title: 'Same as Last Period', subtitle: 'Repeat the value from the matching time last year' },
+    { value: 'constant' as const, title: 'Set Fixed', subtitle: 'One assumed value for all steps' },
+    { value: 'custom' as const, title: 'Custom Series', subtitle: 'Edit each assumed step' },
   ]
 
   function availableStrategies (covType?: CovariateType) {
@@ -588,19 +614,27 @@
 
   function strategyLabel (s: 'default' | 'constant' | 'custom' | 'seasonal'): string {
     switch (s) {
-      case 'default': return 'Hold Steady'
-      case 'constant': return 'Set Fixed'
-      case 'custom': return 'Custom Series'
-      case 'seasonal': return 'Same as Last Period'
+      case 'default': { return 'Hold Steady'
+      }
+      case 'constant': { return 'Set Fixed'
+      }
+      case 'custom': { return 'Custom Series'
+      }
+      case 'seasonal': { return 'Same as Last Period'
+      }
     }
   }
 
   function strategyColor (s: 'default' | 'constant' | 'custom' | 'seasonal'): string {
     switch (s) {
-      case 'default': return 'grey'
-      case 'constant': return 'secondary'
-      case 'custom': return 'primary'
-      case 'seasonal': return 'info'
+      case 'default': { return 'grey'
+      }
+      case 'constant': { return 'secondary'
+      }
+      case 'custom': { return 'primary'
+      }
+      case 'seasonal': { return 'info'
+      }
     }
   }
 
@@ -612,7 +646,7 @@
       return getSeasonalValues(colName)
     }
     if (Array.isArray(override)) {
-      const arr = [...override.map(v => roundTo(v))]
+      const arr = override.map(v => roundTo(v))
       while (arr.length < horizon) arr.push(arr.at(-1) || 0)
       return arr.slice(0, horizon)
     }
@@ -621,10 +655,6 @@
     }
     const lastVal = getLastKnownValue(colName)
     return Array.from({ length: horizon }, () => lastVal)
-  }
-
-  function getFutureValue (colName: string, idx: number): number {
-    return gridData.value[colName]?.[idx] ?? getLastKnownValue(colName)
   }
 
   // ─── Grid data ───
@@ -647,8 +677,17 @@
     gridData.value = newGrid
   }
 
+  const activeCovariateCols = computed(() => {
+    return props.ontology.columns
+      .filter(c => c.role === 'covariate' && !isIgnored(c.column_name))
+      .map(c => c.column_name)
+      .toSorted()
+      .join(',')
+  })
+
   watch(() => props.ontology.scenario_overrides, initGrid, { deep: true, immediate: true })
   watch(() => props.sentenceState.horizon, initGrid, { immediate: true })
+  watch(activeCovariateCols, initGrid)
 
   // ─── Actions ───
 
@@ -676,19 +715,19 @@
       }
     }
 
-    emit('updateOverride', colName, values)
+    emit('update-override', colName, values)
   }
 
   function applyConstant (colName: string) {
     const val = constantInputs.value[colName]
     if (val === undefined || val === null) return
-    emit('updateOverride', colName, roundTo(val))
+    emit('update-override', colName, roundTo(val))
   }
 
   function onCellInput (colName: string) {
     const data = gridData.value[colName]
     if (!data) return
-    emit('updateOverride', colName, data.map(v => roundTo(v)))
+    emit('update-override', colName, data.map(v => roundTo(v)))
   }
 </script>
 
@@ -711,10 +750,9 @@
   z-index: 2;
   background: var(--v-theme-surface-light) !important;
   border-bottom: 2px solid rgba(var(--v-theme-on-surface), 0.08);
-  padding: 14px 18px;
   font-weight: 600;
   font-size: 0.85rem;
-  vertical-align: bottom;
+  vertical-align: middle;
   text-align: center;
 }
 
@@ -745,6 +783,15 @@
   flex-direction: column;
   align-items: center;
   text-align: center;
+  position: relative;
+  padding-bottom: 46px;
+}
+
+.th-btn {
+  position: absolute;
+  bottom: 2px;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .th-name {
