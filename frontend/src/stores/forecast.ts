@@ -30,6 +30,10 @@ export const useForecastStore = defineStore('forecast', {
     suggestedQuestions: [] as string[],
     // Multi-turn clarification
     clarificationHistory: [] as { role: 'assistant' | 'user', content: string }[],
+    // Session epoch for cancellation / stale-request guard
+    _sessionEpoch: 0,
+    // Explainability SSE (for cleanup on reset)
+    _explainabilityEventSource: null as EventSource | null,
   }),
 
   getters: {
@@ -69,6 +73,7 @@ export const useForecastStore = defineStore('forecast', {
 
       const appStore = useAppStore()
       this.loading = true
+      const epoch = this._sessionEpoch
 
       if (answer && typeof answer === 'string') {
         this.clarificationHistory.push({ role: 'user', content: answer })
@@ -87,12 +92,19 @@ export const useForecastStore = defineStore('forecast', {
           body: formData,
         })
 
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         if (!response.ok) {
           const error = await response.json()
           throw new Error(error.detail || 'Analysis failed')
         }
 
         this.ontology = await response.json()
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         console.log('Analysed Data Ontology:', this.ontology)
 
         // Push all new clarification questions to history as assistant messages
@@ -108,9 +120,14 @@ export const useForecastStore = defineStore('forecast', {
         this.step = 'plan'
         appStore.notify('Data analysis complete.', 'success')
       } catch (error: any) {
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         appStore.notify(error.message || 'Analysis failed', 'error')
       } finally {
-        this.loading = false
+        if (this._sessionEpoch === epoch) {
+          this.loading = false
+        }
       }
     },
 
@@ -126,6 +143,7 @@ export const useForecastStore = defineStore('forecast', {
       this.progressTotal = 0
       this.progressCurrentModel = 'Initializing...'
       this.progressCompleted = false
+      const epoch = this._sessionEpoch
 
       console.log('[Forecast] Starting execution, showProgress:', this.showProgress)
 
@@ -146,12 +164,20 @@ export const useForecastStore = defineStore('forecast', {
           body: formData,
         })
 
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         if (!response.ok) {
           const error = await response.json()
           throw new Error(error.detail || 'Forecast failed')
         }
 
         const data: ForecastResponse = await response.json()
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         this.forecastResults = data.forecast
         this.explanation = data.explanation
         this.cleaningReport = data.cleaning_report
@@ -167,10 +193,15 @@ export const useForecastStore = defineStore('forecast', {
         this.step = 'results'
         appStore.notify('Forecast complete.', 'success')
       } catch (error: any) {
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         this.showProgress = false
         appStore.notify(error.message || 'Forecast failed', 'error')
       } finally {
-        this.loading = false
+        if (this._sessionEpoch === epoch) {
+          this.loading = false
+        }
       }
     },
 
@@ -181,6 +212,7 @@ export const useForecastStore = defineStore('forecast', {
 
       const appStore = useAppStore()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+      const epoch = this._sessionEpoch
 
       try {
         const response = await fetch(`${apiUrl}/forecast/explain`, {
@@ -193,12 +225,20 @@ export const useForecastStore = defineStore('forecast', {
           }),
         })
 
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         if (!response.ok) {
           const error = await response.json()
           throw new Error(error.detail || 'Failed to load explainability briefing')
         }
 
         const data: ExplainabilityResponse = await response.json()
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         this.explainabilityMessages = [{
           role: 'assistant',
           content: data.answer,
@@ -207,6 +247,9 @@ export const useForecastStore = defineStore('forecast', {
         }]
         this.suggestedQuestions = data.suggestions ?? []
       } catch (error: any) {
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         appStore.notify(error.message || 'Failed to load explainability briefing', 'warning')
         this.explainabilityMessages = [{
           role: 'assistant',
@@ -222,6 +265,7 @@ export const useForecastStore = defineStore('forecast', {
 
       const appStore = useAppStore()
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
+      const epoch = this._sessionEpoch
       this.askingExplainability = true
 
       const history = this.explainabilityMessages.map(m => ({ role: m.role, content: m.content }))
@@ -229,7 +273,7 @@ export const useForecastStore = defineStore('forecast', {
 
       try {
         if (useStreaming) {
-          await this.askExplainabilityStream(question)
+          await this.askExplainabilityStream(question, epoch)
           return
         }
 
@@ -243,12 +287,20 @@ export const useForecastStore = defineStore('forecast', {
           }),
         })
 
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         if (!response.ok) {
           const error = await response.json()
           throw new Error(error.detail || 'Failed to get explainability response')
         }
 
         const data: ExplainabilityResponse = await response.json()
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         this.explainabilityMessages.push({
           role: 'assistant',
           content: data.answer,
@@ -257,13 +309,18 @@ export const useForecastStore = defineStore('forecast', {
         })
         this.suggestedQuestions = data.suggestions ?? this.suggestedQuestions
       } catch (error: any) {
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         appStore.notify(error.message || 'Explainability request failed', 'error')
       } finally {
-        this.askingExplainability = false
+        if (this._sessionEpoch === epoch) {
+          this.askingExplainability = false
+        }
       }
     },
 
-    async askExplainabilityStream (question: string) {
+    async askExplainabilityStream (question: string, epoch?: number) {
       if (!this.ontology?.session_id) {
         return
       }
@@ -277,9 +334,15 @@ export const useForecastStore = defineStore('forecast', {
       await new Promise<void>((resolve, reject) => {
         const url = `${apiUrl}/forecast/explain/stream/${this.ontology?.session_id}?question=${encodeURIComponent(question)}`
         const eventSource = new EventSource(url)
+        this._explainabilityEventSource = eventSource
 
         eventSource.addEventListener('message', event => {
           try {
+            if (epoch !== undefined && this._sessionEpoch !== epoch) {
+              eventSource.close()
+              resolve()
+              return
+            }
             const payload = JSON.parse(event.data)
             const assistantMessage = this.explainabilityMessages[assistantIndex]
             if (!assistantMessage) {
@@ -298,35 +361,49 @@ export const useForecastStore = defineStore('forecast', {
               }
               case 'done': {
                 eventSource.close()
+                this._explainabilityEventSource = null
                 resolve()
                 break
               }
             }
           } catch {
             eventSource.close()
+            this._explainabilityEventSource = null
             reject(new Error('Failed to parse streaming explainability response'))
           }
         })
 
         eventSource.addEventListener('error', () => {
           eventSource.close()
+          this._explainabilityEventSource = null
           reject(new Error('Explainability stream interrupted'))
         })
       }).catch((error: any) => {
+        if (epoch !== undefined && this._sessionEpoch !== epoch) {
+          return
+        }
         appStore.notify(error.message || 'Explainability stream failed', 'warning')
       }).finally(() => {
-        this.askingExplainability = false
+        if (epoch === undefined || this._sessionEpoch === epoch) {
+          this.askingExplainability = false
+        }
+        this._explainabilityEventSource = null
       })
     },
 
     connectProgressStream (sessionId: string) {
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002'
       const eventSource = new EventSource(`${apiUrl}/forecast/progress/${sessionId}`)
+      const epoch = this._sessionEpoch
 
       console.log('[Progress] SSE connection started for session:', sessionId)
 
       eventSource.addEventListener('message', event => {
         try {
+          if (this._sessionEpoch !== epoch) {
+            eventSource.close()
+            return
+          }
           const data = JSON.parse(event.data)
           console.log('[Progress] Received update:', data)
           this.progressCurrent = data.current
@@ -355,9 +432,14 @@ export const useForecastStore = defineStore('forecast', {
     async loadSampleData (filename: string, intent: string) {
       const appStore = useAppStore()
       this.loading = true
+      const epoch = this._sessionEpoch
 
       try {
         const response = await fetch(`/datasets/${filename}`)
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
+
         if (!response.ok) {
           throw new Error(`Failed to load dataset: ${filename}`)
         }
@@ -372,17 +454,29 @@ export const useForecastStore = defineStore('forecast', {
 
         appStore.notify(`Sample data '${filename}' loaded successfully.`, 'success')
       } catch (error: any) {
+        if (this._sessionEpoch !== epoch) {
+          return
+        }
         appStore.notify(error.message || 'Error loading sample data', 'error')
       } finally {
-        this.loading = false
+        if (this._sessionEpoch === epoch) {
+          this.loading = false
+        }
       }
     },
 
     reset () {
-      // Close any active SSE connection
+      // Increment session epoch to invalidate in-flight async operations
+      this._sessionEpoch++
+
+      // Close any active SSE connections
       if ((this as any)._progressEventSource) {
         ;(this as any)._progressEventSource.close()
         ;(this as any)._progressEventSource = null
+      }
+      if (this._explainabilityEventSource) {
+        this._explainabilityEventSource.close()
+        this._explainabilityEventSource = null
       }
 
       this.file = null
@@ -392,6 +486,7 @@ export const useForecastStore = defineStore('forecast', {
       this.forecastResults = []
       this.metrics = []
       this.explanation = ''
+      this.loading = false
       this.dataHealthReport = null
       this.step = 'upload'
       this.modelMetadata = null
