@@ -3,34 +3,6 @@
     <v-row class="fill-height ma-0" justify="center">
       <v-col class="fill-height pa-0" cols="12">
         <div class="fill-height d-flex flex-column">
-          <!-- Custom Stepper Header for Mobile/Desktop Stability -->
-          <div class="d-flex align-center flex-shrink-0 bg-surface border-b px-4 py-2 overflow-x-auto" style="min-height: 64px; gap: 8px">
-            <template v-for="(step, i) in ['Step 1: Upload', 'Step 2: Review', 'Step 3: Forecast']" :key="i">
-              <div
-                class="d-flex align-center cursor-pointer hover-lift rounded-pill px-2 py-1"
-                :class="{
-                  'text-primary font-weight-bold': Number(currentStepIndex) === i + 1,
-                  'text-medium-emphasis': Number(currentStepIndex) !== i + 1,
-                  'opacity-60': Number(currentStepIndex) < i + 1
-                }"
-                style="white-space: nowrap; transition: all 0.3s ease;"
-              >
-                <v-avatar
-                  class="mr-2"
-                  :color="Number(currentStepIndex) > i + 1 ? 'success' : (Number(currentStepIndex) === i + 1 ? 'primary' : 'grey')"
-                  size="24"
-                  :variant="Number(currentStepIndex) === i + 1 ? 'flat' : 'tonal'"
-                >
-                  <v-icon v-if="Number(currentStepIndex) > i + 1" size="16">mdi-check</v-icon>
-                  <span v-else class="text-caption font-weight-bold">{{ i + 1 }}</span>
-                </v-avatar>
-                <span class="text-caption hidden-xs" :class="{'font-weight-bold': Number(currentStepIndex) === i + 1, 'font-weight-medium': Number(currentStepIndex) !== i + 1}">{{ step }}</span>
-                <span v-if="Number(currentStepIndex) === i + 1" class="text-caption font-weight-bold d-sm-none">{{ step }}</span>
-              </div>
-              <v-divider v-if="i < 2" class="mx-2" style="height: 24px; opacity: 0.3;" vertical />
-            </template>
-          </div>
-
           <!-- Progress Overlay (shown when forecast is running) -->
           <transition name="fade">
             <div v-if="store.showProgress" class="flex-grow-1 fill-height">
