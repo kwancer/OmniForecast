@@ -172,7 +172,7 @@ class ARIMAForecaster(InternalForecaster):
 
         return ModelMetadata(
             name=model_name,
-            description="Automated selection of ARIMA parameters for optimal fit.",
+            description="A classic statistical method that looks at past trends, repeating seasons, and recent shocks to project forward.",
             rationale=f"Selected due to: {self.archetype}",
             educational_video_url="https://www.youtube.com/watch?v=3UmyHed0iYe",
         )

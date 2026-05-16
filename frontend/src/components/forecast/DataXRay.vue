@@ -57,7 +57,7 @@
               <th class="text-left hidden-sm-and-down">
                 <v-tooltip location="top">
                   <template #activator="{ props: tip }">
-                    <span v-bind="tip" class="cursor-help">Resampling <v-icon size="12" color="medium-emphasis">mdi-information-outline</v-icon></span>
+                    <span v-bind="tip" class="cursor-help">Resampling <v-icon color="medium-emphasis" size="12">mdi-information-outline</v-icon></span>
                   </template>
                   <span>How values were combined when multiple rows fall into the same time period (e.g., daily data grouped into months).</span>
                 </v-tooltip>

@@ -121,7 +121,7 @@ class SeasonalNaiveForecaster(InternalForecaster):
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
             name="Seasonal Naive",
-            description="Predicts values from the previous season (e.g. same day last week).",
+            description="A simple benchmark that predicts the future will look like the same time period last year (or last week, etc.).",
             rationale="Robust baseline for seasonal data.",
             educational_video_url="",
         )

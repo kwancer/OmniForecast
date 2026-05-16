@@ -62,8 +62,8 @@
                 <v-textarea
                   v-else
                   v-model="seriesInputs[col.column_name]"
-                  class="mt-2"
                   auto-grow
+                  class="mt-2"
                   density="compact"
                   hide-details
                   label="Paste assumed values (CSV)"

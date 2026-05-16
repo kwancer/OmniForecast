@@ -75,12 +75,12 @@
             :stroke="gaugeColor"
             stroke-linecap="round"
             stroke-width="10"
-            transform="rotate(-90 60 60)"
             :style="{
               strokeDasharray: heroCircumference,
               strokeDashoffset: animatedHeroOffset,
               transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }"
+            transform="rotate(-90 60 60)"
           />
           <text
             class="hero-gauge-text"
@@ -140,12 +140,12 @@
           :stroke="gaugeColor"
           stroke-linecap="round"
           stroke-width="6"
-          transform="rotate(-90 24 24)"
           :style="{
             strokeDasharray: circumferenceCompact,
             strokeDashoffset: animatedCompactOffset,
             transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
           }"
+          transform="rotate(-90 24 24)"
         />
       </svg>
     </div>
@@ -198,12 +198,12 @@
             :stroke="gaugeColor"
             stroke-linecap="round"
             stroke-width="8"
-            transform="rotate(-90 40 40)"
             :style="{
               strokeDasharray: circumference,
               strokeDashoffset: animatedLegacyOffset,
               transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
             }"
+            transform="rotate(-90 40 40)"
           />
           <text
             class="gauge-text"

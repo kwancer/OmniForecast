@@ -3,7 +3,7 @@
   <v-container v-else class="fill-height d-flex flex-column pa-0" fluid>
     <div class="d-flex align-center px-4 py-4 w-100 bg-surface border-b">
       <div class="ml-2">
-        <h2 class="text-h6 font-weight-bold font-header mb-0">Start Prediction</h2>
+        <h2 class="text-h6 font-weight-bold font-header mb-0">Step 1: Upload</h2>
       </div>
       <v-spacer />
 
@@ -562,8 +562,8 @@
       return val
     }
     const csvLines = [
-      headers.map(escape).join(','),
-      ...rows.map(row => row.map(escape).join(',')),
+      headers.map(element => escape(element)).join(','),
+      ...rows.map(row => row.map(element => escape(element)).join(',')),
     ]
     return csvLines.join('\n')
   }

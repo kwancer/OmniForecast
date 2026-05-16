@@ -13,7 +13,6 @@
           />
           <h2 class="text-h4 font-header mb-4">Analysing Your Data</h2>
 
-
           <v-card class="w-100 text-left" color="primary" variant="tonal">
             <v-card-text>
               <transition mode="out-in" name="fade-slide">

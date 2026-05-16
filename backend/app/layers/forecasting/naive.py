@@ -102,7 +102,7 @@ class NaiveForecaster(InternalForecaster):
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
             name="Naive Baseline",
-            description="Predicts the last observed value for all future time steps.",
+            description="A simple benchmark that predicts the future will look like the most recent observation.",
             rationale="Used as a baseline. If this wins, the data is likely a Random Walk.",
             educational_video_url="",
         )

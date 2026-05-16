@@ -161,20 +161,31 @@ class SkforecastForecaster(InternalForecaster):
             exog=df_train[all_exog_features] if all_exog_features else None
         )
 
-        # Validate
+        # Validate on the FULL validation set (same as Naive/ETS)
+        # ForecasterDirect can only predict up to 'steps' at a time, so we use
+        # an expanding-window rolling approach to cover the entire holdout.
         if len(df_val) > 0:
-            # skforecast predict needs exog for the val period
             val_steps = len(df_val)
-            # ForecasterAutoregDirect predict() only predicts up to 'steps' defined at init
-            # If val_steps > steps, we need to handle it. For now assume it's okay or clamp.
-            predict_steps = min(val_steps, horizon_steps)
+            all_preds = []
+            all_actuals = []
+            for i in range(0, val_steps, horizon_steps):
+                end_i = min(i + horizon_steps, val_steps)
+                chunk_steps = end_i - i
+                # Refit on all history up to this validation chunk
+                window = df_processed.iloc[:split_idx + i]
+                self.forecaster.fit(
+                    y=window[self.target_col],
+                    exog=window[all_exog_features] if all_exog_features else None
+                )
+                chunk_preds = self.forecaster.predict(
+                    steps=chunk_steps,
+                    exog=df_val[all_exog_features].iloc[i:end_i] if all_exog_features else None
+                )
+                all_preds.extend(chunk_preds.values)
+                all_actuals.extend(df_val[self.target_col].iloc[i:end_i].values)
 
-            val_preds = self.forecaster.predict(
-                steps=predict_steps,
-                exog=df_val[all_exog_features].iloc[:predict_steps] if all_exog_features else None
-            )
-
-            y_val = df_val[self.target_col].iloc[:predict_steps]
+            val_preds = pd.Series(all_preds, index=df_val.index[:len(all_preds)])
+            y_val = pd.Series(all_actuals, index=df_val.index[:len(all_actuals)])
             self.validation_predictions = val_preds
             self.validation_actuals = y_val
 
@@ -330,7 +341,7 @@ class SkforecastForecaster(InternalForecaster):
 
         return ModelMetadata(
             name=reg_name,
-            description=f"Direct multi-step forecaster using {reg_name} with zero-leakage covariate handling.",
+            description="A machine learning approach that learns complex patterns from your historical data and any supporting factors.",
             rationale="Mathematically rigorous handling of known vs unknown drivers with high-capacity ML.",
             educational_video_url="",
             feature_engineering_steps=fe_steps if fe_steps else None

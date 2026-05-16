@@ -355,13 +355,13 @@ export const useForecastStore = defineStore('forecast', {
     async loadSampleData (filename: string, intent: string) {
       const appStore = useAppStore()
       this.loading = true
-      
+
       try {
         const response = await fetch(`/datasets/${filename}`)
         if (!response.ok) {
           throw new Error(`Failed to load dataset: ${filename}`)
         }
-        
+
         const text = await response.text()
         const blob = new Blob([text], { type: 'text/csv' })
         const file = new File([blob], filename, { type: 'text/csv' })

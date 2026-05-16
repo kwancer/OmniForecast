@@ -213,7 +213,7 @@ class ETSForecaster(InternalForecaster):
     def get_metadata(self) -> ModelMetadata:
         return ModelMetadata(
             name=f"ETS ({self.config_name})",
-            description=f"Exponential Smoothing: {self.config_name}. {self.archetype}",
+            description="A method that smooths out noise in your data and gives more weight to recent history when making predictions.",
             rationale=f"Selected due to {self.archetype} characteristics.",
             educational_video_url="https://www.youtube.com/watch?v=Du8h_S_ndRE",
         )

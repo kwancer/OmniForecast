@@ -1,6 +1,6 @@
 <template>
   <v-bottom-sheet v-model="isOpen" inset max-width="1200">
-    <v-card rounded="lg" class="technical-sheet-card">
+    <v-card class="technical-sheet-card" rounded="lg">
       <v-card-title class="d-flex align-center pa-4">
         <v-icon class="mr-2" color="primary">mdi-lightbulb-outline</v-icon>
         <span class="text-h6 font-weight-bold">Reasoning & Technical Details</span>
@@ -11,7 +11,7 @@
       <v-card-text class="pa-4 overflow-y-auto" style="max-height: 85vh;">
 
         <!-- Selected Method Summary -->
-        <v-card v-if="store.modelMetadata" class="mb-4 pa-4" variant="outlined" rounded="lg">
+        <v-card v-if="store.modelMetadata" class="mb-4 pa-4" rounded="lg" variant="outlined">
           <div class="d-flex align-center flex-wrap" style="gap: 12px;">
             <div class="d-flex align-center">
               <div class="panel-icon panel-icon--primary mr-3">
@@ -28,12 +28,12 @@
               <v-icon size="12" start>{{ store.modelMetadata.supports_covariates ? 'mdi-check' : 'mdi-close' }}</v-icon>
               {{ store.modelMetadata.supports_covariates ? 'Uses your factors' : 'Ignores extra factors' }}
             </v-chip>
-            <span class="text-body-2 text-medium-emphasis ml-auto hidden-sm-and-down">{{ friendlyModelDescription }}</span>
+            <span class="text-body-2 text-medium-emphasis ml-auto hidden-sm-and-down">{{ store.modelMetadata?.description }}</span>
           </div>
         </v-card>
 
         <!-- Nested Technical Panels -->
-        <v-expansion-panels class="styled-panels" variant="accordion" multiple>
+        <v-expansion-panels class="styled-panels" multiple variant="accordion">
           <!-- Tournament Analysis -->
           <v-expansion-panel v-if="store.tournamentResults.length > 0" rounded="lg">
             <v-expansion-panel-title class="font-weight-bold">
@@ -353,7 +353,7 @@
 
   const isOpen = computed({
     get: () => props.modelValue,
-    set: (val) => emit('update:modelValue', val),
+    set: val => emit('update:modelValue', val),
   })
 
   const store = useForecastStore()
@@ -488,49 +488,41 @@
     covariateDisplayData.value.some(c => !c.isIgnored),
   )
 
-  // User-friendly model descriptions
-  const friendlyModelDescription = computed(() => {
-    const name = store.modelMetadata?.name || ''
-    const desc = store.modelMetadata?.description || ''
-    if (name.includes('AutoARIMA')) {
-      return 'A classic statistical method that looks at past trends, repeating seasons, and recent shocks to project forward.'
-    }
-    if (name.includes('ETS')) {
-      return 'A method that smooths out noise in your data and gives more weight to recent history when making predictions.'
-    }
-    if (name.includes('Naive')) {
-      return 'A simple benchmark that predicts the future will look like the most recent observation.'
-    }
-    if (name.includes('Seasonal')) {
-      return 'A simple benchmark that predicts the future will look like the same time period last year (or last week, etc.).'
-    }
-    if (name.includes('LightGBM') || name.includes('XGBoost') || name.includes('Random Forest')) {
-      return 'A machine learning approach that learns complex patterns from your historical data and any supporting factors.'
-    }
-    return desc || 'A forecasting method selected by the tournament.'
-  })
-
   function getActionIcon (action: string) {
     switch (action) {
-      case 'normalization': return 'mdi-format-letter-case'
-      case 'type_conversion': return 'mdi-variable'
-      case 'aggregation': return 'mdi-layers-triple'
-      case 'resampling': return 'mdi-calendar-clock'
-      case 'gap_filling': return 'mdi-plus-box'
-      case 'imputation': return 'mdi-eyedropper'
-      case 'column_dropping': return 'mdi-table-column-remove'
-      default: return 'mdi-wrench'
+      case 'normalization': { return 'mdi-format-letter-case'
+      }
+      case 'type_conversion': { return 'mdi-variable'
+      }
+      case 'aggregation': { return 'mdi-layers-triple'
+      }
+      case 'resampling': { return 'mdi-calendar-clock'
+      }
+      case 'gap_filling': { return 'mdi-plus-box'
+      }
+      case 'imputation': { return 'mdi-eyedropper'
+      }
+      case 'column_dropping': { return 'mdi-table-column-remove'
+      }
+      default: { return 'mdi-wrench'
+      }
     }
   }
 
   function getActionColor (action: string) {
     switch (action) {
-      case 'imputation': return 'warning'
-      case 'resampling': return 'info'
-      case 'gap_filling': return 'secondary'
-      case 'type_conversion': return 'primary'
-      case 'column_dropping': return 'grey-darken-1'
-      default: return 'primary'
+      case 'imputation': { return 'warning'
+      }
+      case 'resampling': { return 'info'
+      }
+      case 'gap_filling': { return 'secondary'
+      }
+      case 'type_conversion': { return 'primary'
+      }
+      case 'column_dropping': { return 'grey-darken-1'
+      }
+      default: { return 'primary'
+      }
     }
   }
 
@@ -548,10 +540,14 @@
 
   function getMetricLabel (name: string) {
     switch (name) {
-      case 'MAE': return 'Typical Error'
-      case 'MAPE': return 'Error %'
-      case 'R²': return 'Accuracy Score'
-      default: return name
+      case 'MAE': { return 'Typical Error'
+      }
+      case 'MAPE': { return 'Error %'
+      }
+      case 'R²': { return 'Accuracy Score'
+      }
+      default: { return name
+      }
     }
   }
 
