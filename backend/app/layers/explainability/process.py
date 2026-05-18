@@ -581,7 +581,7 @@ class ForecastExplainabilityService:
         "ALWAYS contextualise MAPE by mentioning what the MAE means in real-world units. "
         "If MAPE looks suspiciously perfect (< 1%), flag that it may be deceptive and explain why.\n"
         "- The **Forecast Skill Score** is the most honest reliability indicator — it measures how much "
-        "better the model is versus a naive baseline (just repeating the last value). "
+        "better the model is versus a rolling naive baseline (repeating the most recent observed value at each forecast step). "
         "A score of 0.0 means the model is no better than guessing. A score of 0.7+ is genuinely strong. "
         "Always mention the skill score when discussing reliability or trust.\n"
         "- If the winning model is a Naive Baseline, be upfront that the data may lack predictable patterns.\n\n"

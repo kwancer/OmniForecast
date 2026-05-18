@@ -6,7 +6,7 @@ from pmdarima import auto_arima  # type: ignore[reportMissingImports]
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
-from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+from app.layers.forecasting.base import InternalForecaster, calculate_metrics, walk_forward_backtest
 
 
 class ARIMAForecaster(InternalForecaster):
@@ -38,18 +38,6 @@ class ARIMAForecaster(InternalForecaster):
         self.last_date = pd.Timestamp(df_index.index.max())
         self.freq = pd.infer_freq(pd.DatetimeIndex(df_index.index)) or "D"
 
-        split_idx = int(len(df_index) * 0.8)
-        if split_idx == 0:
-            split_idx = 1
-        train, val = df_index.iloc[:split_idx], df_index.iloc[split_idx:]
-
-        if len(val) == 0:
-            return [
-                ForecastMetric(name="MAE", value=float("inf")),
-                ForecastMetric(name="RMSE", value=float("inf")),
-                ForecastMetric(name="MAPE", value=float("inf")),
-            ]
-
         # Speed Constraints (Crucial)
         autoarima_params = {
             "stepwise": True,
@@ -66,48 +54,47 @@ class ARIMAForecaster(InternalForecaster):
         elif self.freq in ["D", "B"]:
             autoarima_params.update({"seasonal": True, "m": 7, "max_P": 2, "max_Q": 2})
 
+        horizon_steps = ontology.requirements.horizon_requirement.steps
+
+        def _fit_predict(train_df: pd.DataFrame, val_df: pd.DataFrame) -> pd.Series:
+            temp_model = auto_arima(train_df[self.target_col], **autoarima_params)
+            preds = temp_model.predict(n_periods=len(val_df))
+            return pd.Series(preds, index=val_df.index)
+
         try:
-            # Fit AutoARIMA on 80% training split to generate validation predictions
-            temp_model = auto_arima(train[self.target_col], **autoarima_params)
-            val_preds = temp_model.predict(n_periods=len(val))
-
-            # Calculate residuals standard deviation for confidence intervals
-            residuals = val[self.target_col].values - val_preds
-            self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
-            self.validation_predictions = pd.Series(val_preds, index=val.index)
-            self.validation_actuals = val[self.target_col]
-
-            # Refit the model on the entire 100% dataframe using fixed parameters from the first search
-            self.model = auto_arima(
-                df_index[self.target_col],
-                start_p=temp_model.order[0],
-                d=temp_model.order[1],
-                start_q=temp_model.order[2],
-                max_p=temp_model.order[0],
-                max_d=temp_model.order[1],
-                max_q=temp_model.order[2],
-                seasonal=temp_model.seasonal_order is not None and sum(temp_model.seasonal_order[:3]) > 0,
-                start_P=temp_model.seasonal_order[0],
-                D=temp_model.seasonal_order[1],
-                start_Q=temp_model.seasonal_order[2],
-                max_P=temp_model.seasonal_order[0],
-                max_D=temp_model.seasonal_order[1],
-                max_Q=temp_model.seasonal_order[2],
-                m=temp_model.seasonal_order[3],
-                suppress_warnings=True,
-                error_action="ignore",
-                stepwise=False, # Faster if parameters are fixed
+            val_preds, val_actuals = walk_forward_backtest(
+                df_index,
+                self.time_col,
+                self.target_col,
+                horizon_steps=horizon_steps,
+                fit_predict_fn=_fit_predict,
             )
 
-            # Dynamic Complexity Scoring:
-            # 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
+            if len(val_preds) == 0:
+                return [
+                    ForecastMetric(name="MAE", value=float("inf")),
+                    ForecastMetric(name="RMSE", value=float("inf")),
+                    ForecastMetric(name="MAPE", value=float("inf")),
+                ]
 
+            residuals = val_actuals.values - val_preds.values
+            self.residuals_std = float(np.std(residuals)) if len(residuals) > 1 else 0.0
+            self.validation_predictions = val_preds
+            self.validation_actuals = val_actuals
+
+            # Refit the model on the entire 100% dataframe using a single fast pass
+            self.model = auto_arima(
+                df_index[self.target_col],
+                **autoarima_params,
+                stepwise=False,
+            )
+
+            # Dynamic Complexity Scoring
             order = self.model.order
             seasonal_order = self.model.seasonal_order
             raw_complexity = 1 + (sum(order) + sum(seasonal_order[:3])) / 6.0
             self.complexity_score = max(1.0, min(4.0, raw_complexity))
 
-            # Update archetype string based on seasonal terms selected
             if sum(seasonal_order[:3]) > 0:
                 self.archetype = (
                     "The Seasonal Autoregressive Pattern "
@@ -116,7 +103,7 @@ class ARIMAForecaster(InternalForecaster):
             else:
                 self.archetype = "The Autoregressive Pattern (Correlation with Past)"
 
-            return calculate_metrics(val[self.target_col], self.validation_predictions)
+            return calculate_metrics(val_actuals, val_preds)
 
         except (ValueError, RuntimeError, TypeError) as e:
             print(f"LOG: AutoARIMA fit failed: {e}")

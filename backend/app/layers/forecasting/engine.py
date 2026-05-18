@@ -259,7 +259,7 @@ class SmartForecastEngine:
     def _calculate_fss(self) -> Dict[str, Any]:
         """
         Forecast Skill Score (FSS) — a mathematically pure, out-of-sample R²
-        metric relative to the Naive baseline.
+        metric relative to the rolling Naive baseline.
 
         FSS = max(0, 1 - MSE_winner / MSE_naive) × 100
 
@@ -332,7 +332,7 @@ class SmartForecastEngine:
         # Build explanation
         if fss == 0:
             explanation = (
-                f"The best model ({winner_name}) could not beat the naive baseline on "
+                f"The best model ({winner_name}) could not beat the rolling naive baseline on "
                 f"the held-out validation set (RMSE_winner={rmse_winner:.4f} \u2265 "
                 f"RMSE_naive={rmse_naive:.4f}). "
                 f"This score of 0 indicates the data is functionally random or highly "
@@ -340,12 +340,12 @@ class SmartForecastEngine:
             )
         elif fss == 100:
             explanation = (
-                f"Perfect forecastability: the naive baseline has zero error, "
+                f"Perfect forecastability: the rolling naive baseline has zero error, "
                 f"meaning the series is a flat line. {winner_name} confirms this."
             )
         else:
             explanation = (
-                f"{winner_name} reduces error by {fss}% compared to the naive baseline "
+                f"{winner_name} reduces error by {fss}% compared to the rolling naive baseline "
                 f"(RMSE_naive={rmse_naive:.4f} \u2192 RMSE_winner={rmse_winner:.4f}). "
                 f"The higher this score, the more predictable structure exists in your data."
             )

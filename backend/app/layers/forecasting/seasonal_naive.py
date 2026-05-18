@@ -5,7 +5,7 @@ import pandas as pd
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
-from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+from app.layers.forecasting.base import InternalForecaster, calculate_metrics, walk_forward_backtest
 
 
 class SeasonalNaiveForecaster(InternalForecaster):
@@ -38,41 +38,40 @@ class SeasonalNaiveForecaster(InternalForecaster):
         elif self.freq == "D":
             self.season_length = 7
 
-        split_idx = int(len(df) * 0.8)
-        if split_idx == 0:
-            split_idx = 1
-        train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+        horizon_steps = ontology.requirements.horizon_requirement.steps
 
-        if len(val) == 0:
-            # No validation data available; return worst-case metrics so that
-            # this model is not incorrectly favored during model selection.
+        def _fit_predict(train_df: pd.DataFrame, val_df: pd.DataFrame) -> pd.Series:
+            preds = []
+            for i in range(len(val_df)):
+                lookback_idx = (i % self.season_length) + 1
+                try:
+                    preds.append(train_df[self.target_col].iloc[-lookback_idx])
+                except IndexError:
+                    preds.append(train_df[self.target_col].iloc[-1])
+            return pd.Series(preds, index=val_df.index)
+
+        val_preds, val_actuals = walk_forward_backtest(
+            df,
+            self.time_col,
+            self.target_col,
+            horizon_steps=horizon_steps,
+            fit_predict_fn=_fit_predict,
+        )
+
+        if len(val_preds) == 0:
             return [
                 ForecastMetric(name="MAE", value=float("inf")),
                 ForecastMetric(name="RMSE", value=float("inf")),
                 ForecastMetric(name="MAPE", value=float("inf")),
             ]
 
-        def get_seasonal_preds(history_series, steps):
-            preds = []
-            for i in range(steps):
-                lookback_idx = (i % self.season_length) + 1
-                try:
-                    preds.append(history_series.iloc[-lookback_idx])
-                except IndexError:
-                    preds.append(history_series.iloc[-1])
-            return preds
-
-        val_preds_list = get_seasonal_preds(train[self.target_col], len(val))
-        val_preds = pd.Series(val_preds_list, index=val.index)
-
-        # Calculate residuals for confidence intervals
-        residuals = val[self.target_col] - val_preds
+        residuals = val_actuals - val_preds
         self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
         self.validation_predictions = val_preds
-        self.validation_actuals = val[self.target_col]
-
+        self.validation_actuals = val_actuals
         self.history = df[self.target_col]
-        return calculate_metrics(val[self.target_col], val_preds)
+
+        return calculate_metrics(val_actuals, val_preds)
 
     def predict(
         self,

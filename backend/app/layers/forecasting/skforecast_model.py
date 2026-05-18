@@ -8,7 +8,7 @@ from skforecast.preprocessing import RollingFeatures, create_datetime_features
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
-from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+from app.layers.forecasting.base import InternalForecaster, calculate_metrics, walk_forward_backtest
 
 
 class SkforecastForecaster(InternalForecaster):
@@ -116,88 +116,82 @@ class SkforecastForecaster(InternalForecaster):
         all_exog_features = self.known_cols + self.engineered_unknown_cols + self.internal_feature_cols
         horizon_steps = ontology.requirements.horizon_requirement.steps
 
-        # Train/Val Split (80/20)
-        split_idx = int(len(df_processed) * 0.8)
-        if split_idx < 20: split_idx = len(df_processed) - 5 # Ensure some val
-        if split_idx <= 0: raise ValueError("Not enough data to train skforecast.")
+        def _choose_lags_and_windows(budget: int):
+            """Return (lags, window_features) given training budget."""
+            if budget >= 28:
+                return 14, RollingFeatures(stats=["mean", "std"], window_sizes=[7, 14])
+            elif budget >= 21:
+                return 14, RollingFeatures(stats=["mean", "std"], window_sizes=[7, 7])
+            elif budget >= 14:
+                return 7, RollingFeatures(stats=["mean"], window_sizes=[7])
+            elif budget >= 7:
+                return 7, None
+            else:
+                return max(1, budget), None
 
-        # Dynamic lags and rolling-window features based on training budget
-        budget = split_idx - horizon_steps
-        if budget < 1:
-            print(f"LOG: Skforecast skipped - training budget {budget} insufficient.")
+        def _fit_predict(train_df: pd.DataFrame, val_df: pd.DataFrame) -> pd.Series:
+            budget = len(train_df) - horizon_steps
+            if budget < 1:
+                # Not enough train budget for this window — fallback to naive
+                return pd.Series(
+                    [train_df[self.target_col].iloc[-1]] * len(val_df),
+                    index=val_df.index,
+                )
+            lags, window_features = _choose_lags_and_windows(budget)
+            forecaster = ForecasterDirect(
+                estimator=self.regressor,
+                steps=horizon_steps,
+                lags=lags,
+                window_features=window_features,
+                n_jobs=1,
+            )
+            forecaster.fit(
+                y=train_df[self.target_col],
+                exog=train_df[all_exog_features] if all_exog_features else None,
+            )
+            chunk_steps = len(val_df)
+            preds = forecaster.predict(
+                steps=chunk_steps,
+                exog=val_df[all_exog_features] if all_exog_features else None,
+            )
+            return pd.Series(preds.values, index=val_df.index)
+
+        try:
+            val_preds, val_actuals = walk_forward_backtest(
+                df_processed,
+                self.time_col,
+                self.target_col,
+                horizon_steps=horizon_steps,
+                fit_predict_fn=_fit_predict,
+            )
+
+            if len(val_preds) == 0:
+                return [ForecastMetric(name="MAE", value=float("inf"))]
+
+            self.validation_predictions = val_preds
+            self.validation_actuals = val_actuals
+            metrics = calculate_metrics(val_actuals, val_preds)
+            self.residuals_std = float(np.std(val_actuals.values - val_preds.values))
+        except Exception as e:
+            print(f"LOG: Skforecast backtest failed: {e}")
             return [ForecastMetric(name="MAE", value=float("inf"))]
 
-        if budget >= 28:
-            lags = 14
-            window_features = RollingFeatures(stats=["mean", "std"], window_sizes=[7, 14])
-        elif budget >= 21:
-            lags = 14
-            window_features = RollingFeatures(stats=["mean", "std"], window_sizes=[7])
-        elif budget >= 14:
-            lags = 7
-            window_features = RollingFeatures(stats=["mean"], window_sizes=[7])
-        elif budget >= 7:
-            lags = 7
-            window_features = None
-        else:
-            lags = budget
-            window_features = None
+        # Final fit on 100% processed data
+        full_budget = len(df_processed) - horizon_steps
+        if full_budget < 1:
+            return [ForecastMetric(name="MAE", value=float("inf"))]
+        final_lags, final_window_features = _choose_lags_and_windows(full_budget)
 
-        # Initialize Forecaster
         self.forecaster = ForecasterDirect(
             estimator=self.regressor,
             steps=horizon_steps,
-            lags=lags,
-            window_features=window_features,
-            n_jobs=1 # Disable joblib parallelism to prevent Windows access violations
+            lags=final_lags,
+            window_features=final_window_features,
+            n_jobs=1,
         )
-
-        df_train = df_processed.iloc[:split_idx]
-        df_val = df_processed.iloc[split_idx:]
-
-        # Fit on train
-        self.forecaster.fit(
-            y=df_train[self.target_col],
-            exog=df_train[all_exog_features] if all_exog_features else None
-        )
-
-        # Validate on the FULL validation set (same as Naive/ETS)
-        # ForecasterDirect can only predict up to 'steps' at a time, so we use
-        # an expanding-window rolling approach to cover the entire holdout.
-        if len(df_val) > 0:
-            val_steps = len(df_val)
-            all_preds = []
-            all_actuals = []
-            for i in range(0, val_steps, horizon_steps):
-                end_i = min(i + horizon_steps, val_steps)
-                chunk_steps = end_i - i
-                # Refit on all history up to this validation chunk
-                window = df_processed.iloc[:split_idx + i]
-                self.forecaster.fit(
-                    y=window[self.target_col],
-                    exog=window[all_exog_features] if all_exog_features else None
-                )
-                chunk_preds = self.forecaster.predict(
-                    steps=chunk_steps,
-                    exog=df_val[all_exog_features].iloc[i:end_i] if all_exog_features else None
-                )
-                all_preds.extend(chunk_preds.values)
-                all_actuals.extend(df_val[self.target_col].iloc[i:end_i].values)
-
-            val_preds = pd.Series(all_preds, index=df_val.index[:len(all_preds)])
-            y_val = pd.Series(all_actuals, index=df_val.index[:len(all_actuals)])
-            self.validation_predictions = val_preds
-            self.validation_actuals = y_val
-
-            metrics = calculate_metrics(y_val, val_preds)
-            self.residuals_std = float(np.std(y_val.values - val_preds.values))
-        else:
-            metrics = [ForecastMetric(name="MAE", value=float("inf"))]
-
-        # Refit on full data
         self.forecaster.fit(
             y=df_processed[self.target_col],
-            exog=df_processed[all_exog_features] if all_exog_features else None
+            exog=df_processed[all_exog_features] if all_exog_features else None,
         )
 
         return metrics

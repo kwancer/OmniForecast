@@ -5,7 +5,7 @@ import pandas as pd
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
-from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+from app.layers.forecasting.base import InternalForecaster, calculate_metrics, walk_forward_backtest
 
 
 class NaiveForecaster(InternalForecaster):
@@ -32,34 +32,34 @@ class NaiveForecaster(InternalForecaster):
         self.last_date = pd.Timestamp(df.index.max())
         self.freq = pd.infer_freq(pd.DatetimeIndex(df.index)) or "D"
 
-        split_idx = int(len(df) * 0.8)
-        if split_idx == 0:
-            split_idx = 1
-        train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+        horizon_steps = ontology.requirements.horizon_requirement.steps
 
-        if len(val) == 0:
-            # No validation data available; return worst-case metrics so that
-            # this model is not incorrectly favored during model selection.
+        def _fit_predict(train_df: pd.DataFrame, val_df: pd.DataFrame) -> pd.Series:
+            last_train_val = train_df[self.target_col].iloc[-1]
+            return pd.Series([last_train_val] * len(val_df), index=val_df.index)
+
+        val_preds, val_actuals = walk_forward_backtest(
+            df,
+            self.time_col,
+            self.target_col,
+            horizon_steps=horizon_steps,
+            fit_predict_fn=_fit_predict,
+        )
+
+        if len(val_preds) == 0:
             return [
                 ForecastMetric(name="MAE", value=float("inf")),
                 ForecastMetric(name="RMSE", value=float("inf")),
                 ForecastMetric(name="MAPE", value=float("inf")),
             ]
 
-        # Naive: Predict last value of train for all val steps
-        last_train_val = train[self.target_col].iloc[-1]
-        val_preds = pd.Series([last_train_val] * len(val), index=val.index)
-
-        # Calculate residuals for confidence intervals
-        residuals = val[self.target_col] - val_preds
+        residuals = val_actuals - val_preds
         self.residuals_std = float(residuals.std()) if len(residuals) > 1 else 0.0
         self.validation_predictions = val_preds
-        self.validation_actuals = val[self.target_col]
-
-        # Final fit
+        self.validation_actuals = val_actuals
         self.last_value = df[self.target_col].iloc[-1]
 
-        return calculate_metrics(val[self.target_col], val_preds)
+        return calculate_metrics(val_actuals, val_preds)
 
     def predict(
         self,

@@ -6,7 +6,7 @@ from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
 from app.domain.data import ForecastMetric
 from app.domain.ontology import ForecastOntology, ModelMetadata
-from app.layers.forecasting.base import InternalForecaster, calculate_metrics
+from app.layers.forecasting.base import InternalForecaster, calculate_metrics, walk_forward_backtest
 
 
 class ETSForecaster(InternalForecaster):
@@ -54,42 +54,29 @@ class ETSForecaster(InternalForecaster):
         df.index.freq = self.freq
         self.last_date = pd.Timestamp(df.index.max())
 
-        split_idx = int(len(df) * 0.8)
-        if split_idx == 0:
-            split_idx = 1
-        train, val = df.iloc[:split_idx], df.iloc[split_idx:]
+        # Determine seasonal_periods only if seasonal is specified
+        seasonal_periods = None
+        if self.seasonal is not None:
+            if self.freq in ("D", "B"):
+                seasonal_periods = 7
+            elif self.freq in ("M", "MS"):
+                seasonal_periods = 12
+            elif self.freq in ("H", "h"):
+                seasonal_periods = 24
+            elif self.freq in ("T", "min"):
+                seasonal_periods = 60
+            elif self.freq in ("S", "s"):
+                seasonal_periods = 60
+            elif self.freq in ("ms", "L"):
+                seasonal_periods = 1000
+            else:
+                seasonal_periods = 7  # Safe fallback
 
-        if len(val) == 0:
-            # No validation data available; return worst-case metrics so that
-            # this model is not incorrectly favored during model selection.
-            return [
-                ForecastMetric(name="MAE", value=float("inf")),
-                ForecastMetric(name="RMSE", value=float("inf")),
-                ForecastMetric(name="MAPE", value=float("inf")),
-            ]
+        horizon_steps = ontology.requirements.horizon_requirement.steps
 
-        try:
-            # Determine seasonal_periods only if seasonal is specified
-            seasonal_periods = None
-            if self.seasonal is not None:
-                if self.freq in ("D", "B"):
-                    seasonal_periods = 7
-                elif self.freq in ("M", "MS"):
-                    seasonal_periods = 12
-                elif self.freq in ("H", "h"):
-                    seasonal_periods = 24
-                elif self.freq in ("T", "min"):
-                    seasonal_periods = 60
-                elif self.freq in ("S", "s"):
-                    seasonal_periods = 60
-                elif self.freq in ("ms", "L"):
-                    seasonal_periods = 1000
-                else:
-                    seasonal_periods = 7  # Safe fallback
-
-            # Train on Training Set
+        def _fit_predict(train_df: pd.DataFrame, val_df: pd.DataFrame) -> pd.Series:
             model = ExponentialSmoothing(
-                train[self.target_col],
+                train_df[self.target_col],
                 trend=self.trend,
                 damped_trend=self.damped,
                 seasonal=self.seasonal,
@@ -97,9 +84,25 @@ class ETSForecaster(InternalForecaster):
                 freq=self.freq,
             )
             fit_result = model.fit(optimized=True)
-            val_preds = fit_result.forecast(len(val))
+            return fit_result.forecast(len(val_df))
 
-            # FIT ON FULL DATA
+        try:
+            val_preds, val_actuals = walk_forward_backtest(
+                df,
+                self.time_col,
+                self.target_col,
+                horizon_steps=horizon_steps,
+                fit_predict_fn=_fit_predict,
+            )
+
+            if len(val_preds) == 0:
+                return [
+                    ForecastMetric(name="MAE", value=float("inf")),
+                    ForecastMetric(name="RMSE", value=float("inf")),
+                    ForecastMetric(name="MAPE", value=float("inf")),
+                ]
+
+            # FIT ON FULL DATA for later predict()
             self.model = ExponentialSmoothing(
                 df[self.target_col],
                 trend=self.trend,
@@ -109,15 +112,20 @@ class ETSForecaster(InternalForecaster):
                 freq=self.freq,
             )
             self.fit_result = self.model.fit(optimized=True)
-            self.validation_predictions = val_preds
-            self.validation_actuals = val[self.target_col]
 
-            return calculate_metrics(val[self.target_col], val_preds)
+            self.validation_predictions = val_preds
+            self.validation_actuals = val_actuals
+            self.residuals_std = (
+                float((val_actuals - val_preds).std()) if len(val_preds) > 1 else 0.0
+            )
+
+            return calculate_metrics(val_actuals, val_preds)
         except (ValueError, RuntimeError, TypeError) as e:
             print(f"LOG: Model {self.config_name} failed: {e}")
             return [
                 ForecastMetric(name="MAE", value=float("inf")),
                 ForecastMetric(name="RMSE", value=float("inf")),
+                ForecastMetric(name="MAPE", value=float("inf")),
             ]
 
     def predict(
