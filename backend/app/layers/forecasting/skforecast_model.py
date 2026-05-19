@@ -19,7 +19,7 @@ class SkforecastForecaster(InternalForecaster):
     def __init__(self, regressor_type='lightgbm'):
         self.regressor_type = regressor_type
         if regressor_type == 'lightgbm':
-            self.regressor = LGBMRegressor(random_state=42, n_estimators=100, verbose=-1, n_jobs=1)
+            self.regressor = LGBMRegressor(random_state=42, n_estimators=100, verbose=-1, n_jobs=-1)
             self.complexity_score = 7
         elif regressor_type == 'xgboost':
             from xgboost import XGBRegressor
@@ -143,7 +143,7 @@ class SkforecastForecaster(InternalForecaster):
                 steps=horizon_steps,
                 lags=lags,
                 window_features=window_features,
-                n_jobs=1,
+                n_jobs=-1,
             )
             forecaster.fit(
                 y=train_df[self.target_col],
@@ -187,7 +187,7 @@ class SkforecastForecaster(InternalForecaster):
             steps=horizon_steps,
             lags=final_lags,
             window_features=final_window_features,
-            n_jobs=1,
+            n_jobs=-1,
         )
         self.forecaster.fit(
             y=df_processed[self.target_col],
