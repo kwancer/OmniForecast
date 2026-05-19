@@ -108,7 +108,7 @@ class SmartForecastEngine:
             print("LOG: ML Specialists Triggered. Adding Skforecast variants.")
             candidates.append(SkforecastForecaster("lightgbm"))
             # candidates.append(SkforecastForecaster("rf"))  # Temporarily disabled — too slow
-            candidates.append(SkforecastForecaster("xgboost"))
+            # candidates.append(SkforecastForecaster("xgboost"))  # Disabled to reduce tournament runtime
 
         # If the user has configured known_future covariates, exclude models
         # that cannot consume them — otherwise the user's planned drivers
