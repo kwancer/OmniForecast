@@ -100,16 +100,11 @@
 <script setup lang="ts">
   import type { DataHealthReport } from '@/types'
   import { computed, nextTick, onMounted, ref } from 'vue'
-  import { formatNumber } from '@/utils/formatters'
 
   const props = defineProps<{
     dataHealthReport: DataHealthReport | null
     mode?: 'hero' | 'compact' | 'legacy'
   }>()
-
-  function formatMse (val: number | undefined | null) {
-    return formatNumber(val)
-  }
 
   const borderColorClass = computed(() => {
     if (!props.dataHealthReport) return ''

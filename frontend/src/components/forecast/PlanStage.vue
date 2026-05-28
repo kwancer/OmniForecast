@@ -186,8 +186,7 @@
 </template>
 
 <script setup lang="ts">
-  import type { CovariateState } from '@/types'
-  import type { CovariateType } from '@/types'
+  import type { CovariateState, CovariateType } from '@/types'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
   import ClarificationDialog from './ClarificationDialog.vue'
@@ -209,7 +208,6 @@
   const covariateStates = ref<Record<string, CovariateState>>({})
   const showClarification = ref(false)
   const hasBypassedClarification = ref(false)
-
 
   const minColumnConfidence = computed(() => {
     if (!store.ontology?.columns.length) return 1
