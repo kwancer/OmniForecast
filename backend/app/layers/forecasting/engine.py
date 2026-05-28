@@ -176,7 +176,6 @@ class SmartForecastEngine:
                 metrics = model.fit(df, ontology)
                 mae = next((m.value for m in metrics if m.name == "MAE"), float("inf"))
                 mse = next((m.value for m in metrics if m.name == "MSE"), None)
-                # Derive MSE from RMSE (calculate_metrics always emits RMSE, never MSE)
                 if mse is None:
                     rmse_val = next(
                         (m.value for m in metrics if m.name == "RMSE"), None
@@ -299,8 +298,6 @@ class SmartForecastEngine:
         winner_name = self.active_model.get_metadata().name
         winner_complexity = winner_result["complexity"]
 
-        # RMSE is already computed inside calculate_metrics() as sqrt(MSE).
-        # Derive it here from the stored MSE to avoid redundant computation.
         rmse_naive = (
             float(np.sqrt(mse_naive)) if np.isfinite(mse_naive) else float("inf")
         )
@@ -448,14 +445,10 @@ class SmartForecastEngine:
             elif mae <= winner_mae * TOLERANCE:
                 status = "runner_up"
 
-            # Read RMSE directly from the stored ForecastMetric objects —
-            # calculate_metrics() always emits RMSE; reading it here avoids the
-            # brittle mse→sqrt round-trip that was producing float('inf').
             rmse_val = next(
                 (float(m.value) for m in r["metrics"] if m.name == "RMSE"),
                 None,
             )
-            # Derive MSE from RMSE (MSE = RMSE²) for the FSS tooltip display.
             mse_val = (
                 round(rmse_val**2, 6)
                 if (rmse_val is not None and np.isfinite(rmse_val))

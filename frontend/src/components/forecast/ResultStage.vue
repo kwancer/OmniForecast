@@ -273,8 +273,6 @@
   const showForecastValuesDialog = ref(false)
   const showTechnicalSheet = ref(false)
 
-  // (Technical details logic moved to TechnicalDetailsSheet.vue)
-
   const askedQuestions = computed(() => {
     const asked = new Set<string>()
     for (const msg of store.explainabilityMessages) {
@@ -391,7 +389,6 @@
   font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
 }
 
-/* ─── Chart Container ─── */
 .chart-container {
   border-radius: 16px;
   overflow: hidden;
@@ -399,14 +396,12 @@
   background: rgb(var(--v-theme-surface));
 }
 
-/* ─── Quick Actions Bar ─── */
 .quick-actions-bar {
   background: rgb(var(--v-theme-surface)) !important;
   border: 1px solid rgba(var(--v-theme-primary), 0.08) !important;
   gap: 8px;
 }
 
-/* ─── Content Split Row ─── */
 .content-split {
   /* Height = chart (620px) + quick-actions (~56px) + gap (16px) */
   height: 692px;
@@ -420,7 +415,6 @@
   max-height: 100%;
 }
 
-/* ─── Insight Cards (sidebar) ─── */
 .insight-card {
   background: rgba(var(--v-theme-primary), 0.03);
   border: 1px solid rgba(var(--v-theme-primary), 0.08);
@@ -442,17 +436,11 @@
   border-color: rgba(var(--v-theme-secondary), 0.2);
 }
 
-.insight-card--violet {
-  background: rgba(var(--v-theme-primary), 0.04);
-  border-color: rgba(var(--v-theme-primary), 0.1);
-}
-
 .insight-card__header {
   display: flex;
   align-items: center;
 }
 
-/* ─── Chat Thread ─── */
 .chat-thread {
   min-height: 200px;
   overflow-y: auto;
@@ -508,7 +496,6 @@
   min-width: 42px;
 }
 
-/* ─── Typing Indicator ─── */
 .typing-indicator {
   display: flex;
   gap: 4px;
@@ -536,7 +523,6 @@
   30% { transform: translateY(-6px); opacity: 1; }
 }
 
-/* ─── Evidence Disclosure ─── */
 .evidence-list {
   display: flex;
   flex-direction: column;
@@ -568,7 +554,6 @@
   font-size: 0.7rem;
 }
 
-/* ─── Markdown Body ─── */
 .chat-md-body {
   line-height: 1.55;
 }
@@ -604,13 +589,11 @@
   border-radius: 4px;
 }
 
-/* ─── Suggestion Chips ─── */
 .suggestion-asked {
   opacity: 0.35;
   text-decoration: line-through;
 }
 
-/* ─── AI Column height matches left side ─── */
 .ai-column {
   align-self: stretch;
   min-height: 0;

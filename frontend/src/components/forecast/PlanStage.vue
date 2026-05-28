@@ -1,6 +1,5 @@
 <template>
   <v-container class="fill-height d-flex flex-column pa-0" fluid>
-    <!-- ═══════════════ TOP BAR ═══════════════ -->
     <div class="d-flex align-center px-4 py-4 w-100 bg-surface border-b">
       <v-btn
         class="hover-lift"
@@ -45,11 +44,9 @@
       </v-btn>
     </div>
 
-    <!-- ═══════════════ MAIN SINGLE-COLUMN BODY ═══════════════ -->
     <div class="flex-grow-1 overflow-y-auto w-100 bg-background">
       <div class="pa-4 pa-md-6 mx-auto" style="max-width: 1400px;">
 
-        <!-- SECTION 1: Forecast Intent -->
         <div class="section-card mb-6">
           <div class="d-flex align-center mb-4">
             <div class="section-header">
@@ -108,7 +105,6 @@
           />
         </div>
 
-        <!-- SECTION 2: Static Attributes -->
         <div v-if="staticCovariates.length > 0" class="section-card mb-6">
           <div class="section-header mb-4">
             <div class="section-header__icon" style="background: rgba(var(--v-theme-on-surface), 0.12);">
@@ -136,7 +132,6 @@
           </div>
         </div>
 
-        <!-- SECTION 3: Unified Data Table -->
         <div class="section-card mb-6">
           <div class="d-flex align-center mb-4">
             <div class="section-header">
@@ -175,8 +170,7 @@
           <div v-if="hasActiveCovariates" class="mt-4 pa-3 bg-surface-light rounded-lg border">
             <div class="text-caption text-medium-emphasis">
               <v-icon class="mr-1" color="primary" size="14">mdi-lightbulb-outline</v-icon>
-              <strong>Planned drivers</strong> (like price or promotions) are values you control — the model uses your exact numbers directly.
-              <strong>External factors</strong> (like weather or competitor prices) are assumptions you make — the model looks at the pattern before your assumption, so the impact builds gradually.
+              Toggle each column below to set whether it is a planned driver or an external factor.
             </div>
           </div>
         </div>
@@ -192,7 +186,7 @@
 </template>
 
 <script setup lang="ts">
-  import type { CovariateState } from './CovariateSentence.vue'
+  import type { CovariateState } from '@/types'
   import type { CovariateType } from '@/types'
   import { computed, onMounted, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
@@ -216,7 +210,6 @@
   const showClarification = ref(false)
   const hasBypassedClarification = ref(false)
 
-  // ─── Clarification Logic ───
 
   const minColumnConfidence = computed(() => {
     if (!store.ontology?.columns.length) return 1
@@ -230,7 +223,6 @@
     return globalScore < 0.85 || minColumnConfidence.value < 0.85 || horizonScore < 0.85 || hasQuestions
   })
 
-  // ─── Column Categorisation ───
   const covariates = computed(() => {
     if (!store.ontology || !sentenceState.value) return []
     return store.ontology.columns
@@ -263,7 +255,6 @@
     staticCovariates.value.map(c => c.display_name || c.column_name),
   )
 
-  // ─── Stats for header ───
   const totalColumns = computed(() => store.ontology?.columns.length || 0)
   const totalFeatures = computed(() => covariates.value.filter(c => c.covariate_type !== 'static').length)
   const activeColumnCount = computed(() => {
@@ -271,7 +262,6 @@
     return store.ontology.columns.filter(c => c.role !== 'ignore' && !covariateStates.value[c.column_name]?.isIgnored).length
   })
 
-  // ─── Helpers ───
   function isColumnIgnored (colName: string): boolean {
     return covariateStates.value[colName]?.isIgnored === true
   }
@@ -449,7 +439,6 @@
 </script>
 
 <style scoped>
-/* ─── Stat Pills ─── */
 .stat-pills {
   background: rgba(var(--v-theme-primary), 0.04);
   border: 1px solid rgba(var(--v-theme-primary), 0.08);
@@ -476,7 +465,6 @@
   font-size: 0.875rem;
 }
 
-/* ─── Section Cards ─── */
 .section-card {
   background: rgba(var(--v-theme-primary), 0.02);
   border: 1px solid rgba(var(--v-theme-primary), 0.06);
@@ -489,7 +477,6 @@
   border-color: rgba(var(--v-theme-primary), 0.12);
 }
 
-/* ─── Section Headers ─── */
 .section-header {
   display: flex;
   align-items: center;

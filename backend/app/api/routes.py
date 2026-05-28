@@ -37,77 +37,6 @@ def _get_forecast_session(db: Session, session_id: str) -> ForecastSession:
     return db_session
 
 
-def _persist_forecast_results(
-    session_id: str,
-    ontology: ForecastOntology,
-    response: ForecastResponse,
-    max_retries: int = 1,
-) -> bool:
-    """Persist forecast artifacts with retry for transient DB disconnects."""
-    attempts = max_retries + 1
-
-    for attempt in range(1, attempts + 1):
-        db = SessionLocal()
-        try:
-            db_session = (
-                db.query(ForecastSession)
-                .filter(ForecastSession.session_id == session_id)
-                .first()
-            )
-
-            if not db_session:
-                print(f"DEBUG: Session {session_id} not found in DB.")
-                return False
-
-            db_session.cleaning_report = response.cleaning_report.model_dump()  # type: ignore[assignment]
-            db_session.forecast_results = response.forecast  # type: ignore[assignment]
-            db_session.metrics = [m.model_dump() for m in response.metrics]  # type: ignore[assignment]
-            db_session.explanation = response.explanation  # type: ignore[assignment]
-            ontology_payload = ontology.model_dump()
-            # Persist explainability artifacts under ontology
-            # to avoid DB schema migration.
-            ontology_payload["_artifacts"] = {
-                "data_health_report": response.data_health_report,
-                "tournament_results": [
-                    tr.model_dump() for tr in response.tournament_results or []
-                ],
-                "backtest_data": response.backtest_data,
-            }
-            db_session.ontology = ontology_payload  # type: ignore[assignment]
-
-            print(f"DEBUG: Committing to DB (attempt {attempt}/{attempts})...")
-            db.commit()
-            print("DEBUG: DB commit successful.")
-            return True
-
-        except DBAPIError as db_err:
-            db.rollback()
-            is_disconnect = bool(getattr(db_err, "connection_invalidated", False))
-            message = str(db_err).lower()
-            if "server closed the connection unexpectedly" in message:
-                is_disconnect = True
-
-            if is_disconnect and attempt < attempts:
-                print(f"DEBUG: Transient DB disconnect, retrying persistence: {db_err}")
-                continue
-
-            print(
-                "DEBUG: Database error during commit "
-                f"(non-retryable or exhausted): {db_err}"
-            )
-            return False
-
-        except (RuntimeError, ValueError, TypeError) as db_err:
-            db.rollback()
-            print(f"DEBUG: Database error during commit: {db_err}")
-            return False
-
-        finally:
-            db.close()
-
-    return False
-
-
 @router.get("/forecast/progress/{session_id}")
 async def stream_forecast_progress(session_id: str):
     """
@@ -289,10 +218,6 @@ async def create_plan(
         session_id = str(uuid.uuid4())
         ontology.session_id = session_id
 
-        # Determine Model Metadata (pipeline's forecaster can provide this)
-        # OPTIMIZATION: User requested to skip model selection at Plan stage
-        # for Frugality.
-        # we only need to only choose it during our frugal tournament (in forecast).
         # pipeline.forecaster.select_model(df, ontology)
         # ontology.model_metadata = pipeline.forecaster.get_metadata()
 
@@ -349,15 +274,11 @@ async def generate_forecast(
             pipeline.forecaster.set_progress_callback(progress_callback)
             print(f"[Progress] Callback registered for session {session_id}")
 
-        # FRUGAL OPTIMIZATION: Only run selection ONCE inside the pipeline.
         # pipeline.forecaster.select_model(df, ontology) -> REMOVED
 
         response = await asyncio.to_thread(pipeline.run_forecast, df, ontology)
         print("DEBUG: Pipeline finished.")
 
-        # CAPTURE SELECTED MODEL METADATA
-        # The pipeline has now selected a model. We must capture it to show
-        # on the final page.
         ontology.model_metadata = pipeline.forecaster.get_metadata()
 
         # Update Persisted Session

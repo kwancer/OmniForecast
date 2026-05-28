@@ -758,5 +758,4 @@
     },
   }))
 
-  // Zoom state is tracked via isZoomed and managed by the main chart's wheel/pinch zoom
 </script>

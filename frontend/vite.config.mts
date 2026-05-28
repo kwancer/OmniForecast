@@ -12,7 +12,6 @@ import { defineConfig } from 'vite'
 import Layouts from 'vite-plugin-vue-layouts-next'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
 
-// https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
     VueRouter({
@@ -67,13 +66,13 @@ export default defineConfig({
       '@': fileURLToPath(new URL('src', import.meta.url)),
     },
     extensions: [
-      '.js',
-      '.json',
-      '.jsx',
-      '.mjs',
       '.ts',
       '.tsx',
       '.vue',
+      '.js',
+      '.jsx',
+      '.mjs',
+      '.json',
     ],
   },
   server: {

@@ -16,9 +16,6 @@ class IntentAnalyzer(Protocol):
         user_prompt: str,
         history: Optional[list[dict[str, str]]] = None,
     ) -> ForecastOntology:
-        """
-        Analyzes the dataset and user prompt to generate a Forecast Ontology.
-        """
         ...
 
 
@@ -26,46 +23,32 @@ class AutoCleaner(Protocol):
     def clean(
         self, df: pd.DataFrame, ontology: ForecastOntology
     ) -> Tuple[pd.DataFrame, CleaningReport]:
-        """
-        Cleans the dataset based on the ontology.
-        """
         ...
 
 
 class ForecastEngine(Protocol):
     def fit(self, df: pd.DataFrame, ontology: ForecastOntology) -> List[ForecastMetric]:
-        """
-        Fits the forecasting model and returns validation metrics.
-        """
         ...
 
-    def predict(self, horizon: int) -> pd.DataFrame:
-        """
-        Generates future predictions.
-        """
+    def predict(
+        self,
+        horizon: int,
+        ontology: Optional[ForecastOntology] = None,
+        interval_width: float = 0.80,
+    ) -> pd.DataFrame:
         ...
 
     def get_metadata(self) -> Any:
-        """
-        Returns model metadata.
-        """
         ...
 
-    def select_model(self, ontology: ForecastOntology) -> None:
-        """
-        Selects the forecasting model based on the ontology.
-        """
+    def select_model(
+        self, df: pd.DataFrame, ontology: ForecastOntology
+    ) -> List[ForecastMetric]:
         ...
 
     def set_progress_callback(
         self, callback: Callable[[int, int, str], None] | None
     ) -> None:
-        """
-        Sets a callback function to report progress during model tournament.
-        
-        Args:
-            callback: Function that takes (current, total, model_name) as arguments
-        """
         ...
 
 
@@ -77,7 +60,4 @@ class Explainer(Protocol):
         ontology: ForecastOntology,
         metrics: List[ForecastMetric],
     ) -> str:
-        """
-        Generates a natural language explanation of the forecast and metrics.
-        """
         ...

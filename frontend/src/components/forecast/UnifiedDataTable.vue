@@ -177,11 +177,12 @@
                 <!-- Planned / External toggle -->
                 <div class="d-flex align-center justify-center mb-3">
                   <v-btn-toggle
+                    color="primary"
                     density="comfortable"
                     mandatory
                     :model-value="col.covariate_type === 'known_future' ? 'planned' : 'external'"
                     rounded
-                    variant="outlined"
+                    variant="tonal"
                     @update:model-value="v => $emit('change-type', col.column_name, v === 'planned' ? 'known_future' : 'unknown_past')"
                   >
                     <v-btn size="small" value="planned">
@@ -193,13 +194,13 @@
                       External
                     </v-btn>
                   </v-btn-toggle>
-                  <v-tooltip location="top" max-width="260">
+                  <v-tooltip location="top" max-width="320">
                     <template #activator="{ props: tipProps }">
                       <v-icon v-bind="tipProps" class="ml-2" color="medium-emphasis" size="14">mdi-information-outline</v-icon>
                     </template>
                     <div class="text-caption">
-                      <strong>Planned</strong> — the model uses your exact value directly.<br>
-                      <strong>External</strong> — the model responds to the pattern before your assumption.
+                      <strong>Planned drivers</strong> (like price or promotions) are values you control — the model uses your exact numbers directly.<br><br>
+                      <strong>External factors</strong> (like weather or competitor prices) are assumptions you make — the model looks at the pattern before your assumption, so the impact builds gradually.
                     </div>
                   </v-tooltip>
                 </div>
@@ -330,9 +331,8 @@
 </template>
 
 <script setup lang="ts">
-  import type { CovariateState } from './CovariateSentence.vue'
   import type { SentenceState } from './OntologySentence.vue'
-  import type { ColumnOntology, CovariateType, ForecastOntology } from '@/types'
+  import type { ColumnOntology, CovariateState, CovariateType, ForecastOntology } from '@/types'
   import { addDays, addHours, addMinutes, addMonths, addWeeks, addYears, format, parseISO } from 'date-fns'
   import { computed, ref, watch } from 'vue'
   import { useForecastStore } from '@/stores/forecast'
@@ -895,15 +895,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: help;
-}
-
-/* Read-only external values */
-.readonly-value {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgba(var(--v-theme-on-surface), 0.55);
   cursor: help;
 }
 

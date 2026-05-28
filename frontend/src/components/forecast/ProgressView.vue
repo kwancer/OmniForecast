@@ -95,7 +95,6 @@
   let messageInterval: number | null = null
 
   onMounted(() => {
-    // Rotate messages every 4 seconds
     messageInterval = window.setInterval(() => {
       currentMessageIndex.value = (currentMessageIndex.value + 1) % messages.length
     }, 4000)

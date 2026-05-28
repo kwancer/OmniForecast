@@ -13,7 +13,6 @@
       {{ isEditing ? 'Done' : 'Edit' }}
     </v-chip>
 
-    <!-- ═══ MADLIBS MODE (Option 1) ═══ -->
     <template v-if="uiMode === 'madlibs'">
       <!-- READING MODE -->
       <div v-if="!isEditing" class="text-h5 font-weight-light" style="line-height: 1.8;">
@@ -133,7 +132,6 @@
       </div>
     </template>
 
-    <!-- ═══ GRID MODE (Option 2) ═══ -->
     <template v-else-if="uiMode === 'grid'">
       <v-row class="ma-0 align-center">
         <!-- Target -->
@@ -322,16 +320,6 @@
   right: 12px;
   z-index: 1;
   cursor: pointer;
-}
-
-.editable-chip {
-  cursor: pointer;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.editable-chip:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
 .variable-text {

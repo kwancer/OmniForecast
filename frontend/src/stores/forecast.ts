@@ -12,7 +12,7 @@ export const useForecastStore = defineStore('forecast', {
     metrics: [] as ForecastMetric[],
     explanation: '',
     loading: false,
-    historyResults: [] as ForecastResult[], // <--- New State
+    historyResults: [] as ForecastResult[],
     dataHealthReport: null as DataHealthReport | null,
     step: 'upload' as 'upload' | 'plan' | 'results',
     modelMetadata: null as ModelMetadata | null,

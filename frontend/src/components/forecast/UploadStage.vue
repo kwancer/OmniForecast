@@ -97,10 +97,8 @@
             </v-expand-transition>
           </div>
 
-          <!-- ═══ MAIN INPUT AREA ═══ -->
           <div class="input-area">
 
-            <!-- ═══ UPLOAD / PASTE ROW ═══ -->
             <div class="d-flex flex-wrap upload-paste-row">
               <!-- CSV Upload -->
               <div v-if="!pasteActive" class="upload-col">
@@ -347,7 +345,6 @@
               </div>
             </v-expand-transition>
 
-            <!-- ═══ INTENT INPUT ═══ -->
             <div class="intent-input-wrap mt-6">
               <div class="intent-input-label d-flex align-center mb-2">
                 <v-icon class="mr-2" color="primary" size="18">mdi-message-text-outline</v-icon>
@@ -447,10 +444,8 @@
   // State for the "Learn more" alert toggle
   const showIntegrityDetail = ref(false)
 
-  // ─── Drag & Drop ───
   const isDragOver = ref(false)
   const fileInputRef = ref<HTMLInputElement | null>(null)
-  const intentTextareaRef = ref<HTMLTextAreaElement | null>(null)
   const isIntentFocused = ref(false)
   let dragCounter = 0
 
@@ -498,10 +493,8 @@
     if (fileInputRef.value) fileInputRef.value.value = ''
   }
 
-  // ─── Excel Paste ───
   const pasteText = ref('')
   const pasteActive = ref(false)
-  const pasteTextareaRef = ref<HTMLTextAreaElement | null>(null)
 
   function onExcelPaste (_e: ClipboardEvent) {
     // Let the paste complete, then process
@@ -568,7 +561,6 @@
     return csvLines.join('\n')
   }
 
-  // ─── File Stats ───
   interface FileStats {
     name: string
     sizeLabel: string
@@ -578,7 +570,6 @@
 
   const fileStats = ref<FileStats | null>(null)
 
-  // ─── Preview Data ───
   interface PreviewData {
     headers: string[]
     rows: string[][]
@@ -649,7 +640,6 @@
   font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
 }
 
-/* ─── Hero ─── */
 .hero-heading {
   background: linear-gradient(135deg,
     rgb(var(--v-theme-primary)) 0%,
@@ -660,7 +650,6 @@
   background-clip: text;
 }
 
-/* ─── Platform Briefing ─── */
 .platform-briefing {
   background: rgba(var(--v-theme-primary), 0.04);
   border: 1px solid rgba(var(--v-theme-primary), 0.1);
@@ -668,7 +657,6 @@
   overflow: hidden;
 }
 
-/* ─── Input Area ─── */
 .input-area {
   background: rgba(var(--v-theme-primary), 0.02);
   border: 1px solid rgba(var(--v-theme-primary), 0.06);
@@ -681,7 +669,6 @@
   border-color: rgba(var(--v-theme-primary), 0.12);
 }
 
-/* ─── Dropzone ─── */
 .dropzone {
   position: relative;
   border: 2px dashed rgba(var(--v-theme-primary), 0.2);
@@ -754,7 +741,6 @@
   50% { transform: translateY(-4px); }
 }
 
-/* ─── Upload / Paste Row ─── */
 .upload-paste-row {
   gap: 16px;
   align-items: stretch;
@@ -773,7 +759,6 @@
   height: 100%;
 }
 
-/* ─── Paste Zone ─── */
 .paste-zone {
   position: relative;
   border: 2px dashed rgba(var(--v-theme-secondary), 0.2);
@@ -835,7 +820,6 @@
   font-style: italic;
 }
 
-/* ─── File Loaded State ─── */
 .file-icon-wrap {
   display: flex;
   align-items: center;
@@ -859,7 +843,6 @@
   color: rgba(var(--v-theme-on-surface), 0.5);
 }
 
-/* ─── Intent Input ─── */
 .intent-input-wrap {
   position: relative;
 }
@@ -910,7 +893,6 @@
   background: rgba(var(--v-theme-primary), 0.02);
 }
 
-/* ─── Preview ─── */
 .preview-card {
   border-color: rgba(var(--v-theme-secondary), 0.2) !important;
   box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.02) !important;
@@ -920,7 +902,6 @@
   border-bottom: 2px solid var(--v-border-color) !important;
 }
 
-/* ─── Transitions ─── */
 .fade-up-enter-active,
 .fade-up-leave-active {
   transition: opacity 0.3s ease, transform 0.3s ease;

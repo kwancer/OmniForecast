@@ -174,6 +174,11 @@ export interface ForecastResponse {
   backtest_data?: BacktestPoint[]
 }
 
+export interface CovariateState {
+  override: number | number[] | 'seasonal' | null
+  isIgnored: boolean
+}
+
 export interface ExplainabilityEvidence {
   source: string
   detail: string

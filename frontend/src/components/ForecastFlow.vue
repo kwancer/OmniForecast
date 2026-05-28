@@ -48,7 +48,6 @@
   import PlanStage from './forecast/PlanStage.vue'
   import ProgressView from './forecast/ProgressView.vue'
   import ResultStage from './forecast/ResultStage.vue'
-  // Components
   import UploadStage from './forecast/UploadStage.vue'
 
   const store = useForecastStore()

@@ -64,10 +64,3 @@ class ExplainabilityResponse(BaseModel):
     answer: str
     evidence: List[ExplainabilityEvidence] = []
     suggestions: List[str] = []
-    tool_trace: Optional[List[Dict[str, Any]]] = None
-
-
-class ErrorResponse(BaseModel):
-    detail: str
-    message: Optional[str] = None
-    traceback: Optional[str] = None

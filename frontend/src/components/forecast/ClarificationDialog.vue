@@ -133,9 +133,6 @@
 
     await store.analyzeIntent(text)
     input.value = ''
-
-  // If confidence is now high enough, we could auto-close,
-  // but let's let the parent handle the visibility based on needsClarification
   }
 
   function bypass () {
@@ -168,8 +165,4 @@
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05) !important;
 }
 
-.hover-lift:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(var(--v-theme-primary), 0.15);
-}
 </style>

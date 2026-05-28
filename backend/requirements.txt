@@ -7,13 +7,10 @@ pydantic
 python-multipart
 statsmodels
 scikit-learn
-openai
 python-dotenv
 sqlalchemy
-greenlet
 pytest
 ruff
-httpx
 google-genai
 psycopg2-binary
 xgboost

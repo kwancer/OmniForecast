@@ -95,218 +95,6 @@
       </div>
     </div>
   </div>
-
-  <!-- COMPACT MODE: Small header card for sidebar or tight spaces -->
-  <v-card
-    v-else-if="mode === 'compact' && dataHealthReport"
-    class="pa-3"
-    :class="borderColorClass"
-    variant="outlined"
-  >
-    <div class="d-flex align-center justify-space-between">
-      <div>
-        <div class="text-caption text-medium-emphasis">
-          Forecast Score
-        </div>
-        <div class="d-flex align-center mt-1">
-          <span class="text-h4 font-weight-bold" :class="textColorClass">
-            {{ dataHealthReport.score }}
-          </span>
-          <span class="text-body-2 text-medium-emphasis ml-1">/100</span>
-          <v-chip
-            class="ml-2"
-            :color="chipColor"
-            size="x-small"
-            variant="flat"
-          >
-            {{ dataHealthReport.rating }}
-          </v-chip>
-        </div>
-      </div>
-      <svg height="48" viewBox="0 0 48 48" width="48">
-        <circle
-          cx="24"
-          cy="24"
-          fill="none"
-          r="19"
-          stroke="rgba(var(--v-theme-on-surface), 0.08)"
-          stroke-width="6"
-        />
-        <circle
-          cx="24"
-          cy="24"
-          fill="none"
-          r="19"
-          :stroke="gaugeColor"
-          stroke-linecap="round"
-          stroke-width="6"
-          :style="{
-            strokeDasharray: circumferenceCompact,
-            strokeDashoffset: animatedCompactOffset,
-            transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
-          }"
-          transform="rotate(-90 24 24)"
-        />
-      </svg>
-    </div>
-  </v-card>
-
-  <!-- LEGACY MODE: Original card with details toggle (retained for backwards compatibility) -->
-  <v-card
-    v-else-if="dataHealthReport"
-    class="mb-4 pa-4"
-    :class="borderColorClass"
-    variant="outlined"
-  >
-    <div class="d-flex align-center justify-space-between mb-3">
-      <div class="flex-grow-1">
-        <div class="text-overline text-medium-emphasis mb-1">
-          Forecast Skill Score
-        </div>
-        <div class="d-flex align-center">
-          <span class="text-h3 font-weight-bold" :class="textColorClass">
-            {{ dataHealthReport?.score ?? 'N/A' }}
-          </span>
-          <span class="text-h6 text-medium-emphasis ml-1">/100</span>
-          <v-chip
-            class="ml-3"
-            :color="chipColor"
-            size="small"
-            variant="flat"
-          >
-            {{ dataHealthReport.rating }}
-          </v-chip>
-        </div>
-      </div>
-
-      <!-- Circular Gauge & Toggle -->
-      <div class="d-flex flex-column align-center">
-        <svg height="80" viewBox="0 0 80 80" width="80">
-          <circle
-            cx="40"
-            cy="40"
-            fill="none"
-            r="32"
-            stroke="#e0e0e0"
-            stroke-width="8"
-          />
-          <circle
-            cx="40"
-            cy="40"
-            fill="none"
-            r="32"
-            :stroke="gaugeColor"
-            stroke-linecap="round"
-            stroke-width="8"
-            :style="{
-              strokeDasharray: circumference,
-              strokeDashoffset: animatedLegacyOffset,
-              transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1)'
-            }"
-            transform="rotate(-90 40 40)"
-          />
-          <text
-            class="gauge-text"
-            :fill="gaugeColor"
-            text-anchor="middle"
-            x="40"
-            y="45"
-          >
-            {{ dataHealthReport.score }}
-          </text>
-        </svg>
-
-        <v-btn
-          size="x-small"
-          variant="text"
-          @click="showDetails = !showDetails"
-        >
-          {{ showDetails ? 'Hide' : 'Details' }}
-          <v-icon
-            end
-            :icon="showDetails ? 'mdi-chevron-up' : 'mdi-chevron-down'"
-            size="small"
-          />
-        </v-btn>
-      </div>
-    </div>
-
-    <!-- Collapsible Details Section -->
-    <v-expand-transition>
-      <div v-show="showDetails">
-        <v-divider class="mb-3" />
-
-        <p class="text-body-2 text-medium-emphasis mb-0">
-          {{ dataHealthReport.explanation }}
-        </p>
-
-        <!-- Low Score Warning -->
-        <v-alert
-          v-if="dataHealthReport.score <= 30"
-          class="mt-3"
-          color="warning"
-          density="compact"
-          icon="mdi-alert-circle"
-          variant="tonal"
-        >
-          <div class="text-body-2">
-            <strong>Why is the forecast flat?</strong>
-            <br>
-            A low score means your data does not have a clear, repeatable pattern that the models can latch onto. This often happens with very volatile or sparse data. The forecast falls back to a simple average, which is the safest guess when patterns are unclear.
-          </div>
-        </v-alert>
-
-        <!-- Dual Metrics Display -->
-        <div class="mt-3">
-          <div
-            v-if="dataHealthReport.mse_naive !== undefined && dataHealthReport.mse_winner !== undefined"
-            class="mt-3"
-          >
-            <div class="d-flex align-center gap-1 mb-2">
-              <span class="text-caption text-medium-emphasis">How the score is calculated</span>
-              <v-tooltip location="top" max-width="320">
-                <template #activator="{ props: tip }">
-                  <v-icon v-bind="tip" class="text-medium-emphasis" size="14">mdi-information-outline</v-icon>
-                </template>
-                <span>
-                  The score compares the winning model's accuracy against a simple "flat line" baseline.
-                  A score of 100 means the model predicts perfectly; 0 means it did no better than the baseline.
-                </span>
-              </v-tooltip>
-            </div>
-            <div class="d-flex gap-3">
-              <v-card class="flex-1 pa-3" color="surface" variant="outlined">
-                <div class="text-caption text-medium-emphasis">Simple Baseline Error</div>
-                <div class="text-h6 font-weight-bold font-mono text-error">
-                  {{ formatMse(dataHealthReport.mse_naive) }}
-                </div>
-                <div class="text-caption text-medium-emphasis mt-1">Guessing the average every time</div>
-              </v-card>
-              <v-card class="flex-1 pa-3" color="surface" variant="outlined">
-                <div class="text-caption text-medium-emphasis">Winner Model Error</div>
-                <div class="text-h6 font-weight-bold font-mono text-success">
-                  {{ formatMse(dataHealthReport.mse_winner) }}
-                </div>
-                <div class="text-caption text-medium-emphasis mt-1">{{ dataHealthReport.winner_name }}</div>
-              </v-card>
-            </div>
-            <v-progress-linear
-              class="mt-3"
-              color="primary"
-              height="6"
-              :model-value="dataHealthReport.score"
-              rounded
-            />
-            <div class="text-caption text-medium-emphasis mt-1">
-              The winner reduced the prediction error by
-              <strong>{{ formatNumber(dataHealthReport.score, { suffix: '%' }) }}</strong>
-              compared with simply guessing the historical average.
-            </div>
-          </div>
-        </div>
-      </div>
-    </v-expand-transition>
-  </v-card>
 </template>
 
 <script setup lang="ts">
@@ -318,8 +106,6 @@
     dataHealthReport: DataHealthReport | null
     mode?: 'hero' | 'compact' | 'legacy'
   }>()
-
-  const showDetails = ref(false)
 
   function formatMse (val: number | undefined | null) {
     return formatNumber(val)
@@ -379,37 +165,13 @@
     return heroCircumference * (1 - progress)
   })
 
-  // Legacy gauge calculations (r=32)
-  const radius = 32
-  const circumference = 2 * Math.PI * radius
-
-  const progressOffset = computed(() => {
-    if (!props.dataHealthReport) return circumference
-    const progress = props.dataHealthReport.score / 100
-    return circumference * (1 - progress)
-  })
-
-  // Compact gauge calculations (r=19)
-  const radiusCompact = 19
-  const circumferenceCompact = 2 * Math.PI * radiusCompact
-
-  const progressOffsetCompact = computed(() => {
-    if (!props.dataHealthReport) return circumferenceCompact
-    const progress = props.dataHealthReport.score / 100
-    return circumferenceCompact * (1 - progress)
-  })
-
   // Animated gauge offsets (start empty, animate to target)
   const animatedHeroOffset = ref(heroCircumference)
-  const animatedLegacyOffset = ref(circumference)
-  const animatedCompactOffset = ref(circumferenceCompact)
 
   onMounted(async () => {
     await nextTick()
     if (props.dataHealthReport) {
       animatedHeroOffset.value = heroProgressOffset.value
-      animatedLegacyOffset.value = progressOffset.value
-      animatedCompactOffset.value = progressOffsetCompact.value
     }
   })
 </script>
@@ -419,7 +181,6 @@
     font-family: 'JetBrains Mono', 'Roboto Mono', monospace;
   }
 
-  /* ─── Hero Banner ─── */
   .hero-score-banner {
     width: 100%;
     padding: 28px 36px;
@@ -500,13 +261,6 @@
     .hero-gauge {
       display: none;
     }
-  }
-
-  /* ─── Legacy Gauge ─── */
-  .gauge-text {
-    font-size: 18px;
-    font-weight: bold;
-    font-family: 'Roboto', sans-serif;
   }
 
   .gap-3 {

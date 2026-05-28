@@ -329,7 +329,6 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
-  import { useAppStore } from '@/stores/app'
   import { useForecastStore } from '@/stores/forecast'
   import { formatMetric, formatNumber } from '@/utils/formatters'
   import BacktestChart from './BacktestChart.vue'
@@ -349,7 +348,6 @@
   })
 
   const store = useForecastStore()
-  const appStore = useAppStore()
   const isAlternativeUi = import.meta.env.VITE_ALTERNATIVE_UI === 'true'
 
   // Data Cleaning Logic
@@ -520,43 +518,6 @@
     return formatMetric(metric.value, metric.name)
   }
 
-  function formatDate (val: any) {
-    if (val === undefined || val === null) return 'N/A'
-    if (typeof val === 'number' && val > 1700 && val < 2500) {
-      return val.toString()
-    }
-    const date = new Date(val)
-    if (Number.isNaN(date.getTime())) return 'Invalid Date'
-
-    if (store.ontology?.problem.granularity.unit === 'year') {
-      return date.getFullYear().toString()
-    }
-
-    return date.toLocaleDateString()
-  }
-
-  function formatValue (val: any) {
-    return formatNumber(val)
-  }
-
-  async function copyForecastTable () {
-    const timeCol = store.timeCol
-    const headers = ['Date', 'Lower (80%)', 'Median', 'Upper (80%)']
-    const rows = store.forecastResults.map((row: any) => [
-      row.date || row.year || row[timeCol],
-      row.conf_80_lower ?? row.lower ?? '',
-      row.median_forecast ?? row.mean ?? row[store.targetCol] ?? '',
-      row.conf_80_upper ?? row.upper ?? '',
-    ])
-    const csv = [headers.join('\t'), ...rows.map(r => r.join('\t'))].join('\n')
-    try {
-      await navigator.clipboard.writeText(csv)
-      appStore.notify('Forecast data copied to clipboard', 'success')
-    } catch {
-      appStore.notify('Failed to copy data', 'error')
-    }
-  }
-
   onMounted(async () => {
     if (store.file && (store.file.type.includes('csv') || store.file.name.endsWith('.csv'))) {
       try {
@@ -592,24 +553,6 @@
     }
   })
 
-  function downloadForecastCSV () {
-    const timeCol = store.timeCol
-    const headers = ['Date', 'Lower (80%)', 'Median', 'Upper (80%)']
-    const rows = store.forecastResults.map((row: any) => [
-      row.date || row.year || row[timeCol],
-      row.conf_80_lower ?? row.lower ?? '',
-      row.median_forecast ?? row.mean ?? row[store.targetCol] ?? '',
-      row.conf_80_upper ?? row.upper ?? '',
-    ])
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `forecast_data_${new Date().toISOString().split('T')[0]}.csv`
-    link.click()
-    URL.revokeObjectURL(url)
-  }
 </script>
 
 <style scoped>
@@ -806,11 +749,4 @@
   filter: grayscale(0.5);
 }
 
-.value-row {
-  display: flex;
-  align-items: baseline;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 </style>

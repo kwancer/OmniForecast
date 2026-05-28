@@ -41,6 +41,10 @@ frontend/yarn-error.log*
 # IDEs
 .vscode/
 !.vscode/settings.json
+!.vscode/launch.json
 .idea/
+
+# Generated files
+frontend/.eslintrc-auto-import.json
 *.swp
 *.swo
