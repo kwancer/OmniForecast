@@ -509,7 +509,7 @@
     }
   }
 
-  // ─── Value helpers (ported from FutureDataGrid) ───
+  // ─── Value helpers ───
 
   function getLastKnownValue (colName: string): number {
     let raw: any

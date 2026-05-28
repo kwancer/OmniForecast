@@ -38,7 +38,7 @@ export interface Constraints {
   min_value?: number | null
   max_value?: number | null
   allowed_classes?: string[]
-  sparsity_ratio?: number | null // Critical for the DataXRay component
+  sparsity_ratio?: number | null
 }
 
 export interface ColumnOntology {
